@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Firmar Documento - Raloy</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 100%; max-width: 500px; text-align: center; }
+        h2 { color: #333; font-size: 1.5rem; }
+        p { color: #666; font-size: 0.9rem; margin-bottom: 20px;}
+        /* Contenedor del Canvas para que sea responsivo */
+        .canvas-container { border: 2px dashed #0056b3; background-color: #f9f9f9; border-radius: 8px; margin-bottom: 20px; position: relative; width: 100%; height: 250px; touch-action: none; /* Evita que el celular haga scroll al dibujar */ }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; }
+        .btn-group { display: flex; justify-content: space-between; gap: 10px; }
+        button { padding: 12px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1rem; }
+        .btn-limpiar { background-color: #e0e0e0; color: #333; }
+        .btn-firmar { background-color: #0056b3; color: white; }
+        .btn-firmar:disabled { background-color: #a0c4e8; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Firma Digital Raloy</h2>
+    <p>Hola <strong>{{ nombre_firmante }}</strong> ({{ email_firmante }}). Dibuja tu firma en el recuadro inferior para certificar el documento.</p>
+
+    <div class="canvas-container">
+        <canvas id="pizarra"></canvas>
+    </div>
+
+    <div class="btn-group">
+        <button class="btn-limpiar" onclick="limpiarCanvas()">Limpiar</button>
+        <button class="btn-firmar" id="btnFirmar" onclick="enviarFirma()">Aceptar y Firmar</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('pizarra');
+    const ctx = canvas.getContext('2d');
+    const btnFirmar = document.getElementById('btnFirmar');
+    let dibujando = false;
+    let haDibujado = false;
+
+    // Ajustar resolución del canvas para pantallas de alta densidad (Retina/Mobile)
+    function redimensionarCanvas() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#000080'; // Color azul oscuro para la firma
+    }
+    window.addEventListener('resize', redimensionarCanvas);
+    redimensionarCanvas();
+
+    // Eventos Mouse (PC)
+    canvas.addEventListener('mousedown', iniciarDibujo);
+    canvas.addEventListener('mousemove', dibujar);
+    canvas.addEventListener('mouseup', detenerDibujo);
+    canvas.addEventListener('mouseout', detenerDibujo);
+
+    // Eventos Touch (Móviles)
+    canvas.addEventListener('touchstart', (e) => { e.preventDefault(); iniciarDibujo(e.touches[0]); });
+    canvas.addEventListener('touchmove', (e) => { e.preventDefault(); dibujar(e.touches[0]); });
+    canvas.addEventListener('touchend', detenerDibujo);
+
+    function iniciarDibujo(e) {
+        dibujando = true;
+        ctx.beginPath();
+        const rect = canvas.getBoundingClientRect();
+        ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    }
+
+    function dibujar(e) {
+        if (!dibujando) return;
+        const rect = canvas.getBoundingClientRect();
+        ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+        ctx.stroke();
+        haDibujado = true;
+    }
+
+    function detenerDibujo() {
+        dibujando = false;
+    }
+
+    function limpiarCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        haDibujado = false;
+    }
+
+    function enviarFirma() {
+        if (!haDibujado) {
+            alert("Por favor, dibuja tu firma antes de continuar.");
+            return;
+        }
+
+        btnFirmar.disabled = true;
+        btnFirmar.innerText = "Procesando...";
+
+        const dataBase64 = canvas.toDataURL('image/png'); // Fondo transparente
+
+        fetch('/api/procesar/{{ token }}/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}' // Seguridad nativa de Django
+            },
+            body: JSON.stringify({ firma_base64: dataBase64 })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if(data.status === 'success') {
+                document.querySelector('.card').innerHTML = `
+                    <h2 style="color: green;">¡Firma Registrada!</h2>
+                    <p>Gracias por firmar. Puedes cerrar esta ventana.</p>`;
+            } else {
+                alert("Ocurrió un error: " + data.error);
+                btnFirmar.disabled = false;
+                btnFirmar.innerText = "Aceptar y Firmar";
+            }
+        });
+    }
+</script>
+</body>
+</html>
