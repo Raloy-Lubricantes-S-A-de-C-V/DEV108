@@ -2,7 +2,7 @@ import os
 import json
 import requests
 import traceback
-import re  # NUEVO: Importamos el motor de Expresiones Regulares
+import re
 from django.conf import settings
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404
@@ -27,51 +27,45 @@ def recibir_documento_n8n(request):
             ref_id = data['reference_id']
             firmantes = data['firmantes']
 
-            # =========================================================
-            # MAGIA NUEVA: Auto-incremento de reference_id si está ocupado
-            # =========================================================
-            original_ref_id = ref_id
+            # Extraemos los nuevos campos de visualización enviados desde n8n
+            view_info = data.get('view_info', 'file')
+            summary_data = data.get('summary_data', {})
 
-            # Buscamos si el ID termina en un guion seguido de números (ej. "CONTRATO-006")
+            original_ref_id = ref_id
             match = re.search(r'^(.*?-)(\d+)$', ref_id)
 
             if match:
-                base_name = match.group(1)  # Ej. "CONTRATO-RALOY-2026-"
-                num_str = match.group(2)  # Ej. "006"
-                num_len = len(num_str)  # Para mantener el formato (3 dígitos)
+                base_name = match.group(1)
+                num_str = match.group(2)
+                num_len = len(num_str)
                 current_num = int(num_str)
 
-                # Ciclo: Mientras el ID exista en Mongo, súmale 1 y vuelve a armarlo
                 while ProcesoFirma.objects.filter(reference_id=ref_id).exists():
                     current_num += 1
                     ref_id = f"{base_name}{str(current_num).zfill(num_len)}"
             else:
-                # Si el ID no tenía números al final (ej. "CONTRATO-RALOY"),
-                # le agregamos "-1", "-2" secuencialmente
                 counter = 1
                 while ProcesoFirma.objects.filter(reference_id=ref_id).exists():
                     ref_id = f"{original_ref_id}-{counter}"
                     counter += 1
-            # =========================================================
 
-            # BLINDAJE: Asegurar que el directorio media/ exista
             os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
 
-            # Guardar PDF temporalmente en el servidor usando el NUEVO ref_id validado
             file_path = os.path.join(settings.MEDIA_ROOT, f"{ref_id}.pdf")
             with open(file_path, 'wb+') as destination:
                 for chunk in pdf_file.chunks():
                     destination.write(chunk)
 
-            # Crear registro en la base de datos (MongoDB) con el folio validado
+            # Creamos el registro incluyendo view_info y summary_data
             proceso = ProcesoFirma.objects.create(
                 reference_id=ref_id,
                 pdf_path=file_path,
                 firmantes=firmantes,
-                indice_actual=1
+                indice_actual=1,
+                view_info=view_info,
+                summary_data=summary_data
             )
 
-            # Notificar a n8n que envíe el correo al PRIMER firmante
             primer_firmante = firmantes[0]
             link_firma = f"https://testapppjb0001.raloy.com.mx/firmar/{proceso.token_acceso}/"
 
@@ -82,7 +76,6 @@ def recibir_documento_n8n(request):
                 "mensaje": f"Raloy solicita tu firma electrónica para el documento {ref_id}."
             })
 
-            # Devolvemos a n8n el ID final que se le asignó (por si quieres guardarlo en un log)
             return JsonResponse({
                 "status": "success",
                 "msg": "Documento recibido y flujo iniciado.",
@@ -107,10 +100,17 @@ def vista_firma_ui(request, token):
 
     firmante_actual = proceso.firmantes[proceso.indice_actual - 1]
 
+    # Construimos la URL pública del PDF para el iframe
+    filename = os.path.basename(proceso.pdf_path)
+    pdf_url = f"{settings.MEDIA_URL}{filename}"
+
     context = {
         'token': token,
         'nombre_firmante': firmante_actual.get('nombre', 'Firmante'),
-        'email_firmante': firmante_actual.get('email', '')
+        'email_firmante': firmante_actual.get('email', ''),
+        'view_info': proceso.view_info,
+        'summary_data': proceso.summary_data,
+        'pdf_url': pdf_url
     }
     return render(request, 'motor_firmas/firma_ui.html', context)
 
@@ -129,7 +129,6 @@ def procesar_firma(request, token):
         firmante_actual = proceso.firmantes[proceso.indice_actual - 1]
 
         try:
-            # 1. Inyectar firma en el PDF
             estampar_firma_en_pdf(
                 proceso.pdf_path,
                 firma_b64,
@@ -139,7 +138,6 @@ def procesar_firma(request, token):
                 ip_user
             )
 
-            # 2. Evaluar si faltan más personas por firmar
             if proceso.indice_actual < len(proceso.firmantes):
                 proceso.indice_actual += 1
                 proceso.save()
@@ -147,7 +145,6 @@ def procesar_firma(request, token):
                 siguiente_firmante = proceso.firmantes[proceso.indice_actual - 1]
                 link_firma = f"https://testapppjb0001.raloy.com.mx/firmar/{proceso.token_acceso}/"
 
-                # Avisar a n8n que mande el correo al SIGUIENTE firmante
                 requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO, json={
                     "email": siguiente_firmante['email'],
                     "nombre": siguiente_firmante['nombre'],
@@ -158,14 +155,11 @@ def procesar_firma(request, token):
                 return JsonResponse({"status": "success", "msg": "Firma guardada. Se notificó al siguiente firmante."})
 
             else:
-                # 3. Flujo Terminado: Ya firmaron todos.
                 proceso.status = 'COMPLETED'
                 proceso.save()
 
-                # Extraer todos los correos del JSON y unirlos con comas
                 correos_destino = ",".join([f['email'] for f in proceso.firmantes])
 
-                # Abrimos el PDF final y hacemos POST a n8n (Workflow 3)
                 with open(proceso.pdf_path, 'rb') as f:
                     requests.post(N8N_WEBHOOK_FINALIZAR_PROCESO,
                                   data={
@@ -173,7 +167,6 @@ def procesar_firma(request, token):
                                       "status": "COMPLETED",
                                       "correos_destino": correos_destino
                                   },
-                                  # Forzamos nombre y mimetype para que n8n lo tome como Binario
                                   files={
                                       "pdf_final": (f"{proceso.reference_id}_CERTIFICADO.pdf", f, "application/pdf")})
 
