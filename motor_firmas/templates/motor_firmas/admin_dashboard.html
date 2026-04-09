@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel de Administración - Raloy</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background-color: #ecf0f1; margin: 0; padding: 20px; }
+        .topbar { background: #2c3e50; color: white; padding: 15px 30px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;}
+        .topbar h1 { margin: 0; font-size: 1.5rem; }
+        .btn-logout { background: #e74c3c; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; }
+
+        .grid-layout { display: grid; grid-template-columns: 3fr 1fr; gap: 20px; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .card h3 { margin-top: 0; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+
+        /* Controles de filtro */
+        .controls { display: flex; gap: 15px; margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 5px; align-items: flex-end;}
+        .control-group { display: flex; flex-direction: column; flex: 1; }
+        .control-group label { font-size: 0.85rem; font-weight: bold; margin-bottom: 5px; color: #555;}
+        .control-group select, .control-group input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        .btn-action { background: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;}
+        .btn-save { background: #27ae60; }
+
+        /* Tabla */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; color: #333; }
+        .group-header { background: #34495e; color: white; font-weight: bold; }
+
+        /* Badges */
+        .badge { padding: 5px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
+        .bg-processing { background: #f1c40f; color: #8a6d3b; }
+        .bg-completed { background: #2ecc71; color: white; }
+        .bg-cancelled { background: #e74c3c; color: white; }
+
+        .btn-cancelar { color: #e74c3c; cursor: pointer; text-decoration: underline; background: none; border: none; font-weight:bold; }
+        .btn-traz { color: #3498db; text-decoration: none; font-weight: bold; margin-right: 10px;}
+
+        /* Formularios laterales */
+        .side-input { width: 100%; padding: 10px; box-sizing: border-box; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px;}
+        .side-btn { width: 100%; padding: 10px; border: none; border-radius: 4px; color: white; font-weight: bold; cursor: pointer; background: #34495e;}
+    </style>
+</head>
+<body>
+
+<div class="topbar">
+    <h1>Panel de Administración Global</h1>
+    <div>
+        <span style="margin-right: 15px;">Admin: <strong>{{ admin_email }}</strong></span>
+        <a href="{% url 'admin_logout' %}" class="btn-logout">Cerrar Sesión</a>
+    </div>
+</div>
+
+<div class="grid-layout">
+    <div>
+        <div class="card">
+            <h3>Visor de Documentos</h3>
+
+            <div class="controls">
+                <div class="control-group">
+                    <label>Agrupar por:</label>
+                    <select id="selGroup">
+                        <option value="none">Sin agrupación</option>
+                        <option value="dominio">Dominio Empresarial</option>
+                        <option value="owner_email">Usuario Específico (Dueño)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Filtrar por Dominio:</label>
+                    <select id="filDominio"><option value="all">Todos</option></select>
+                </div>
+                <div class="control-group">
+                    <label>Fecha Desde:</label>
+                    <input type="date" id="filFechaIni">
+                </div>
+                <div class="control-group">
+                    <label>Fecha Hasta:</label>
+                    <input type="date" id="filFechaFin">
+                </div>
+                <button class="btn-action btn-save" onclick="guardarDiseno()">Guardar Diseño</button>
+            </div>
+
+            <table id="docTable">
+                <thead>
+                    <tr>
+                        <th>Folio</th>
+                        <th>Creador</th>
+                        <th>Dominio</th>
+                        <th>Fecha Creación</th>
+                        <th>Progreso</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div>
+        <div class="card">
+            <h3>Invitar a Registro de Firma</h3>
+            <p style="font-size: 0.85rem; color:#666;">Envía la liga para generar PIN a un colaborador o proveedor.</p>
+            <input type="email" id="invMail" class="side-input" placeholder="correo@ejemplo.com">
+            <button class="side-btn" onclick="ejecutarAccion('invitar_registro', {email: document.getElementById('invMail').value})">Enviar Invitación</button>
+        </div>
+
+        <div class="card">
+            <h3>Agregar Nuevo Administrador</h3>
+            <p style="font-size: 0.85rem; color:#666;">Cualquier usuario invitado podrá usar su mismo PIN para entrar a este portal.</p>
+            <input type="email" id="addAdminMail" class="side-input" placeholder="nuevo.admin@raloy.com.mx">
+            <button class="side-btn" onclick="ejecutarAccion('agregar_admin', {email: document.getElementById('addAdminMail').value})" style="background: #27ae60;">Otorgar Privilegios</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Data inyectada desde Django
+    const rawData = {{ docs_json|safe }};
+    const savedConfig = {{ saved_config|safe }};
+
+    const tableBody = document.getElementById('tableBody');
+    const selGroup = document.getElementById('selGroup');
+    const filDominio = document.getElementById('filDominio');
+    const filFechaIni = document.getElementById('filFechaIni');
+    const filFechaFin = document.getElementById('filFechaFin');
+
+    // Inicialización
+    function init() {
+        // Llenar combo de dominios únicos
+        const dominios = [...new Set(rawData.map(d => d.dominio))];
+        dominios.forEach(dom => {
+            const opt = document.createElement('option'); opt.value = dom; opt.innerText = dom;
+            filDominio.appendChild(opt);
+        });
+
+        // Aplicar configuración guardada si existe
+        if(savedConfig.group) selGroup.value = savedConfig.group;
+        if(savedConfig.filDominio) filDominio.value = savedConfig.filDominio;
+        if(savedConfig.filFechaIni) filFechaIni.value = savedConfig.filFechaIni;
+        if(savedConfig.filFechaFin) filFechaFin.value = savedConfig.filFechaFin;
+
+        // Escuchar cambios
+        [selGroup, filDominio, filFechaIni, filFechaFin].forEach(el => el.addEventListener('change', renderTable));
+
+        renderTable();
+    }
+
+    function renderTable() {
+        let docs = [...rawData];
+
+        // 1. Filtrar
+        const fDom = filDominio.value;
+        const fIni = filFechaIni.value;
+        const fFin = filFechaFin.value;
+
+        if(fDom !== 'all') docs = docs.filter(d => d.dominio === fDom);
+        if(fIni) docs = docs.filter(d => d.fecha.split(' ')[0] >= fIni);
+        if(fFin) docs = docs.filter(d => d.fecha.split(' ')[0] <= fFin);
+
+        // 2. Agrupar y Renderizar
+        tableBody.innerHTML = '';
+        const groupProp = selGroup.value;
+
+        if (groupProp === 'none') {
+            docs.forEach(doc => tableBody.appendChild(crearFila(doc)));
+        } else {
+            // Lógica de Agrupación
+            const groups = {};
+            docs.forEach(d => {
+                const key = d[groupProp];
+                if(!groups[key]) groups[key] = [];
+                groups[key].push(d);
+            });
+
+            for (const [groupName, items] of Object.entries(groups)) {
+                const trGroup = document.createElement('tr');
+                trGroup.className = 'group-header';
+                trGroup.innerHTML = `<td colspan="7">Agrupación: ${groupName} (${items.length} documentos)</td>`;
+                tableBody.appendChild(trGroup);
+
+                items.forEach(doc => tableBody.appendChild(crearFila(doc)));
+            }
+        }
+    }
+
+    function crearFila(doc) {
+        const tr = document.createElement('tr');
+
+        // Colores de estado
+        let badgeClass = 'bg-processing'; let statusText = 'En Proceso';
+        if(doc.status === 'COMPLETED') { badgeClass = 'bg-completed'; statusText = 'Completado'; }
+        if(doc.status === 'CANCELLED') { badgeClass = 'bg-cancelled'; statusText = 'Cancelado'; }
+
+        // Botón Cancelar (Solo si no está cancelado ni completado)
+        let cancelBtn = '';
+        if(doc.status === 'PROCESSING') {
+            cancelBtn = `<button class="btn-cancelar" onclick="cancelarDoc('${doc.token}')">X Cancelar</button>`;
+        }
+
+        tr.innerHTML = `
+            <td><strong>${doc.reference_id}</strong></td>
+            <td>${doc.owner_email}</td>
+            <td>${doc.dominio}</td>
+            <td>${doc.fecha}</td>
+            <td>${doc.progreso} Firmas</td>
+            <td><span class="badge ${badgeClass}">${statusText}</span></td>
+            <td>
+                <a href="/trazabilidad/${doc.token}/" target="_blank" class="btn-traz">Ver Trazabilidad</a>
+                ${cancelBtn}
+            </td>
+        `;
+        return tr;
+    }
+
+    // --- ACCIONES AL BACKEND ---
+
+    function cancelarDoc(token) {
+        if(confirm("ATENCIÓN: Cancelar el documento bloqueará la recolección de firmas de forma permanente. ¿Deseas continuar?")) {
+            ejecutarAccion('cancelar_doc', { token: token }).then(() => {
+                // Actualizar la lista en vivo
+                const obj = rawData.find(d => d.token === token);
+                if(obj) obj.status = 'CANCELLED';
+                renderTable();
+            });
+        }
+    }
+
+    function guardarDiseno() {
+        const config = {
+            group: selGroup.value,
+            filDominio: filDominio.value,
+            filFechaIni: filFechaIni.value,
+            filFechaFin: filFechaFin.value
+        };
+        ejecutarAccion('guardar_config', { configuracion: config });
+    }
+
+    function ejecutarAccion(accion, payload) {
+        return fetch(`/api/admin-action/${accion}/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(r => r.json())
+        .then(data => {
+            if(data.status === 'success') { alert(data.msg); return true; }
+            else { alert("Error: " + data.error); throw new Error(); }
+        });
+    }
+
+    // Arrancar el Dashboard
+    init();
+</script>
+</body>
+</html>

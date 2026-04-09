@@ -5,59 +5,44 @@ from datetime import timedelta
 import uuid
 import random
 
-# Create your models here.
-
 class ProcesoFirma(models.Model):
-    """
-    Controla el estado del documento y la secuencia de quién debe firmar.
-    """
     reference_id = models.CharField(max_length=100, unique=True)
-    token_acceso = models.UUIDField(default=uuid.uuid4, editable=False)  # Token único para la URL pública
-    pdf_path = models.CharField(max_length=500)  # Ruta local del archivo PDF
-    firmantes = models.JSONField()  # Lista de dicts: [{'nombre': 'Juan', 'email': 'j@j.com'}, ...]
-    indice_actual = models.IntegerField(default=1)  # Empieza en 1 (Para {{FIRMA_1}})
-    status = models.CharField(max_length=50, default='PROCESSING')  # PROCESSING, COMPLETED
+    token_acceso = models.UUIDField(default=uuid.uuid4, editable=False)
+    pdf_path = models.CharField(max_length=500)
+    firmantes = models.JSONField()
+    indice_actual = models.IntegerField(default=1)
+    status = models.CharField(max_length=50, default='PROCESSING') # PROCESSING, COMPLETED, CANCELLED
 
-    view_info = models.CharField(max_length=20, default='file')  # 'file' o 'summary'
-    summary_data = models.JSONField(null=True, blank=True)  # Guardará el JSON con 'contexto' e 'intencion'
+    view_info = models.CharField(max_length=20, default='file')
+    summary_data = models.JSONField(null=True, blank=True)
 
-    # --- NUEVOS CAMPOS PARA TRAZABILIDAD ---
-    owner_email = models.CharField(max_length=200, null=True, blank=True)  # Correo del dueño
-    created_at = models.DateTimeField(default=timezone.now)  # Fecha de envío original
+    owner_email = models.CharField(max_length=200, null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
         return f"{self.reference_id} - {self.status}"
 
-
 class DirectorioFirmas(models.Model):
-    """
-    Banco de firmas de colaboradores internos de Raloy.
-    """
     nombre = models.CharField(max_length=200)
     email = models.EmailField(unique=True)
     puesto = models.CharField(max_length=200)
     iniciales = models.CharField(max_length=10)
-    firma_base64 = models.TextField()  # El dibujo en base64
-    pin_hash = models.CharField(max_length=255)  # PIN ENCRIPTADO (Nadie lo puede ver)
+    firma_base64 = models.TextField()
+    pin_hash = models.CharField(max_length=255)
 
-    # Legal y auditoría
     acepto_terminos = models.BooleanField(default=False)
     fecha_registro = models.DateTimeField(default=timezone.now)
 
-    # Recuperación de PIN
     reset_token = models.UUIDField(null=True, blank=True)
     reset_token_expires = models.DateTimeField(null=True, blank=True)
 
     def set_pin(self, raw_pin):
-        """Encripta el PIN antes de guardarlo"""
         self.pin_hash = make_password(raw_pin)
 
     def check_pin(self, raw_pin):
-        """Comprueba si el PIN ingresado coincide matemáticamente con el hash"""
         return check_password(raw_pin, self.pin_hash)
 
     def generar_token_recuperacion(self):
-        """Genera un token de 1 hora para recuperar el PIN"""
         self.reset_token = uuid.uuid4()
         self.reset_token_expires = timezone.now() + timedelta(hours=1)
         self.save()
@@ -65,18 +50,14 @@ class DirectorioFirmas(models.Model):
     def __str__(self):
         return f"{self.nombre} ({self.email})"
 
-
 class OTPLogin(models.Model):
-    """
-    Gestiona los PIN temporales para acceder al portal de documentos.
-    """
     email = models.EmailField(unique=True)
     otp_code = models.CharField(max_length=6)
     expires_at = models.DateTimeField()
 
     def generar_otp(self):
         self.otp_code = str(random.randint(100000, 999999))
-        self.expires_at = timezone.now() + timedelta(minutes=15)  # Dura 15 minutos
+        self.expires_at = timezone.now() + timedelta(minutes=15)
         self.save()
 
     def es_valido(self, code_ingresado):
@@ -84,3 +65,12 @@ class OTPLogin(models.Model):
 
     def __str__(self):
         return f"OTP para {self.email}"
+
+# --- NUEVO MODELO PARA ADMINISTRADORES ---
+class AdministradorPortal(models.Model):
+    """Controla el acceso al portal de administradores y guarda sus preferencias de vista"""
+    email = models.EmailField(unique=True)
+    configuracion_dashboard = models.JSONField(default=dict, blank=True) # Guarda los filtros y agrupaciones
+
+    def __str__(self):
+        return self.email

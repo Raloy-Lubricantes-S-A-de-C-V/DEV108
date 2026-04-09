@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Acceso Administrador - Raloy</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #2c3e50; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 10px 20px rgba(0,0,0,0.3); width: 100%; max-width: 400px; text-align: center; }
+        h2 { color: #2c3e50; margin-top: 0; }
+        input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; margin-bottom: 15px;}
+        .btn-submit { background-color: #e74c3c; color: white; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1.1rem; }
+        .btn-otp { background-color: transparent; color: #666; border: 1px solid #ccc; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%; margin-top: 15px; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h2>Control de Administradores</h2>
+    <p style="color: #666; font-size: 0.9rem;">Acceso restringido. Ingresa tus credenciales.</p>
+    <input type="email" id="email" placeholder="Correo Administrativo" required>
+    <input type="password" id="pin" placeholder="PIN de Seguridad" required>
+    <button class="btn-submit" id="btnLogin" onclick="iniciarSesion()">Ingresar al Panel</button>
+    <button class="btn-otp" id="btnOtp" onclick="pedirOTP()">Enviar PIN Temporal por Correo</button>
+</div>
+
+<script>
+    function iniciarSesion() {
+        const email = document.getElementById('email').value;
+        const pin = document.getElementById('pin').value;
+        const btn = document.getElementById('btnLogin');
+        btn.disabled = true; btn.innerText = "Verificando...";
+
+        fetch('{% url "admin_login" %}', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email, pin: pin })
+        }).then(r => r.json()).then(data => {
+            if(data.status === 'success') window.location.href = "{% url 'admin_dashboard' %}";
+            else { alert(data.error); btn.disabled = false; btn.innerText = "Ingresar al Panel"; }
+        });
+    }
+
+    function pedirOTP() {
+        const email = document.getElementById('email').value;
+        if(!email) return alert("Ingresa tu correo.");
+        const btn = document.getElementById('btnOtp');
+        btn.disabled = true; btn.innerText = "Enviando...";
+
+        fetch('{% url "solicitar_otp" %}', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email })
+        }).then(r => r.json()).then(data => {
+            alert(data.msg || data.error);
+            btn.innerText = "PIN Temporal Enviado";
+        });
+    }
+</script>
+</body>
+</html>

@@ -12,9 +12,15 @@ urlpatterns = [
     path('api/solicitar-recuperacion/', views.solicitar_recuperacion, name='solicitar_recuperacion'),
     path('recuperar-pin/<uuid:token>/', views.resetear_pin, name='resetear_pin'),
 
-    # NUEVAS RUTAS DEL PORTAL (DASHBOARD)
+    # RUTAS DEL PORTAL (USUARIOS NORMALES)
     path('portal/', views.portal_login, name='portal_login'),
     path('api/solicitar-otp/', views.solicitar_otp, name='solicitar_otp'),
     path('portal/dashboard/', views.portal_dashboard, name='portal_dashboard'),
     path('portal/logout/', views.portal_logout, name='portal_logout'),
+
+    # NUEVAS RUTAS DEL PORTAL (ADMINISTRADORES)
+    path('admin-portal/', views.admin_login, name='admin_login'),
+    path('admin-portal/dashboard/', views.admin_dashboard, name='admin_dashboard'),
+    path('admin-portal/logout/', views.admin_logout, name='admin_logout'),
+    path('api/admin-action/<str:accion>/', views.admin_api, name='admin_api'),
 ]
