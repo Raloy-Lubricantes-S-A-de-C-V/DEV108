@@ -3,17 +3,19 @@ import json
 import requests
 import traceback
 import re
+from datetime import datetime
 from django.conf import settings
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
 from .models import ProcesoFirma
 from .utils import estampar_firma_en_pdf
 
 # WEBHOOKS DE N8N
 N8N_WEBHOOK_NOTIFICAR_CORREO = "https://n8n.raloy.com.mx/webhook/enviar-correo-firma"
 N8N_WEBHOOK_FINALIZAR_PROCESO = "https://n8n.raloy.com.mx/webhook/subir-pdf-final"
-
+N8N_WEBHOOK_NOTIFICAR_OWNER = "https://n8n.raloy.com.mx/webhook/notificar-owner" # NUEVO WEBHOOK
 
 @csrf_exempt
 def recibir_documento_n8n(request):
@@ -27,9 +29,9 @@ def recibir_documento_n8n(request):
             ref_id = data['reference_id']
             firmantes = data['firmantes']
 
-            # Extraemos los nuevos campos de visualización enviados desde n8n
             view_info = data.get('view_info', 'file')
             summary_data = data.get('summary_data', {})
+            owner_email = data.get('owner', '') # NUEVO: Capturamos al owner
 
             original_ref_id = ref_id
             match = re.search(r'^(.*?-)(\d+)$', ref_id)
@@ -56,16 +58,17 @@ def recibir_documento_n8n(request):
                 for chunk in pdf_file.chunks():
                     destination.write(chunk)
 
-            # Creamos el registro incluyendo view_info y summary_data
             proceso = ProcesoFirma.objects.create(
                 reference_id=ref_id,
                 pdf_path=file_path,
                 firmantes=firmantes,
                 indice_actual=1,
                 view_info=view_info,
-                summary_data=summary_data
+                summary_data=summary_data,
+                owner_email=owner_email
             )
 
+            # --- NOTIFICAR AL PRIMER FIRMANTE ---
             primer_firmante = firmantes[0]
             link_firma = f"https://testapppjb0001.raloy.com.mx/firmar/{proceso.token_acceso}/"
 
@@ -75,6 +78,15 @@ def recibir_documento_n8n(request):
                 "link": link_firma,
                 "mensaje": f"Raloy solicita tu firma electrónica para el documento {ref_id}."
             })
+
+            # --- NUEVO: NOTIFICAR AL DUEÑO (OWNER) ---
+            if owner_email:
+                link_trazabilidad = f"https://testapppjb0001.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
+                requests.post(N8N_WEBHOOK_NOTIFICAR_OWNER, json={
+                    "email": owner_email,
+                    "reference_id": ref_id,
+                    "link": link_trazabilidad
+                })
 
             return JsonResponse({
                 "status": "success",
@@ -89,18 +101,12 @@ def recibir_documento_n8n(request):
 
 
 def vista_firma_ui(request, token):
-    """
-    2. Interfaz web donde el usuario dibuja la firma (Responsive).
-    """
     proceso = get_object_or_404(ProcesoFirma, token_acceso=token)
 
     if proceso.status == 'COMPLETED':
-        return HttpResponse(
-            "<h1>Este documento ya ha sido firmado en su totalidad y asegurado criptográficamente.</h1>")
+        return HttpResponse("<h1>Este documento ya ha sido firmado en su totalidad.</h1>")
 
     firmante_actual = proceso.firmantes[proceso.indice_actual - 1]
-
-    # Construimos la URL pública del PDF para el iframe
     filename = os.path.basename(proceso.pdf_path)
     pdf_url = f"{settings.MEDIA_URL}{filename}"
 
@@ -117,9 +123,6 @@ def vista_firma_ui(request, token):
 
 @csrf_exempt
 def procesar_firma(request, token):
-    """
-    3. Recibe el dibujo, lo estampa y evalúa la secuencia.
-    """
     if request.method == 'POST':
         data = json.loads(request.body)
         firma_b64 = data['firma_base64']
@@ -138,6 +141,10 @@ def procesar_firma(request, token):
                 ip_user
             )
 
+            # NUEVO: Registrar la fecha exacta en la que esta persona firmó
+            # Guardamos el cambio en el JSONField
+            proceso.firmantes[proceso.indice_actual - 1]['fecha_firma'] = timezone.now().strftime("%d/%m/%Y %H:%M:%S")
+
             if proceso.indice_actual < len(proceso.firmantes):
                 proceso.indice_actual += 1
                 proceso.save()
@@ -152,27 +159,40 @@ def procesar_firma(request, token):
                     "mensaje": "Es tu turno de firmar el documento."
                 })
 
-                return JsonResponse({"status": "success", "msg": "Firma guardada. Se notificó al siguiente firmante."})
+                return JsonResponse({"status": "success", "msg": "Firma guardada."})
 
             else:
                 proceso.status = 'COMPLETED'
                 proceso.save()
 
                 correos_destino = ",".join([f['email'] for f in proceso.firmantes])
+                # Añadimos al owner a la lista final de correos para que reciba el PDF
+                if proceso.owner_email:
+                    correos_destino += f",{proceso.owner_email}"
 
                 with open(proceso.pdf_path, 'rb') as f:
                     requests.post(N8N_WEBHOOK_FINALIZAR_PROCESO,
-                                  data={
-                                      "reference_id": proceso.reference_id,
-                                      "status": "COMPLETED",
-                                      "correos_destino": correos_destino
-                                  },
-                                  files={
-                                      "pdf_final": (f"{proceso.reference_id}_CERTIFICADO.pdf", f, "application/pdf")})
+                                  data={"reference_id": proceso.reference_id, "status": "COMPLETED", "correos_destino": correos_destino},
+                                  files={"pdf_final": (f"{proceso.reference_id}_CERTIFICADO.pdf", f, "application/pdf")})
 
                 return JsonResponse({"status": "success", "msg": "Documento finalizado y enviado a n8n."})
 
         except Exception as e:
-            print("--- ERROR EN PROCESAR_FIRMA ---")
             print(traceback.format_exc())
             return JsonResponse({"error": repr(e)}, status=500)
+
+
+# --- NUEVA VISTA: TRAZABILIDAD ---
+def vista_trazabilidad(request, token):
+    """
+    Vista pública para el Owner, muestra el estatus del documento.
+    """
+    proceso = get_object_or_404(ProcesoFirma, token_acceso=token)
+    filename = os.path.basename(proceso.pdf_path)
+    pdf_url = f"{settings.MEDIA_URL}{filename}"
+
+    context = {
+        'proceso': proceso,
+        'pdf_url': pdf_url
+    }
+    return render(request, 'motor_firmas/trazabilidad.html', context)

@@ -1,8 +1,7 @@
 from django.db import models
+from django.utils import timezone
 import uuid
 
-
-# Create your models here.
 
 class ProcesoFirma(models.Model):
     """
@@ -15,9 +14,12 @@ class ProcesoFirma(models.Model):
     indice_actual = models.IntegerField(default=1)  # Empieza en 1 (Para {{FIRMA_1}})
     status = models.CharField(max_length=50, default='PROCESSING')  # PROCESSING, COMPLETED
 
-    # --- NUEVOS CAMPOS ---
     view_info = models.CharField(max_length=20, default='file')  # 'file' o 'summary'
     summary_data = models.JSONField(null=True, blank=True)  # Guardará el JSON con 'contexto' e 'intencion'
+
+    # --- NUEVOS CAMPOS PARA TRAZABILIDAD ---
+    owner_email = models.CharField(max_length=200, null=True, blank=True)  # Correo del dueño
+    created_at = models.DateTimeField(default=timezone.now)  # Fecha de envío original
 
     def __str__(self):
         return f"{self.reference_id} - {self.status}"

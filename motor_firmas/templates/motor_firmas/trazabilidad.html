@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trazabilidad - {{ proceso.reference_id }}</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; display: flex; flex-direction: column; align-items: center; padding: 40px 20px; margin: 0; }
+        .dashboard { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); width: 100%; max-width: 700px; }
+        h2 { color: #0056b3; margin-top: 0; font-size: 1.8rem; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .info-pill { display: inline-block; background-color: #e9ecef; padding: 5px 15px; border-radius: 20px; font-size: 0.9rem; color: #495057; margin-bottom: 20px;}
+
+        /* TIMELINE CSS */
+        .timeline { position: relative; margin: 20px 0; padding: 0; list-style: none; }
+        .timeline::before { content: ''; position: absolute; top: 0; bottom: 0; width: 4px; background: #dee2e6; left: 20px; margin-left: -2px; border-radius: 2px; }
+        .timeline > li { position: relative; margin-bottom: 30px; min-height: 50px; padding-left: 50px; }
+        .timeline-badge { position: absolute; top: 0; left: 8px; width: 24px; height: 24px; border-radius: 50%; background-color: #0056b3; border: 4px solid white; box-shadow: 0 0 0 2px #0056b3; }
+        .timeline-badge.pending { background-color: white; border: 4px solid #dee2e6; box-shadow: none; }
+        .timeline-badge.success { background-color: #28a745; box-shadow: 0 0 0 2px #28a745; }
+        .timeline-panel { padding: 10px 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #eee; }
+        .timeline-title { margin: 0 0 5px 0; font-size: 1.1rem; color: #333; }
+        .timeline-date { font-size: 0.85rem; color: #777; }
+
+        .btn-view { display: inline-block; margin-top: 20px; padding: 12px 25px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; width: 100%; text-align: center; box-sizing: border-box;}
+        .btn-view:hover { background-color: #218838; }
+        iframe { width: 100%; height: 600px; border: 1px solid #ddd; border-radius: 8px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="dashboard">
+    <h2>Trazabilidad del Documento</h2>
+    <div class="info-pill">Folio: <strong>{{ proceso.reference_id }}</strong></div>
+
+    <ul class="timeline">
+        <li>
+            <div class="timeline-badge"></div>
+            <div class="timeline-panel">
+                <h4 class="timeline-title">Documento Generado y Enviado</h4>
+                <div class="timeline-date">{{ proceso.created_at|date:"d/m/Y H:i:s" }}</div>
+            </div>
+        </li>
+
+        {% for firmante in proceso.firmantes %}
+        <li>
+            {% if firmante.fecha_firma %}
+                <div class="timeline-badge success"></div>
+                <div class="timeline-panel" style="border-left: 4px solid #28a745;">
+                    <h4 class="timeline-title">Firma: {{ firmante.nombre }}</h4>
+                    <div class="timeline-date">Firmado el: <strong>{{ firmante.fecha_firma }}</strong></div>
+                    <div style="font-size: 0.85rem; color:#666; margin-top: 5px;">{{ firmante.email }}</div>
+                </div>
+            {% else %}
+                <div class="timeline-badge pending"></div>
+                <div class="timeline-panel" style="border-left: 4px solid #ffc107;">
+                    <h4 class="timeline-title">Pendiente: {{ firmante.nombre }}</h4>
+                    <div class="timeline-date" style="color: #d39e00;">Esperando acción del usuario...</div>
+                </div>
+            {% endif %}
+        </li>
+        {% endfor %}
+
+        <li>
+            {% if proceso.status == 'COMPLETED' %}
+                <div class="timeline-badge success"></div>
+                <div class="timeline-panel" style="background-color: #d4edda; border-color: #c3e6cb;">
+                    <h4 class="timeline-title" style="color: #155724;">Proceso Completado</h4>
+                    <div class="timeline-date" style="color: #155724;">Todas las firmas han sido recolectadas.</div>
+                </div>
+            {% else %}
+                <div class="timeline-badge pending"></div>
+                <div class="timeline-panel">
+                    <h4 class="timeline-title" style="color: #6c757d;">Cierre del Documento</h4>
+                    <div class="timeline-date">A la espera de firmas restantes.</div>
+                </div>
+            {% endif %}
+        </li>
+    </ul>
+
+    {% if proceso.status == 'COMPLETED' %}
+        <h3 style="margin-top: 30px; color: #333;">Documento Certificado</h3>
+        <a href="{{ pdf_url }}" class="btn-view" target="_blank">Abrir PDF en Nueva Pestaña</a>
+        <iframe src="{{ pdf_url }}"></iframe>
+    {% endif %}
+
+</div>
+
+</body>
+</html>
