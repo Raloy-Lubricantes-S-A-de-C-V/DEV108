@@ -14,8 +14,8 @@
         .card h3 { margin-top: 0; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
 
         /* Controles de filtro */
-        .controls { display: flex; gap: 15px; margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 5px; align-items: flex-end;}
-        .control-group { display: flex; flex-direction: column; flex: 1; }
+        .controls { display: flex; gap: 15px; margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 5px; align-items: flex-end; flex-wrap: wrap;}
+        .control-group { display: flex; flex-direction: column; flex: 1; min-width: 150px; }
         .control-group label { font-size: 0.85rem; font-weight: bold; margin-bottom: 5px; color: #555;}
         .control-group select, .control-group input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
         .btn-action { background: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;}
@@ -63,7 +63,12 @@
                         <option value="none">Sin agrupación</option>
                         <option value="dominio">Dominio Empresarial</option>
                         <option value="owner_email">Usuario Específico (Dueño)</option>
+                        <option value="reference_id">Folio de Documento</option>
                     </select>
+                </div>
+                <div class="control-group">
+                    <label>Buscar por Folio:</label>
+                    <input type="text" id="filFolio" placeholder="Ej. CONTRATO-001">
                 </div>
                 <div class="control-group">
                     <label>Filtrar por Dominio:</label>
@@ -77,7 +82,7 @@
                     <label>Fecha Hasta:</label>
                     <input type="date" id="filFechaFin">
                 </div>
-                <button class="btn-action btn-save" onclick="guardarDiseno()">Guardar Diseño</button>
+                <button class="btn-action btn-save" onclick="guardarDiseno()" style="height: 35px; align-self: flex-end;">Guardar Diseño</button>
             </div>
 
             <table id="docTable">
@@ -121,6 +126,7 @@
 
     const tableBody = document.getElementById('tableBody');
     const selGroup = document.getElementById('selGroup');
+    const filFolio = document.getElementById('filFolio');
     const filDominio = document.getElementById('filDominio');
     const filFechaIni = document.getElementById('filFechaIni');
     const filFechaFin = document.getElementById('filFechaFin');
@@ -136,12 +142,16 @@
 
         // Aplicar configuración guardada si existe
         if(savedConfig.group) selGroup.value = savedConfig.group;
+        if(savedConfig.filFolio) filFolio.value = savedConfig.filFolio;
         if(savedConfig.filDominio) filDominio.value = savedConfig.filDominio;
         if(savedConfig.filFechaIni) filFechaIni.value = savedConfig.filFechaIni;
         if(savedConfig.filFechaFin) filFechaFin.value = savedConfig.filFechaFin;
 
         // Escuchar cambios
         [selGroup, filDominio, filFechaIni, filFechaFin].forEach(el => el.addEventListener('change', renderTable));
+
+        // Escuchar cambios en tiempo real mientras se escribe en el folio
+        filFolio.addEventListener('keyup', renderTable);
 
         renderTable();
     }
@@ -150,10 +160,12 @@
         let docs = [...rawData];
 
         // 1. Filtrar
+        const fFolio = filFolio.value.toLowerCase();
         const fDom = filDominio.value;
         const fIni = filFechaIni.value;
         const fFin = filFechaFin.value;
 
+        if(fFolio) docs = docs.filter(d => d.reference_id.toLowerCase().includes(fFolio));
         if(fDom !== 'all') docs = docs.filter(d => d.dominio === fDom);
         if(fIni) docs = docs.filter(d => d.fecha.split(' ')[0] >= fIni);
         if(fFin) docs = docs.filter(d => d.fecha.split(' ')[0] <= fFin);
@@ -218,7 +230,6 @@
     function cancelarDoc(token) {
         if(confirm("ATENCIÓN: Cancelar el documento bloqueará la recolección de firmas de forma permanente. ¿Deseas continuar?")) {
             ejecutarAccion('cancelar_doc', { token: token }).then(() => {
-                // Actualizar la lista en vivo
                 const obj = rawData.find(d => d.token === token);
                 if(obj) obj.status = 'CANCELLED';
                 renderTable();
@@ -229,6 +240,7 @@
     function guardarDiseno() {
         const config = {
             group: selGroup.value,
+            filFolio: filFolio.value,
             filDominio: filDominio.value,
             filFechaIni: filFechaIni.value,
             filFechaFin: filFechaFin.value
