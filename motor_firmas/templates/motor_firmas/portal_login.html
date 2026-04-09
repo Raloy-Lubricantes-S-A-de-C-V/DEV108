@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceso al Portal - Raloy</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        h2 { color: #0056b3; margin-top: 0; }
+        .form-group { margin-bottom: 15px; text-align: left; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
+        input[type="email"], input[type="password"] { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-size: 1rem;}
+        input[type="password"] { letter-spacing: 3px; text-align: center; font-size: 1.2rem; }
+        .btn-submit { background-color: #0056b3; color: white; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1.1rem; margin-top: 10px; }
+        .btn-otp { background-color: transparent; color: #666; border: 1px solid #ccc; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 0.9rem; margin-top: 15px; }
+        .btn-otp:hover { background-color: #f1f1f1; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Portal de Documentos</h2>
+    <p style="color: #666; font-size: 0.9rem;">Ingresa tu correo y PIN para ver el estado de los documentos que has enviado.</p>
+
+    <div class="form-group">
+        <label>Correo Electrónico:</label>
+        <input type="email" id="email" placeholder="ejemplo@raloy.com.mx" required>
+    </div>
+
+    <div class="form-group">
+        <label>PIN (Fijo o Temporal):</label>
+        <input type="password" id="pin" placeholder="****" required>
+    </div>
+
+    <button class="btn-submit" id="btnLogin" onclick="iniciarSesion()">Ingresar al Portal</button>
+
+    <div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
+        <p style="font-size: 0.85rem; color: #777; margin: 0 0 10px 0;">¿No tienes tu PIN a la mano?</p>
+        <button class="btn-otp" id="btnOtp" onclick="pedirOTP()">Enviar PIN Temporal por Correo</button>
+    </div>
+</div>
+
+<script>
+    function iniciarSesion() {
+        const email = document.getElementById('email').value;
+        const pin = document.getElementById('pin').value;
+        if(!email || !pin) return alert("Completa ambos campos");
+
+        const btn = document.getElementById('btnLogin');
+        btn.disabled = true; btn.innerText = "Verificando...";
+
+        fetch('{% url "portal_login" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email, pin: pin })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if(data.status === 'success') window.location.href = "{% url 'portal_dashboard' %}";
+            else { alert(data.error); btn.disabled = false; btn.innerText = "Ingresar al Portal"; }
+        });
+    }
+
+    function pedirOTP() {
+        const email = document.getElementById('email').value;
+        if(!email) return alert("Primero ingresa tu correo electrónico arriba.");
+
+        const btn = document.getElementById('btnOtp');
+        btn.disabled = true; btn.innerText = "Enviando...";
+
+        fetch('{% url "solicitar_otp" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email })
+        }).then(r => r.json()).then(data => {
+            alert(data.msg);
+            btn.innerText = "PIN Enviado ✓";
+        });
+    }
+</script>
+</body>
+</html>

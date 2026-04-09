@@ -7,8 +7,14 @@ urlpatterns = [
     path('api/procesar/<uuid:token>/', views.procesar_firma, name='procesar_firma'),
     path('trazabilidad/<uuid:token>/', views.vista_trazabilidad, name='vista_trazabilidad'),
 
-    # NUEVAS RUTAS DE BANCO DE FIRMAS
+    # RUTAS DE BANCO DE FIRMAS
     path('registro-firmas/', views.registro_firmas, name='registro_firmas'),
     path('api/solicitar-recuperacion/', views.solicitar_recuperacion, name='solicitar_recuperacion'),
     path('recuperar-pin/<uuid:token>/', views.resetear_pin, name='resetear_pin'),
+
+    # NUEVAS RUTAS DEL PORTAL (DASHBOARD)
+    path('portal/', views.portal_login, name='portal_login'),
+    path('api/solicitar-otp/', views.solicitar_otp, name='solicitar_otp'),
+    path('portal/dashboard/', views.portal_dashboard, name='portal_dashboard'),
+    path('portal/logout/', views.portal_logout, name='portal_logout'),
 ]

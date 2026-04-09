@@ -3,7 +3,7 @@ from django.utils import timezone
 from django.contrib.auth.hashers import make_password, check_password
 from datetime import timedelta
 import uuid
-
+import random
 
 # Create your models here.
 
@@ -64,3 +64,23 @@ class DirectorioFirmas(models.Model):
 
     def __str__(self):
         return f"{self.nombre} ({self.email})"
+
+
+class OTPLogin(models.Model):
+    """
+    Gestiona los PIN temporales para acceder al portal de documentos.
+    """
+    email = models.EmailField(unique=True)
+    otp_code = models.CharField(max_length=6)
+    expires_at = models.DateTimeField()
+
+    def generar_otp(self):
+        self.otp_code = str(random.randint(100000, 999999))
+        self.expires_at = timezone.now() + timedelta(minutes=15)  # Dura 15 minutos
+        self.save()
+
+    def es_valido(self, code_ingresado):
+        return self.otp_code == code_ingresado and timezone.now() <= self.expires_at
+
+    def __str__(self):
+        return f"OTP para {self.email}"
