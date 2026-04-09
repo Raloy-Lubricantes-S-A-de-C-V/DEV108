@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Firma - Raloy</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; padding: 40px 20px; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 600px; }
+        h2 { color: #0056b3; margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .form-group { margin-bottom: 15px; text-align: left; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
+        input[type="text"], input[type="email"], input[type="password"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        .canvas-container { border: 2px dashed #0056b3; background-color: #f9f9f9; border-radius: 8px; margin-top: 10px; position: relative; width: 100%; height: 200px; touch-action: none; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; }
+        .legal-box { background-color: #f8f9fa; padding: 15px; border-left: 4px solid #ffc107; font-size: 0.85rem; color: #555; height: 150px; overflow-y: scroll; margin-bottom: 15px; border-radius: 4px;}
+        .btn-submit { background-color: #0056b3; color: white; padding: 12px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1.1rem; margin-top: 15px; }
+        .btn-submit:hover { background-color: #004494; }
+        .error-msg { color: #dc3545; font-weight: bold; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Registro de Firma Autógrafa</h2>
+    <p style="color: #666; font-size: 0.9rem;">Portal de alta para colaboradores de Raloy Lubricantes S.A. de C.V.</p>
+
+    {% if error %}
+        <div class="error-msg">{{ error }}</div>
+    {% endif %}
+
+    <form id="registroForm" method="POST" action="{% url 'registro_firmas' %}" onsubmit="return validarFormulario()">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label>Nombre Completo:</label>
+            <input type="text" name="nombre" required placeholder="Ej. Alejandro Lopez Guzmán">
+        </div>
+
+        <div class="form-group">
+            <label>Correo Electrónico (Raloy):</label>
+            <input type="email" name="email" required placeholder="ejemplo@raloy.com.mx">
+        </div>
+
+        <div style="display: flex; gap: 15px;">
+            <div class="form-group" style="flex: 1;">
+                <label>Puesto:</label>
+                <input type="text" name="puesto" required placeholder="Ej. Gerente de TI">
+            </div>
+            <div class="form-group" style="width: 120px;">
+                <label>Iniciales:</label>
+                <input type="text" name="iniciales" required placeholder="ALG" maxlength="5" style="text-transform: uppercase;">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Dibuja tu Firma Oficial:</label>
+            <div class="canvas-container"><canvas id="pizarra"></canvas></div>
+            <button type="button" onclick="limpiarCanvas()" style="margin-top: 5px; padding: 5px 10px; cursor: pointer;">Limpiar Firma</button>
+            <input type="hidden" name="firma_base64" id="firma_base64">
+        </div>
+
+        <div style="display: flex; gap: 15px;">
+            <div class="form-group" style="flex: 1;">
+                <label>Crear PIN de Seguridad:</label>
+                <input type="password" id="pin1" name="pin" required maxlength="6" placeholder="4 a 6 dígitos numéricos">
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label>Confirmar PIN:</label>
+                <input type="password" id="pin2" required maxlength="6" placeholder="Repite tu PIN">
+            </div>
+        </div>
+
+        <label>Términos y Condiciones de Uso:</label>
+        <div class="legal-box">
+            <strong>1. Uso Interno Exclusivo:</strong> La firma autógrafa digitalizada y el PIN de seguridad registrados en este portal serán utilizados única y exclusivamente para la certificación y validación de documentos internos dentro de los sistemas de Raloy Lubricantes S.A. de C.V.<br><br>
+            <strong>2. Protección de Datos:</strong> Su información está resguardada mediante encriptación (Hash). La empresa no comparte este banco de firmas con terceros bajo ninguna circunstancia.<br><br>
+            <strong>3. Responsabilidad del PIN:</strong> El código PIN funge como su consentimiento legal explícito en los documentos digitales. Es personal e intransferible. <strong style="color:red;">ADVERTENCIA: Por su seguridad personal, NO utilice el mismo PIN asociado a sus tarjetas bancarias.</strong>
+        </div>
+
+        <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+            <input type="checkbox" id="acepto_terminos" required style="width: 20px; height: 20px;">
+            <label for="acepto_terminos" style="margin: 0; font-weight: normal;">He leído y acepto el uso de mi firma digitalizada y declaro que mi PIN no es bancario.</label>
+        </div>
+
+        <button type="submit" class="btn-submit">Registrar mi Firma Segura</button>
+    </form>
+</div>
+
+<script>
+    const canvas = document.getElementById('pizarra');
+    const ctx = canvas.getContext('2d');
+    let dibujando = false;
+    let haDibujado = false;
+
+    function redimensionarCanvas() { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; ctx.lineWidth = 3; ctx.strokeStyle = '#000080'; }
+    window.addEventListener('resize', redimensionarCanvas); redimensionarCanvas();
+
+    canvas.addEventListener('mousedown', (e) => { dibujando = true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); });
+    canvas.addEventListener('mousemove', (e) => { if(dibujando){ ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); haDibujado=true; }});
+    canvas.addEventListener('mouseup', () => dibujando = false);
+    canvas.addEventListener('mouseout', () => dibujando = false);
+
+    // Soporte Touch
+    canvas.addEventListener('touchstart', (e) => { e.preventDefault(); const rect = canvas.getBoundingClientRect(); dibujando = true; ctx.beginPath(); ctx.moveTo(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top); });
+    canvas.addEventListener('touchmove', (e) => { e.preventDefault(); if(dibujando){ const rect = canvas.getBoundingClientRect(); ctx.lineTo(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top); ctx.stroke(); haDibujado=true; }});
+    canvas.addEventListener('touchend', () => dibujando = false);
+
+    function limpiarCanvas() { ctx.clearRect(0,0,canvas.width,canvas.height); haDibujado=false; }
+
+    function validarFormulario() {
+        const pin1 = document.getElementById('pin1').value;
+        const pin2 = document.getElementById('pin2').value;
+
+        if (pin1 !== pin2) {
+            alert("Los PINs no coinciden. Por favor verifica.");
+            return false;
+        }
+        if (!haDibujado) {
+            alert("Debes dibujar tu firma oficial en el recuadro.");
+            return false;
+        }
+
+        // Guardar base64 en el input oculto
+        document.getElementById('firma_base64').value = canvas.toDataURL('image/png');
+        return true; // Envía el formulario
+    }
+</script>
+</body>
+</html>
