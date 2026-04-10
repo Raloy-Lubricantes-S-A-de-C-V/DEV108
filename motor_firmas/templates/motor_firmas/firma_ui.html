@@ -167,7 +167,13 @@
         const btn = document.getElementById(esPin ? 'btnFirmarPin' : 'btnFirmarCanvas');
         btn.disabled = true; btn.innerText = "Certificando Documento...";
 
-        fetch('/api/procesar/{{ token }}/', {
+        // CONSTRUCCIÓN DE LIGA CON TOKEN DE FIRMANTE (SI EXISTE)
+        let procesarUrl = '/api/procesar/{{ token }}/';
+        {% if firmante_token %}
+            procesarUrl += '{{ firmante_token }}/';
+        {% endif %}
+
+        fetch(procesarUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)

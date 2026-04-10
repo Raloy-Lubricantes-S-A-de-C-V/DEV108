@@ -3,6 +3,7 @@ import json
 import requests
 import traceback
 import re
+import uuid
 from datetime import datetime
 from django.conf import settings
 from django.http import JsonResponse, HttpResponse
@@ -37,9 +38,12 @@ def recibir_documento_n8n(request):
             owner_email = data.get('owner', '')
             dir_drive = data.get('dir', '')
             exec_mode = data.get('exec', 'normal')
-
-            # EL ENGAÑO A GOOGLE: Usamos 'variables_asignadas' si viene de un formulario dinámico
             document_variables = data.get('variables_asignadas', data.get('document_variables', {}))
+
+            # 1. ASIGNAR TOKEN ÚNICO A CADA FIRMANTE
+            for f in firmantes:
+                if 'token_firmante' not in f:
+                    f['token_firmante'] = str(uuid.uuid4())
 
             original_ref_id = ref_id
             match = re.search(r'^(.*?-)(\d+)$', ref_id)
@@ -79,7 +83,8 @@ def recibir_documento_n8n(request):
             )
 
             primer_firmante = firmantes[0]
-            link_firma = f"https://testapppjb0001.raloy.com.mx/firmar/{proceso.token_acceso}/"
+            # SE ENVÍA EL TOKEN ESPECÍFICO DEL PRIMER FIRMANTE
+            link_firma = f"https://testapppjb0001.raloy.com.mx/firmar/{proceso.token_acceso}/{primer_firmante.get('token_firmante', '')}/"
             requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
                           json={"email": primer_firmante['email'], "nombre": primer_firmante['nombre'],
                                 "link": link_firma,
@@ -96,14 +101,32 @@ def recibir_documento_n8n(request):
             return JsonResponse({"error": repr(e)}, status=400)
 
 
-def vista_firma_ui(request, token):
+def vista_firma_ui(request, token, firmante_token=None):
     proceso = get_object_or_404(ProcesoFirma, token_acceso=token)
     if proceso.status == 'CANCELLED': return HttpResponse(
         "<h1 style='color:red; text-align:center; margin-top:50px;'>Este documento ha sido CANCELADO.</h1>")
     if proceso.status == 'COMPLETED': return HttpResponse(
         "<h1 style='text-align:center; margin-top:50px;'>Este documento ya ha sido firmado en su totalidad.</h1>")
 
-    firmante_actual = proceso.firmantes[proceso.indice_actual - 1]
+    # 2. VALIDAR AL FIRMANTE ESPECÍFICO
+    if firmante_token:
+        firmante_actual = next((f for f in proceso.firmantes if f.get('token_firmante') == firmante_token), None)
+        if not firmante_actual:
+            return HttpResponse(
+                "<h1 style='color:red; text-align:center; margin-top:50px;'>Enlace inválido o no reconocido.</h1>")
+
+        if firmante_actual.get('fecha_firma'):
+            return HttpResponse(
+                "<h1 style='color:green; text-align:center; margin-top:50px;'>Ya has completado tu firma para este documento. Muchas gracias.</h1>")
+
+        firmante_esperado = proceso.firmantes[proceso.indice_actual - 1]
+        if firmante_actual.get('token_firmante') != firmante_esperado.get('token_firmante'):
+            return HttpResponse(
+                "<h1 style='color:#f39c12; text-align:center; margin-top:50px;'>Aún no es tu turno para firmar este documento. Te notificaremos cuando sea el momento.</h1>")
+    else:
+        # Fallback para ligas viejas generadas antes de este código
+        firmante_actual = proceso.firmantes[proceso.indice_actual - 1]
+
     filename = os.path.basename(proceso.pdf_path)
     colaborador = DirectorioFirmas.objects.filter(email=firmante_actual.get('email')).first()
 
@@ -115,6 +138,7 @@ def vista_firma_ui(request, token):
 
     context = {
         'token': token,
+        'firmante_token': firmante_token or '',
         'nombre_firmante': firmante_actual.get('nombre', 'Firmante'),
         'email_firmante': firmante_actual.get('email', ''),
         'view_info': proceso.view_info,
@@ -127,14 +151,20 @@ def vista_firma_ui(request, token):
 
 
 @csrf_exempt
-def procesar_firma(request, token):
+def procesar_firma(request, token, firmante_token=None):
     if request.method == 'POST':
         data = json.loads(request.body)
         ip_user = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR'))
         proceso = get_object_or_404(ProcesoFirma, token_acceso=token)
         if proceso.status == 'CANCELLED': return JsonResponse({"error": "Documento cancelado."}, status=403)
 
-        firmante_actual = proceso.firmantes[proceso.indice_actual - 1]
+        firmante_esperado = proceso.firmantes[proceso.indice_actual - 1]
+
+        # Validar Token de Firmante
+        if firmante_token and firmante_token != firmante_esperado.get('token_firmante'):
+            return JsonResponse({"error": "No es tu turno o el enlace es inválido."}, status=403)
+
+        firmante_actual = firmante_esperado
 
         try:
             pin_ingresado = data.get('pin')
@@ -155,22 +185,37 @@ def procesar_firma(request, token):
 
             estampar_firma_en_pdf(proceso.pdf_path, firma_b64, proceso.indice_actual, firmante_actual['email'],
                                   firmante_actual['nombre'], ip_user)
-            proceso.firmantes[proceso.indice_actual - 1]['fecha_firma'] = timezone.now().strftime("%d/%m/%Y %H:%M:%S")
+
+            # 3. FORZAR ACTUALIZACIÓN DEL JSON EN DJANGO PARA QUE NO FALLE
+            firmantes_lista = list(proceso.firmantes)
+            firmantes_lista[proceso.indice_actual - 1]['fecha_firma'] = timezone.now().strftime("%d/%m/%Y %H:%M:%S")
+            proceso.firmantes = firmantes_lista
 
             if proceso.indice_actual < len(proceso.firmantes):
                 proceso.indice_actual += 1
                 proceso.save()
                 siguiente_firmante = proceso.firmantes[proceso.indice_actual - 1]
+
                 link_firma = f"https://testapppjb0001.raloy.com.mx/firmar/{proceso.token_acceso}/"
-                requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
-                              json={"email": siguiente_firmante['email'], "nombre": siguiente_firmante['nombre'],
-                                    "link": link_firma, "mensaje": "Es tu turno de firmar el documento."})
+                if siguiente_firmante.get('token_firmante'):
+                    link_firma += f"{siguiente_firmante['token_firmante']}/"
+
+                # Enviamos el correo al siguiente
+                try:
+                    requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
+                                  json={"email": siguiente_firmante['email'], "nombre": siguiente_firmante['nombre'],
+                                        "link": link_firma, "mensaje": "Es tu turno de firmar el documento."},
+                                  timeout=15)
+                except Exception as ex:
+                    print(f"Alerta: Fallo al enviar correo N8N a {siguiente_firmante['email']}. Error: {ex}")
+
                 return JsonResponse({"status": "success", "msg": "Firma guardada."})
             else:
                 proceso.status = 'COMPLETED'
                 proceso.save()
                 correos_destino = ",".join([f['email'] for f in proceso.firmantes])
                 if proceso.owner_email: correos_destino += f",{proceso.owner_email}"
+
                 with open(proceso.pdf_path, 'rb') as f:
                     requests.post(N8N_WEBHOOK_FINALIZAR_PROCESO, data={
                         "reference_id": proceso.reference_id,

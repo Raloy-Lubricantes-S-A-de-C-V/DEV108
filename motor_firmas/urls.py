@@ -4,8 +4,14 @@ from . import views
 urlpatterns = [
     # RUTAS API N8N Y FIRMA
     path('api/recibir-documento/', views.recibir_documento_n8n, name='recibir_documento'),
-    path('firmar/<uuid:token>/', views.vista_firma_ui, name='vista_firma'),
-    path('api/procesar/<uuid:token>/', views.procesar_firma, name='procesar_firma'),
+
+    # Compatibilidad con ligas viejas (opcional) y nueva liga segura
+    path('firmar/<uuid:token>/', views.vista_firma_ui, name='vista_firma_old'),
+    path('firmar/<uuid:token>/<str:firmante_token>/', views.vista_firma_ui, name='vista_firma'),
+
+    path('api/procesar/<uuid:token>/', views.procesar_firma, name='procesar_firma_old'),
+    path('api/procesar/<uuid:token>/<str:firmante_token>/', views.procesar_firma, name='procesar_firma'),
+
     path('trazabilidad/<uuid:token>/', views.vista_trazabilidad, name='vista_trazabilidad'),
 
     # RUTAS DE BANCO DE FIRMAS
