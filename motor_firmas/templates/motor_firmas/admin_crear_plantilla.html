@@ -93,52 +93,60 @@
             }
 
             try {
-                // 1. EXTRAER LA RESPUESTA DE N8N
+                // 1. Extraer la respuesta (tomar el primer elemento si es un arreglo)
                 let dataExtraida = resp.data;
+                if (Array.isArray(dataExtraida)) dataExtraida = dataExtraida[0];
 
-                // Si n8n lo envía dentro de un arreglo, sacamos el primer elemento
-                if (Array.isArray(dataExtraida)) {
-                    dataExtraida = dataExtraida[0];
+                console.log("Respuesta recibida de n8n:", dataExtraida); // Para debug en F12
+
+                // 2. LÓGICA TODOTERRENO: Evaluar qué formato mandó n8n/Gemini
+
+                // CASO A: Gemini ya mandó el Objeto JSON limpio y parseado
+                if (typeof dataExtraida === 'object' && dataExtraida.contexto) {
+                    rawData = dataExtraida;
+                }
+                else if (typeof dataExtraida.content === 'object' && dataExtraida.content.contexto) {
+                    rawData = dataExtraida.content;
+                }
+                // CASO B: Gemini lo mandó como Texto (String) con Markdown
+                else {
+                    let jsonString = "";
+                    if (typeof dataExtraida === 'string') jsonString = dataExtraida;
+                    else if (dataExtraida.content) jsonString = dataExtraida.content;
+                    else if (dataExtraida.text) jsonString = dataExtraida.text;
+                    else jsonString = JSON.stringify(dataExtraida);
+
+                    // Limpiar basura de markdown
+                    jsonString = jsonString.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+                    // Convertir a Objeto
+                    rawData = JSON.parse(jsonString);
                 }
 
-                // Buscar dónde guardó Gemini el string JSON (content, text o directo)
-                let jsonString = "";
-                if (typeof dataExtraida === 'string') jsonString = dataExtraida;
-                else if (dataExtraida.content) jsonString = dataExtraida.content;
-                else if (dataExtraida.text) jsonString = dataExtraida.text;
-
-                // 2. LIMPIAR EL MARKDOWN DE LA IA
-                // Quita los famosos ```json y ``` que manda Gemini
-                jsonString = jsonString.replace(/```json/gi, '').replace(/```/g, '').trim();
-
-                // 3. PARSEAR EL JSON REAL
-                rawData = JSON.parse(jsonString);
-
-                // 4. INYECTAR DATOS EN LA TABLA HTML
+                // 3. INYECTAR DATOS EN LA TABLA HTML
                 document.getElementById('txtContexto').innerText = rawData.contexto || "No definido";
                 document.getElementById('txtIntencion').innerText = rawData.intencion || "No definida";
 
                 const tbV = document.getElementById('tbodyVars'); tbV.innerHTML = '';
-                if(rawData.variables) {
+                if(rawData.variables && Array.isArray(rawData.variables)) {
                     rawData.variables.forEach(v => {
                         tbV.innerHTML += `<tr><td>${v.label}</td><td>${v.key}</td><td>${v.type}</td><td><input type="email" class="var-email" data-key="${v.key}" value="${owner}"></td></tr>`;
                     });
                 }
 
                 const tbF = document.getElementById('tbodyFirmas'); tbF.innerHTML = '';
-                if(rawData.firmas) {
+                if(rawData.firmas && Array.isArray(rawData.firmas)) {
                     rawData.firmas.forEach((f, idx) => {
                         tbF.innerHTML += `<tr><td>${idx+1}</td><td><input type="text" class="firma-key" value="${f}" disabled></td></tr>`;
                     });
                 }
 
-                // AVANZAR DE PANTALLA
+                // 4. AVANZAR DE PANTALLA
                 nextStep(2);
 
             } catch (err) {
-                // SI ALGO FALLA, EVITAMOS QUE SE QUEDE CONGELADO
-                console.error("Error parseando respuesta de Gemini:", err, resp.data);
-                alert("La IA respondió, pero el formato no era un JSON válido. Revisa la Consola del navegador (F12) para más detalles.");
+                console.error("Error parseando respuesta:", err);
+                alert("La IA respondió, pero el formato no se pudo procesar. Revisa la consola (F12).");
                 btn.innerText = "Analizar Documento con IA ➔";
                 btn.disabled = false;
             }
