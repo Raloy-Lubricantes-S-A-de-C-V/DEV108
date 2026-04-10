@@ -33,10 +33,11 @@ class PlantillaFormulario(models.Model):
     nombre = models.CharField(max_length=200)
     doc_id = models.CharField(max_length=200)
     owner_email = models.CharField(max_length=200)
-    drive_folder_id = models.CharField(max_length=200)
-    view_info = models.CharField(max_length=50, default='file')
 
-    # NUEVO CAMPO: Prefijo del Folio
+    drive_folder_id = models.CharField(max_length=200)
+    carpeta_firmados_id = models.CharField(max_length=200, blank=True, null=True)  # NUEVO CAMPO
+
+    view_info = models.CharField(max_length=50, default='file')
     formato_folio = models.CharField(max_length=100, blank=True, null=True, default='')
 
     contexto = models.TextField(blank=True, null=True)

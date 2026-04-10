@@ -20,6 +20,7 @@ N8N_WEBHOOK_RECUPERAR_PIN = "https://n8n.raloy.com.mx/webhook/recuperar-pin-firm
 N8N_WEBHOOK_ENVIAR_OTP = "https://n8n.raloy.com.mx/webhook/enviar-otp-portal"
 N8N_WEBHOOK_INVITAR_REGISTRO = "https://n8n.raloy.com.mx/webhook/invitar-registro-firma"
 N8N_WEBHOOK_ANALIZAR_PLANTILLA = "https://n8n.raloy.com.mx/webhook/analizar-plantilla"
+N8N_WEBHOOK_PREPARAR_DIR = "https://n8n.raloy.com.mx/webhook/preparar-directorio"  # NUEVO
 
 
 @csrf_exempt
@@ -89,7 +90,6 @@ def recibir_documento_n8n(request):
 
             return JsonResponse({"status": "success", "msg": "Documento recibido.", "folio_asignado": ref_id})
         except Exception as e:
-            print(traceback.format_exc())
             return JsonResponse({"error": repr(e)}, status=400)
 
 
@@ -168,11 +168,16 @@ def procesar_firma(request, token):
                 proceso.save()
                 correos_destino = ",".join([f['email'] for f in proceso.firmantes])
                 if proceso.owner_email: correos_destino += f",{proceso.owner_email}"
+
+                # SE ENVÍA AL FINALIZADOR CON EL folder_id DINÁMICO (que es el dir_drive de firmados)
                 with open(proceso.pdf_path, 'rb') as f:
-                    requests.post(N8N_WEBHOOK_FINALIZAR_PROCESO,
-                                  data={"reference_id": proceso.reference_id, "status": "COMPLETED",
-                                        "correos_destino": correos_destino}, files={
-                            "pdf_final": (f"{proceso.reference_id}_CERTIFICADO.pdf", f, "application/pdf")})
+                    requests.post(N8N_WEBHOOK_FINALIZAR_PROCESO, data={
+                        "reference_id": proceso.reference_id,
+                        "status": "COMPLETED",
+                        "correos_destino": correos_destino,
+                        "folder_id": proceso.dir_drive
+                    }, files={"pdf_final": (f"{proceso.reference_id}_CERTIFICADO.pdf", f, "application/pdf")})
+
                 return JsonResponse({"status": "success", "msg": "Documento finalizado."})
         except Exception as e:
             print(traceback.format_exc())
@@ -394,11 +399,23 @@ def admin_api(request, accion):
             return JsonResponse({"status": "success", "data": resp})
 
         elif accion == 'guardar_plantilla':
+            # CONSUMIR WEBHOOK PARA PREPARAR DIRECTORIO
+            carpeta_firmados = data['drive_folder_id']  # Fallback
+            try:
+                resp_dir = requests.post(N8N_WEBHOOK_PREPARAR_DIR,
+                                         json={"doc_id": data['doc_id'], "parent_folder": data['drive_folder_id']},
+                                         timeout=20).json()
+                if resp_dir.get('status') == 'success':
+                    carpeta_firmados = resp_dir.get('firmados_folder_id', data['drive_folder_id'])
+            except Exception as e:
+                print("Error al preparar directorio en n8n:", e)
+
             PlantillaFormulario.objects.create(
                 nombre=data['nombre'],
                 doc_id=data['doc_id'],
                 owner_email=data['owner_email'],
                 drive_folder_id=data['drive_folder_id'],
+                carpeta_firmados_id=carpeta_firmados,  # GUARDA EL ID DE "Documentos firmados"
                 view_info=data['view_info'],
                 formato_folio=data.get('formato_folio', ''),
                 contexto=data['contexto'],
@@ -407,7 +424,7 @@ def admin_api(request, accion):
                 firmantes_config=data['firmantes_config'],
                 usuarios_permitidos=data['usuarios_permitidos']
             )
-            return JsonResponse({"status": "success", "msg": "Plantilla guardada exitosamente."})
+            return JsonResponse({"status": "success", "msg": "Plantilla y directorio preparados exitosamente."})
 
         elif accion == 'actualizar_plantilla':
             p = PlantillaFormulario.objects.filter(id=data.get('id')).first()
@@ -415,6 +432,18 @@ def admin_api(request, accion):
                 p.nombre = data.get('nombre')
                 p.formato_folio = data.get('formato_folio', '')
                 p.drive_folder_id = data.get('drive_folder_id')
+
+                # Si el admin cambió el folder raíz manualmente, repasar N8N
+                if 'drive_folder_id' in data and data['drive_folder_id'] != p.drive_folder_id:
+                    try:
+                        resp_dir = requests.post(N8N_WEBHOOK_PREPARAR_DIR,
+                                                 json={"doc_id": p.doc_id, "parent_folder": data['drive_folder_id']},
+                                                 timeout=20).json()
+                        if resp_dir.get('status') == 'success':
+                            p.carpeta_firmados_id = resp_dir.get('firmados_folder_id', data['drive_folder_id'])
+                    except Exception as e:
+                        print("Error al preparar directorio al actualizar:", e)
+
                 p.view_info = data.get('view_info')
                 p.usuarios_permitidos = data.get('usuarios_permitidos')
                 p.variables = data.get('variables')

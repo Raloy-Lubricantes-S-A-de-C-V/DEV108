@@ -15,8 +15,9 @@
 <body>
 
 <div class="card">
+    <a href="/portal/plantillas/" style="color:#666; text-decoration:none; margin-bottom:15px; display:inline-block;">⬅ Volver a Mis Plantillas</a>
     <h2>{{ plantilla.nombre }}</h2>
-    
+
     <div class="section">
         <label>Folio (Opcional, dejar vacío para autogenerar)</label>
         <input type="text" id="folio_id" value="{{ plantilla.formato_folio|default:'' }}" placeholder="Ej. CONTRATO-RALOY-2026-">
@@ -63,13 +64,12 @@
             firmantesArr.push({ nombre: nombres[i].value, email: correos[i].value });
         }
 
-        // Crear Folio Random si está vacío (Si el admin no le puso prefijo, o el usuario lo borra)
         let folio = document.getElementById('folio_id').value;
         if(!folio) folio = "DOC-" + Math.floor(Date.now() / 1000);
 
         const payload = {
             reference_id: folio,
-            dir: "{{ plantilla.drive_folder_id }}",
+            dir: "{{ plantilla.carpeta_firmados_id|default:plantilla.drive_folder_id }}", // ENVÍA A LA SUBCARPETA
             template_id: "{{ plantilla.doc_id }}",
             view_info: "{{ plantilla.view_info }}",
             exec: "form",
@@ -78,7 +78,6 @@
             firmantes: firmantesArr
         };
 
-        // ENVIAR DIRECTO AL WEBHOOK DE N8N
         fetch('https://n8n.raloy.com.mx/webhook/request-signature', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -87,7 +86,7 @@
             alert("¡Documento enviado a n8n con éxito!");
             window.location.href = '/portal/dashboard/';
         }).catch(err => {
-            alert("Error al enviar."); btn.disabled = false; btn.innerText = "Enviar Solicitud";
+            alert("Error al enviar."); btn.disabled = false; btn.innerText = "Enviar Solicitud a Firma";
         });
     }
 </script>
