@@ -108,7 +108,25 @@
         <div class="card" style="border-left: 5px solid #2980b9;">
             <h3>Gestión de Plantillas</h3>
             <p style="font-size: 0.85rem; color:#666;">Crea nuevos flujos documentales y formularios dinámicos a partir de Google Docs.</p>
-            <a href="{% url 'admin_crear_plantilla' %}" class="side-btn-primary">+ Generar Formulario Nuevo</a>
+            <a href="{% url 'admin_crear_plantilla' %}" class="side-btn-primary" style="margin-bottom: 15px;">+ Generar Formulario Nuevo</a>
+
+            <h4 style="margin-top: 20px; font-size: 0.95rem; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 5px;">Plantillas Creadas</h4>
+            <div style="max-height: 300px; overflow-y: auto;">
+                {% for p in plantillas %}
+                    <div style="background: #f8f9fa; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #e9ecef;">
+                        <strong style="display: block; font-size: 0.9rem; color: #333;">{{ p.nombre }}</strong>
+                        <span style="font-size: 0.75rem; color: #777;">Doc ID: {{ p.doc_id|slice:":12" }}...</span><br>
+                        <span style="font-size: 0.75rem; color: #777;">Creado por: {{ p.owner_email }}</span>
+
+                        <div style="margin-top: 8px; display: flex; gap: 15px;">
+                            <a href="/portal/usar-plantilla/{{ p.id }}/" target="_blank" style="font-size: 0.8rem; color: #27ae60; text-decoration: none; font-weight: bold;">➔ Usar Plantilla</a>
+                            <a href="javascript:void(0);" onclick="eliminarPlantilla('{{ p.id }}')" style="font-size: 0.8rem; color: #e74c3c; text-decoration: none; font-weight: bold;">✖ Eliminar</a>
+                        </div>
+                    </div>
+                {% empty %}
+                    <p style="font-size: 0.85rem; color: #999; text-align: center; margin-top: 15px;">No hay plantillas creadas aún.</p>
+                {% endfor %}
+            </div>
         </div>
 
         <div class="card">
@@ -141,21 +159,18 @@
 
     // Inicialización
     function init() {
-        // Llenar combo de dominios únicos
         const dominios = [...new Set(rawData.map(d => d.dominio))];
         dominios.forEach(dom => {
             const opt = document.createElement('option'); opt.value = dom; opt.innerText = dom;
             filDominio.appendChild(opt);
         });
 
-        // Aplicar configuración guardada si existe
         if(savedConfig.group) selGroup.value = savedConfig.group;
         if(savedConfig.filFolio) filFolio.value = savedConfig.filFolio;
         if(savedConfig.filDominio) filDominio.value = savedConfig.filDominio;
         if(savedConfig.filFechaIni) filFechaIni.value = savedConfig.filFechaIni;
         if(savedConfig.filFechaFin) filFechaFin.value = savedConfig.filFechaFin;
 
-        // Escuchar cambios
         [selGroup, filDominio, filFechaIni, filFechaFin].forEach(el => el.addEventListener('change', renderTable));
         filFolio.addEventListener('keyup', renderTable);
 
@@ -165,7 +180,6 @@
     function renderTable() {
         let docs = [...rawData];
 
-        // 1. Filtrar
         const fFolio = filFolio.value.toLowerCase();
         const fDom = filDominio.value;
         const fIni = filFechaIni.value;
@@ -176,14 +190,12 @@
         if(fIni) docs = docs.filter(d => d.fecha.split(' ')[0] >= fIni);
         if(fFin) docs = docs.filter(d => d.fecha.split(' ')[0] <= fFin);
 
-        // 2. Agrupar y Renderizar
         tableBody.innerHTML = '';
         const groupProp = selGroup.value;
 
         if (groupProp === 'none') {
             docs.forEach(doc => tableBody.appendChild(crearFila(doc)));
         } else {
-            // Lógica de Agrupación
             const groups = {};
             docs.forEach(d => {
                 const key = d[groupProp];
@@ -205,12 +217,10 @@
     function crearFila(doc) {
         const tr = document.createElement('tr');
 
-        // Colores de estado
         let badgeClass = 'bg-processing'; let statusText = 'En Proceso';
         if(doc.status === 'COMPLETED') { badgeClass = 'bg-completed'; statusText = 'Completado'; }
         if(doc.status === 'CANCELLED') { badgeClass = 'bg-cancelled'; statusText = 'Cancelado'; }
 
-        // Botón Cancelar (Solo si no está cancelado ni completado)
         let cancelBtn = '';
         if(doc.status === 'PROCESSING') {
             cancelBtn = `<button class="btn-cancelar" onclick="cancelarDoc('${doc.token}')">X Cancelar</button>`;
@@ -243,6 +253,14 @@
         }
     }
 
+    function eliminarPlantilla(id) {
+        if(confirm("¿Estás seguro de eliminar esta plantilla de forma permanente?")) {
+            ejecutarAccion('eliminar_plantilla', { id: id }).then(() => {
+                window.location.reload(); // Recarga para actualizar la lista visual
+            });
+        }
+    }
+
     function guardarDiseno() {
         const config = {
             group: selGroup.value,
@@ -262,7 +280,7 @@
         })
         .then(r => r.json())
         .then(data => {
-            if(data.status === 'success') { alert(data.msg); return true; }
+            if(data.status === 'success') { alert(data.msg || "Acción exitosa."); return true; }
             else { alert("Error: " + data.error); throw new Error(); }
         });
     }

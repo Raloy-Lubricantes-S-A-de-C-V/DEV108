@@ -95,14 +95,14 @@ def recibir_documento_n8n(request):
 def vista_firma_ui(request, token):
     proceso = get_object_or_404(ProcesoFirma, token_acceso=token)
     if proceso.status == 'CANCELLED': return HttpResponse(
-        "<h1 style='color:red;'>Este documento ha sido CANCELADO.</h1>")
-    if proceso.status == 'COMPLETED': return HttpResponse("<h1>Este documento ya ha sido firmado en su totalidad.</h1>")
+        "<h1 style='color:red; text-align:center; margin-top:50px;'>Este documento ha sido CANCELADO.</h1>")
+    if proceso.status == 'COMPLETED': return HttpResponse(
+        "<h1 style='text-align:center; margin-top:50px;'>Este documento ya ha sido firmado en su totalidad.</h1>")
 
     firmante_actual = proceso.firmantes[proceso.indice_actual - 1]
     filename = os.path.basename(proceso.pdf_path)
     colaborador = DirectorioFirmas.objects.filter(email=firmante_actual.get('email')).first()
 
-    # Lógica de Variables requeridas
     campos_a_llenar = []
     if proceso.exec_mode == 'form':
         for key, email_asignado in proceso.document_variables.items():
@@ -143,14 +143,12 @@ def procesar_firma(request, token):
                 firma_b64 = data.get('firma_base64')
                 if not firma_b64: return JsonResponse({"error": "Firma o PIN requerido."}, status=400)
 
-            # ESTAMPAR VARIABLES SI EXISTEN
             variables_recibidas = data.get('variables', {})
             if variables_recibidas:
                 proceso.valores_capturados.update(variables_recibidas)
                 estampar_variables_en_pdf(proceso.pdf_path, variables_recibidas)
                 proceso.save()
 
-            # ESTAMPAR FIRMA
             estampar_firma_en_pdf(proceso.pdf_path, firma_b64, proceso.indice_actual, firmante_actual['email'],
                                   firmante_actual['nombre'], ip_user)
             proceso.firmantes[proceso.indice_actual - 1]['fecha_firma'] = timezone.now().strftime("%d/%m/%Y %H:%M:%S")
@@ -199,7 +197,7 @@ def registro_firmas(request):
                                        firma_base64=request.POST.get('firma_base64'), acepto_terminos=True)
         colaborador.set_pin(request.POST.get('pin'))
         colaborador.save()
-        return HttpResponse("<h1 style='text-align:center;'>Registro exitoso.</h1>")
+        return HttpResponse("<h1 style='text-align:center; margin-top:50px;'>Registro exitoso.</h1>")
     return render(request, 'motor_firmas/registro_firmas.html')
 
 
@@ -222,7 +220,7 @@ def resetear_pin(request, token):
         colaborador.set_pin(request.POST.get('nuevo_pin'))
         colaborador.reset_token = None
         colaborador.save()
-        return HttpResponse("<h1 style='text-align:center;'>PIN actualizado.</h1>")
+        return HttpResponse("<h1 style='text-align:center; margin-top:50px;'>PIN actualizado.</h1>")
     return render(request, 'motor_firmas/resetear_pin.html', {'token': token})
 
 
@@ -325,16 +323,23 @@ def admin_dashboard(request):
     if not admin_email: return redirect('admin_login')
     admin_obj = AdministradorPortal.objects.get(email=admin_email)
 
+    # Extraer todos los documentos
     todos_docs = ProcesoFirma.objects.all().order_by('-created_at')
     docs_json = [{'reference_id': d.reference_id, 'token': str(d.token_acceso), 'owner_email': d.owner_email or 'N/A',
                   'dominio': d.owner_email.split('@')[1] if d.owner_email and '@' in d.owner_email else 'N/A',
-                  'status': d.status, 'fecha': d.created_at.strftime("%Y-%m-%d"),
+                  'status': d.status, 'fecha': d.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                   'progreso': f"{sum(1 for f in d.firmantes if f.get('fecha_firma'))}/{len(d.firmantes)}"} for d in
                  todos_docs]
 
-    return render(request, 'motor_firmas/admin_dashboard.html',
-                  {'admin_email': admin_email, 'docs_json': json.dumps(docs_json),
-                   'saved_config': json.dumps(admin_obj.configuracion_dashboard)})
+    # Extraer todas las plantillas creadas
+    plantillas = PlantillaFormulario.objects.all().order_by('-created_at')
+
+    return render(request, 'motor_firmas/admin_dashboard.html', {
+        'admin_email': admin_email,
+        'docs_json': json.dumps(docs_json),
+        'saved_config': json.dumps(admin_obj.configuracion_dashboard),
+        'plantillas': plantillas
+    })
 
 
 def admin_logout(request):
@@ -379,7 +384,6 @@ def admin_api(request, accion):
             admin_obj.save()
             return JsonResponse({"status": "success"})
 
-        # NUEVAS ACCIONES PARA WIZARD
         elif accion == 'analizar_plantilla':
             resp = requests.post(N8N_WEBHOOK_ANALIZAR_PLANTILLA, json=data).json()
             return JsonResponse({"status": "success", "data": resp})
@@ -398,5 +402,9 @@ def admin_api(request, accion):
                 usuarios_permitidos=data['usuarios_permitidos']
             )
             return JsonResponse({"status": "success", "msg": "Plantilla guardada exitosamente."})
+
+        elif accion == 'eliminar_plantilla':
+            PlantillaFormulario.objects.filter(id=data.get('id')).delete()
+            return JsonResponse({"status": "success", "msg": "Plantilla eliminada correctamente."})
 
     return JsonResponse({"error": "Acción inválida"}, status=400)
