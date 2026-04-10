@@ -20,11 +20,26 @@
         .actions-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; background: white; padding: 20px 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); border: 1px solid #e2e8f0; flex-wrap: wrap; gap: 15px;}
         .actions-info h2 { margin: 0 0 5px 0; color: #1e293b; font-size: 1.2rem;}
         .actions-info p { margin: 0; color: #64748b; font-size: 0.9rem;}
-        .btn-crear { background-color: #2563eb; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; transition: background 0.2s; display: inline-flex; align-items: center; gap: 8px;}
-        .btn-crear:hover { background-color: #1d4ed8; }
+
+        /* BOTÓN MODIFICADO (VERDE) */
+        .btn-crear { background-color: #10b981; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; transition: background 0.2s; display: inline-flex; align-items: center; gap: 8px;}
+        .btn-crear:hover { background-color: #059669; }
+
+        /* Contenedor de Filtros */
+        .filters-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); border: 1px solid #e2e8f0; margin-bottom: 25px; display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; }
+        .filter-group { flex: 1; min-width: 180px; }
+        .filter-group label { display: block; font-size: 0.85rem; font-weight: bold; color: #475569; margin-bottom: 6px; }
+        .filter-group input, .filter-group select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; background: #f8fafc; outline: none; box-sizing: border-box; transition: border-color 0.2s; }
+        .filter-group input:focus, .filter-group select:focus { border-color: #3b82f6; background: white; }
+        .btn-limpiar { background: #e2e8f0; color: #475569; padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background 0.2s; height: 40px;}
+        .btn-limpiar:hover { background: #cbd5e1; }
 
         /* Grid de Documentos */
         .doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
+
+        /* Encabezado de Agrupación */
+        .group-header { grid-column: 1 / -1; margin-top: 10px; padding-bottom: 5px; border-bottom: 2px solid #e2e8f0; color: #1e293b; font-size: 1.2rem; display: flex; justify-content: space-between; align-items: flex-end;}
+        .group-header span { font-size: 0.9rem; background: #e2e8f0; padding: 3px 10px; border-radius: 12px; color: #475569; }
 
         /* Tarjeta Individual */
         .doc-card { background: white; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 5px rgba(0,0,0,0.02); overflow: hidden; display: flex; flex-direction: column; transition: transform 0.2s, box-shadow 0.2s; border-top: 4px solid #3b82f6; }
@@ -78,69 +93,214 @@
                 <p style="color: #ef4444; font-size: 0.8rem; margin-top: 5px;">* Si necesitas cancelar un documento en proceso, acércate a TI o RH.</p>
             </div>
             <a href="{% url 'portal_plantillas' %}" class="btn-crear">
-                <span>➕</span> Generar Nuevo Documento
+                <span>➕</span> USAR PLANTILLA
             </a>
         </div>
 
-        <div class="doc-grid">
-            {% if documentos %}
-                {% for item in documentos %}
-                    <div class="doc-card {% if item.proceso.status == 'COMPLETED' %}completed{% elif item.proceso.status == 'CANCELLED' %}cancelled{% endif %}">
+        <div class="filters-container">
+            <div class="filter-group">
+                <label>Buscar por Folio</label>
+                <input type="text" id="filFolio" placeholder="Ej. CONTRATO...">
+            </div>
 
-                        <div class="card-header">
-                            <h3 class="card-title">{{ item.proceso.reference_id }}</h3>
-                            {% if item.proceso.status == 'CANCELLED' %}
-                                <span class="status-badge bg-cancelled">CANCELADO</span>
-                            {% elif item.proceso.status == 'COMPLETED' %}
-                                <span class="status-badge bg-completed">COMPLETADO</span>
-                            {% else %}
-                                <span class="status-badge bg-processing">EN PROCESO</span>
-                            {% endif %}
-                        </div>
+            <div class="filter-group">
+                <label>Filtrar por Estado</label>
+                <select id="filEstado">
+                    <option value="all">Todos los estados</option>
+                    <option value="PROCESSING">En Proceso</option>
+                    <option value="COMPLETED">Completados</option>
+                    <option value="CANCELLED">Cancelados</option>
+                </select>
+            </div>
 
-                        <div class="card-body">
-                            <div class="info-line">
-                                <span class="info-icon">📅</span>
-                                <span>Enviado: <strong>{{ item.proceso.created_at|date:"d/m/Y H:i" }}</strong></span>
-                            </div>
+            <div class="filter-group">
+                <label>Agrupar vista por</label>
+                <select id="selGroup">
+                    <option value="none">Sin Agrupación (Vista Plana)</option>
+                    <option value="status">Estado del Documento</option>
+                    <option value="mes">Mes de Envío</option>
+                    <option value="total_firmas">Total de Firmantes Requeridos</option>
+                </select>
+            </div>
 
-                            {% if item.proceso.status != 'CANCELLED' %}
-                            <div class="progress-wrapper">
-                                <div class="progress-header">
-                                    <span>Progreso de Firmas</span>
-                                    <span style="color: {% if item.proceso.status == 'COMPLETED' %}#10b981{% else %}#2563eb{% endif %};">
-                                        {{ item.firmas_hechas }} / {{ item.total_firmas }}
-                                    </span>
-                                </div>
-                                <div class="progress-container">
-                                    <div class="progress-bar {% if item.proceso.status == 'COMPLETED' %}completed{% endif %}" style="width: {{ item.porcentaje }}%;"></div>
-                                </div>
-                            </div>
-                            {% else %}
-                            <div class="progress-wrapper" style="background: #fee2e2; border-color: #fecaca; text-align: center;">
-                                <span style="font-size: 0.85rem; color: #b91c1c; font-weight: bold;">Proceso Detenido</span>
-                            </div>
-                            {% endif %}
-                        </div>
+            <div class="filter-group" style="min-width: 130px;">
+                <label>Periodo (Desde)</label>
+                <input type="date" id="filFechaIni">
+            </div>
 
-                        <div class="card-footer">
-                            <a href="{% url 'vista_trazabilidad' item.proceso.token_acceso %}" target="_blank" class="btn-ver">
-                                <span>👁️</span> Ver Trazabilidad y Documento
-                            </a>
-                        </div>
+            <div class="filter-group" style="min-width: 130px;">
+                <label>Periodo (Hasta)</label>
+                <input type="date" id="filFechaFin">
+            </div>
 
-                    </div>
-                {% endfor %}
-            {% else %}
-                <div class="empty-state" style="grid-column: 1 / -1;">
-                    <span style="font-size: 3rem; display: block; margin-bottom: 15px;">📭</span>
-                    <h3 style="color: #334155; margin: 0 0 10px 0;">No has enviado ningún documento todavía</h3>
-                    <p style="margin: 0;">Haz clic en "Generar Nuevo Documento" para comenzar tu primer proceso de firma.</p>
-                </div>
-            {% endif %}
+            <button class="btn-limpiar" onclick="limpiarFiltros()" title="Limpiar Filtros">↺</button>
         </div>
+
+        <div class="doc-grid" id="gridContainer">
+            </div>
 
     </div>
 
+    <script>
+        // Carga de datos crudos desde Django usando Jinja
+        const rawData = [
+            {% for item in documentos %}
+            {
+                reference_id: "{{ item.proceso.reference_id }}",
+                token: "{{ item.proceso.token_acceso }}",
+                status: "{{ item.proceso.status }}",
+                fecha_iso: "{{ item.proceso.created_at|date:'Y-m-d' }}",
+                fecha_formato: "{{ item.proceso.created_at|date:'d/m/Y H:i' }}",
+                mes: "{{ item.proceso.created_at|date:'F Y' }}",
+                total_firmas: {{ item.total_firmas }},
+                firmas_hechas: {{ item.firmas_hechas }},
+                porcentaje: {{ item.porcentaje }}
+            }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ];
+
+        // Función para renderizar el Grid
+        function renderGrid() {
+            let docs = [...rawData];
+
+            // 1. Obtener valores de los filtros
+            const fFolio = document.getElementById('filFolio').value.toLowerCase();
+            const fEstado = document.getElementById('filEstado').value;
+            const fIni = document.getElementById('filFechaIni').value;
+            const fFin = document.getElementById('filFechaFin').value;
+            const groupProp = document.getElementById('selGroup').value;
+
+            // 2. Aplicar Filtros
+            if (fFolio) docs = docs.filter(d => d.reference_id.toLowerCase().includes(fFolio));
+            if (fEstado !== 'all') docs = docs.filter(d => d.status === fEstado);
+            if (fIni) docs = docs.filter(d => d.fecha_iso >= fIni);
+            if (fFin) docs = docs.filter(d => d.fecha_iso <= fFin);
+
+            const container = document.getElementById('gridContainer');
+            container.innerHTML = '';
+
+            // Si no hay resultados
+            if (docs.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state" style="grid-column: 1 / -1;">
+                        <span style="font-size: 3rem; display: block; margin-bottom: 15px;">📭</span>
+                        <h3 style="color: #334155; margin: 0 0 10px 0;">No se encontraron documentos</h3>
+                        <p style="margin: 0;">Intenta ajustar los filtros de búsqueda para ver más resultados.</p>
+                    </div>`;
+                return;
+            }
+
+            // 3. Aplicar Agrupaciones y dibujar tarjetas
+            if (groupProp === 'none') {
+                docs.forEach(doc => container.appendChild(crearTarjeta(doc)));
+            } else {
+                const groups = {};
+                docs.forEach(d => {
+                    const key = d[groupProp];
+                    if(!groups[key]) groups[key] = [];
+                    groups[key].push(d);
+                });
+
+                for (const [groupName, items] of Object.entries(groups)) {
+                    // Título del Grupo
+                    const headerDiv = document.createElement('div');
+                    headerDiv.className = 'group-header';
+                    headerDiv.innerHTML = `
+                        <div>Agrupación: <strong>${formatearNombreGrupo(groupProp, groupName)}</strong></div>
+                        <span>${items.length} docs</span>
+                    `;
+                    container.appendChild(headerDiv);
+
+                    // Tarjetas del Grupo
+                    items.forEach(doc => container.appendChild(crearTarjeta(doc)));
+                }
+            }
+        }
+
+        // Formateador de nombres de grupos
+        function formatearNombreGrupo(tipo, valor) {
+            if (tipo === 'status') {
+                if(valor === 'COMPLETED') return '🟢 Completados';
+                if(valor === 'CANCELLED') return '🔴 Cancelados';
+                return '🔵 En Proceso';
+            }
+            if (tipo === 'total_firmas') {
+                return `${valor} Personas Firmantes Requeridas`;
+            }
+            return valor;
+        }
+
+        // Creador de Tarjetas HTML
+        function crearTarjeta(doc) {
+            const div = document.createElement('div');
+
+            let badgeClass = 'bg-processing'; let statusText = 'EN PROCESO'; let colorProgress = '#2563eb';
+            if(doc.status === 'COMPLETED') { badgeClass = 'bg-completed'; statusText = 'COMPLETADO'; colorProgress = '#10b981'; }
+            if(doc.status === 'CANCELLED') { badgeClass = 'bg-cancelled'; statusText = 'CANCELADO'; }
+
+            div.className = `doc-card ${doc.status === 'COMPLETED' ? 'completed' : ''} ${doc.status === 'CANCELLED' ? 'cancelled' : ''}`;
+
+            let progressHTML = '';
+            if (doc.status !== 'CANCELLED') {
+                progressHTML = `
+                    <div class="progress-wrapper">
+                        <div class="progress-header">
+                            <span>Progreso de Firmas</span>
+                            <span style="color: ${colorProgress};">${doc.firmas_hechas} / ${doc.total_firmas}</span>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-bar ${doc.status === 'COMPLETED' ? 'completed' : ''}" style="width: ${doc.porcentaje}%;"></div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                progressHTML = `
+                    <div class="progress-wrapper" style="background: #fee2e2; border-color: #fecaca; text-align: center;">
+                        <span style="font-size: 0.85rem; color: #b91c1c; font-weight: bold;">Proceso Detenido</span>
+                    </div>
+                `;
+            }
+
+            div.innerHTML = `
+                <div class="card-header">
+                    <h3 class="card-title">${doc.reference_id}</h3>
+                    <span class="status-badge ${badgeClass}">${statusText}</span>
+                </div>
+                <div class="card-body">
+                    <div class="info-line">
+                        <span class="info-icon">📅</span>
+                        <span>Enviado: <strong>${doc.fecha_formato}</strong></span>
+                    </div>
+                    ${progressHTML}
+                </div>
+                <div class="card-footer">
+                    <a href="/trazabilidad/${doc.token}/" target="_blank" class="btn-ver">
+                        <span>👁️</span> Ver Trazabilidad y Documento
+                    </a>
+                </div>
+            `;
+            return div;
+        }
+
+        // Limpiar Filtros
+        function limpiarFiltros() {
+            document.getElementById('filFolio').value = '';
+            document.getElementById('filEstado').value = 'all';
+            document.getElementById('filFechaIni').value = '';
+            document.getElementById('filFechaFin').value = '';
+            document.getElementById('selGroup').value = 'none';
+            renderGrid();
+        }
+
+        // Listeners
+        document.addEventListener("DOMContentLoaded", () => {
+            document.getElementById('filFolio').addEventListener('keyup', renderGrid);
+            document.getElementById('filEstado').addEventListener('change', renderGrid);
+            document.getElementById('selGroup').addEventListener('change', renderGrid);
+            document.getElementById('filFechaIni').addEventListener('change', renderGrid);
+            document.getElementById('filFechaFin').addEventListener('change', renderGrid);
+            renderGrid(); // Carga inicial
+        });
+    </script>
 </body>
 </html>
