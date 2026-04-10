@@ -89,6 +89,7 @@ def recibir_documento_n8n(request):
 
             return JsonResponse({"status": "success", "msg": "Documento recibido.", "folio_asignado": ref_id})
         except Exception as e:
+            print(traceback.format_exc())
             return JsonResponse({"error": repr(e)}, status=400)
 
 
@@ -275,7 +276,6 @@ def portal_logout(request):
     return redirect('portal_login')
 
 
-# === VISTAS DE PLANTILLAS PARA USUARIOS ===
 def portal_plantillas(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
@@ -351,7 +351,6 @@ def admin_crear_plantilla(request):
                   {'admin_email': request.session.get('admin_email')})
 
 
-# NUEVA VISTA PARA EDITAR PLANTILLA COMO ADMINISTRADOR
 def admin_editar_plantilla(request, plantilla_id):
     if not request.session.get('admin_email'): return redirect('admin_login')
     plantilla = get_object_or_404(PlantillaFormulario, id=plantilla_id)
@@ -401,7 +400,7 @@ def admin_api(request, accion):
                 owner_email=data['owner_email'],
                 drive_folder_id=data['drive_folder_id'],
                 view_info=data['view_info'],
-                formato_folio=data.get('formato_folio', ''),  # AHORA GUARDAMOS EL FOLIO
+                formato_folio=data.get('formato_folio', ''),
                 contexto=data['contexto'],
                 intencion=data['intencion'],
                 variables=data['variables'],
@@ -410,7 +409,6 @@ def admin_api(request, accion):
             )
             return JsonResponse({"status": "success", "msg": "Plantilla guardada exitosamente."})
 
-        # ACCIÓN PARA ACTUALIZAR PLANTILLA EXISTENTE
         elif accion == 'actualizar_plantilla':
             p = PlantillaFormulario.objects.filter(id=data.get('id')).first()
             if p:

@@ -16,8 +16,8 @@
 <body>
 
 <div class="card">
-    <a href="/admin-portal/dashboard/" style="color:#666; text-decoration:none; margin-bottom:15px; display:inline-block;">⬅ Volver al Panel</a>
-    <h2 style="color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px;">Editar Plantilla</h2>
+    <a href="/admin-portal/dashboard/" style="color:#666; text-decoration:none; margin-bottom:15px; display:inline-block;">⬅ Volver al Panel de Administración</a>
+    <h2 style="color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px;">Editar Plantilla Maestra</h2>
 
     <div class="section">
         <label>Nombre de la Plantilla</label>
@@ -25,6 +25,7 @@
 
         <label>Formato o Prefijo de Folio</label>
         <input type="text" id="p_folio" value="{{ plantilla.formato_folio }}">
+        <small style="color:#666; font-size:0.75rem; display:block; margin-bottom:10px;">El prefijo que verán los usuarios (Ej. CONTRATO-RALOY-2026-)</small>
 
         <label>ID de Carpeta Drive (Resguardo)</label>
         <input type="text" id="p_drive" value="{{ plantilla.drive_folder_id }}">
@@ -41,7 +42,7 @@
 
     <div class="section">
         <h3>Correos Predeterminados para Variables</h3>
-        <p style="font-size: 0.85rem; color:#666;">Edita quién será el encargado de rellenar cada campo.</p>
+        <p style="font-size: 0.85rem; color:#666;">Edita quién será el encargado de rellenar cada campo de texto en el documento.</p>
         {% for var in plantilla.variables %}
             <div style="display:flex; gap:10px; align-items:center; margin-bottom:5px;">
                 <span style="width: 250px; font-size:0.9rem;"><strong>{{ var.label }}</strong> ({{ var.key }})</span>
@@ -62,7 +63,7 @@
         </div>
     </div>
 
-    <button class="btn btn-success" onclick="guardarEdicion()">Guardar Cambios</button>
+    <button class="btn btn-success" onclick="guardarEdicion()">Guardar Cambios en Plantilla</button>
 </div>
 
 <script>
@@ -100,13 +101,20 @@
             firmantes_config: firmasMap
         };
 
+        // SOLO GUARDA EN BASE DE DATOS, NO ENVÍA A N8N
         fetch('/api/admin-action/actualizar_plantilla/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         }).then(r => r.json()).then(res => {
-            if(res.status === 'success') { alert(res.msg); window.location.href = '/admin-portal/dashboard/'; }
-            else { alert("Error al guardar: " + res.error); btn.disabled = false; btn.innerText = "Guardar Cambios"; }
+            if(res.status === 'success') {
+                alert(res.msg);
+                window.location.href = '/admin-portal/dashboard/';
+            } else {
+                alert("Error al guardar: " + res.error);
+                btn.disabled = false;
+                btn.innerText = "Guardar Cambios en Plantilla";
+            }
         });
     }
 </script>
