@@ -38,6 +38,8 @@ def recibir_documento_n8n(request):
             owner_email = data.get('owner', '')
             dir_drive = data.get('dir', '')
             exec_mode = data.get('exec', 'normal')
+
+            # EL ENGAÑO A GOOGLE: Usamos 'variables_asignadas' si viene de un formulario dinámico
             document_variables = data.get('variables_asignadas', data.get('document_variables', {}))
 
             # 1. ASIGNAR TOKEN ÚNICO A CADA FIRMANTE
@@ -103,28 +105,69 @@ def recibir_documento_n8n(request):
 
 def vista_firma_ui(request, token, firmante_token=None):
     proceso = get_object_or_404(ProcesoFirma, token_acceso=token)
-    if proceso.status == 'CANCELLED': return HttpResponse(
-        "<h1 style='color:red; text-align:center; margin-top:50px;'>Este documento ha sido CANCELADO.</h1>")
-    if proceso.status == 'COMPLETED': return HttpResponse(
-        "<h1 style='text-align:center; margin-top:50px;'>Este documento ya ha sido firmado en su totalidad.</h1>")
+
+    # Contexto base para mensajes estilizados
+    message_context = {
+        'token': token,
+        'view_info': proceso.view_info,
+        'summary_data': proceso.summary_data,
+        'pdf_url': f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}",
+        'is_message_view': True,
+        'message_icon': '',  # Unicode Icon
+        'message_color': '',  # Color para el título
+        'message_title': '',
+        'message_body': ''
+    }
+
+    # NUEVO: MENSAJES DE CONFIRMACIÓN Y ESTADO ESTILIZADOS
+    if proceso.status == 'CANCELLED':
+        message_context.update({
+            'message_icon': '⚠️',
+            'message_color': '#e74c3c',
+            'message_title': 'Documento Cancelado',
+            'message_body': 'El proceso de firma de este documento ha sido permanentemente cancelado por el administrador.'
+        })
+        return render(request, 'motor_firmas/firma_ui.html', message_context)
+
+    if proceso.status == 'COMPLETED':
+        message_context.update({
+            'message_icon': '✅',
+            'message_color': '#10b981',
+            'message_title': 'Proceso Completado',
+            'message_body': 'Este documento ya ha sido firmado en su totalidad por todos los participantes y ha sido certificado.'
+        })
+        return render(request, 'motor_firmas/firma_ui.html', message_context)
 
     # 2. VALIDAR AL FIRMANTE ESPECÍFICO
     if firmante_token:
         firmante_actual = next((f for f in proceso.firmantes if f.get('token_firmante') == firmante_token), None)
         if not firmante_actual:
-            return HttpResponse(
-                "<h1 style='color:red; text-align:center; margin-top:50px;'>Enlace inválido o no reconocido.</h1>")
+            return HttpResponse("<h1>Enlace inválido o no reconocido.</h1>")
 
         if firmante_actual.get('fecha_firma'):
-            return HttpResponse(
-                "<h1 style='color:green; text-align:center; margin-top:50px;'>Ya has completado tu firma para este documento. Muchas gracias.</h1>")
+            message_context.update({
+                'nombre_firmante': firmante_actual.get('nombre', 'Firmante'),
+                'email_firmante': firmante_actual.get('email', ''),
+                'message_icon': '✓',
+                'message_color': '#10b981',
+                'message_title': 'Ya has firmado',
+                'message_body': 'Tu firma ya ha sido capturada y estampada en este documento anteriormente. ¡Muchas gracias por tu participación!'
+            })
+            return render(request, 'motor_firmas/firma_ui.html', message_context)
 
         firmante_esperado = proceso.firmantes[proceso.indice_actual - 1]
         if firmante_actual.get('token_firmante') != firmante_esperado.get('token_firmante'):
-            return HttpResponse(
-                "<h1 style='color:#f39c12; text-align:center; margin-top:50px;'>Aún no es tu turno para firmar este documento. Te notificaremos cuando sea el momento.</h1>")
+            message_context.update({
+                'nombre_firmante': firmante_actual.get('nombre', 'Firmante'),
+                'email_firmante': firmante_actual.get('email', ''),
+                'message_icon': '⏳',
+                'message_color': '#f39c12',
+                'message_title': 'Aún no es tu turno',
+                'message_body': 'Te notificaremos por correo electrónico en cuanto sea tu turno de firmar este documento.'
+            })
+            return render(request, 'motor_firmas/firma_ui.html', message_context)
     else:
-        # Fallback para ligas viejas generadas antes de este código
+        # Fallback para ligas viejas
         firmante_actual = proceso.firmantes[proceso.indice_actual - 1]
 
     filename = os.path.basename(proceso.pdf_path)
@@ -145,7 +188,8 @@ def vista_firma_ui(request, token, firmante_token=None):
         'summary_data': proceso.summary_data,
         'pdf_url': f"{settings.MEDIA_URL}{filename}",
         'is_registered': bool(colaborador),
-        'campos_a_llenar': campos_a_llenar
+        'campos_a_llenar': campos_a_llenar,
+        'is_message_view': False,  # Vista normal de firma
     }
     return render(request, 'motor_firmas/firma_ui.html', context)
 
@@ -326,8 +370,11 @@ def portal_logout(request):
 def portal_plantillas(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
+
     todas = PlantillaFormulario.objects.all().order_by('-created_at')
+    # NUEVO: Traemos solo las que el usuario puede usar o creó
     permitidas = [p for p in todas if owner_email in p.usuarios_permitidos or p.owner_email == owner_email]
+
     return render(request, 'motor_firmas/portal_plantillas.html',
                   {'plantillas': permitidas, 'owner_email': owner_email})
 

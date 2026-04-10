@@ -48,6 +48,13 @@
         /* Visor de Documento */
         .doc-viewer { margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 30px; }
         iframe { width: 100%; height: 700px; border: none; border-radius: 8px; background: #f8fafc; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);}
+
+        /* Estilos para Mensajes Estilizados */
+        .message-container { text-align: center; padding: 60px 30px; }
+        .message-icon { font-size: 4rem; margin-bottom: 20px; display: block; }
+        .message-title { font-size: 2rem; font-weight: bold; margin-bottom: 15px; }
+        .message-body { font-size: 1.1rem; color: #475569; line-height: 1.6; max-width: 600px; margin: auto; }
+        .message-sub { color: #94a3b8; font-size: 0.9rem; margin-top: 40px; }
     </style>
 </head>
 <body>
@@ -55,59 +62,75 @@
 <div class="main-container">
     <div class="header">
         <h2>Certificación Digital de Documento</h2>
-        <p>Proceso Seguro para: <strong>{{ nombre_firmante }}</strong> ({{ email_firmante }})</p>
+        {% if is_message_view and nombre_firmante %}
+            <p>Proceso Seguro para: <strong>{{ nombre_firmante }}</strong> ({{ email_firmante }})</p>
+        {% elif not is_message_view %}
+            <p>Proceso Seguro para: <strong>{{ nombre_firmante }}</strong> ({{ email_firmante }})</p>
+        {% endif %}
     </div>
 
     <div class="content-body">
 
-        {% if campos_a_llenar %}
-        <div class="step-box">
-            <div class="step-header">
-                <div class="step-number">1</div>
-                <h3>Información Requerida</h3>
+        {# NUEVO: BLOQUE DE MENSAJES ESTILIZADOS #}
+        {% if is_message_view %}
+            <div class="message-container">
+                <span class="message-icon">{{ message_icon }}</span>
+                <h2 class="message-title" style="color: {{ message_color }};">{{ message_title }}</h2>
+                <p class="message-body">{{ message_body }}</p>
+                <p class="message-sub">Ya puedes cerrar esta ventana con total seguridad.</p>
             </div>
-            <div class="step-content">
-                <p style="margin-top:0; font-size:0.9rem; color:#64748b; margin-bottom: 20px;">Por favor, completa los siguientes datos obligatorios para anexarlos al documento antes de certificar tu firma.</p>
-                <div class="form-grid">
-                    {% for campo in campos_a_llenar %}
-                        <div class="input-group">
-                            <label>{{ campo }}</label>
-                            <input type="text" class="doc-var-input" data-key="{{ campo }}" required placeholder="Ingresar valor...">
-                        </div>
-                    {% endfor %}
+        {# VISTA NORMAL DE FIRMA #}
+        {% else %}
+            {% if campos_a_llenar %}
+            <div class="step-box">
+                <div class="step-header">
+                    <div class="step-number">1</div>
+                    <h3>Información Requerida</h3>
+                </div>
+                <div class="step-content">
+                    <p style="margin-top:0; font-size:0.9rem; color:#64748b; margin-bottom: 20px;">Por favor, completa los siguientes datos obligatorios para anexarlos al documento antes de certificar tu firma.</p>
+                    <div class="form-grid">
+                        {% for campo in campos_a_llenar %}
+                            <div class="input-group">
+                                <label>{{ campo }}</label>
+                                <input type="text" class="doc-var-input" data-key="{{ campo }}" required placeholder="Ingresar valor...">
+                            </div>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
-        </div>
+            {% endif %}
+
+            <div class="step-box">
+                <div class="step-header">
+                    <div class="step-number">{% if campos_a_llenar %}2{% else %}1{% endif %}</div>
+                    <h3>Certificación y Firma</h3>
+                </div>
+                <div class="step-content">
+                    {% if is_registered %}
+                        <div class="pin-box">
+                            <p style="margin-top:0; font-size:0.9rem; color:#64748b;">Ingresa tu PIN de seguridad para aplicar tu firma electrónica.</p>
+                            <input type="password" id="inputPin" placeholder="••••" maxlength="6">
+                            <button class="btn-action success" id="btnFirmarPin" onclick="enviar(true)">✓ Validar y Firmar Documento</button>
+                            <a class="forgot-pin" onclick="recuperarPin()">¿Olvidaste tu PIN?</a>
+                        </div>
+                    {% else %}
+                        <div id="canvasSection">
+                            <p style="margin-top:0; font-size:0.9rem; color:#64748b;">Dibuja tu firma autógrafa en el siguiente recuadro para certificar el documento.</p>
+                            <div class="canvas-container"><canvas id="pizarra"></canvas></div>
+                            <div style="display: flex; gap: 15px;">
+                                <button class="btn-action btn-secondary" onclick="limpiarCanvas()" style="width: 30%;">Limpiar Pizarra</button>
+                                <button class="btn-action success" id="btnFirmarCanvas" onclick="enviar(false)" style="width: 70%;">✓ Aceptar y Firmar</button>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
         {% endif %}
 
-        <div class="step-box">
-            <div class="step-header">
-                <div class="step-number">{% if campos_a_llenar %}2{% else %}1{% endif %}</div>
-                <h3>Certificación y Firma</h3>
-            </div>
-            <div class="step-content">
-                {% if is_registered %}
-                    <div class="pin-box">
-                        <p style="margin-top:0; font-size:0.9rem; color:#64748b;">Ingresa tu PIN de seguridad para aplicar tu firma electrónica.</p>
-                        <input type="password" id="inputPin" placeholder="••••" maxlength="6">
-                        <button class="btn-action success" id="btnFirmarPin" onclick="enviar(true)">✓ Validar y Firmar Documento</button>
-                        <a class="forgot-pin" onclick="recuperarPin()">¿Olvidaste tu PIN?</a>
-                    </div>
-                {% else %}
-                    <div id="canvasSection">
-                        <p style="margin-top:0; font-size:0.9rem; color:#64748b;">Dibuja tu firma autógrafa en el siguiente recuadro para certificar el documento.</p>
-                        <div class="canvas-container"><canvas id="pizarra"></canvas></div>
-                        <div style="display: flex; gap: 15px;">
-                            <button class="btn-action btn-secondary" onclick="limpiarCanvas()" style="width: 30%;">Limpiar Pizarra</button>
-                            <button class="btn-action success" id="btnFirmarCanvas" onclick="enviar(false)" style="width: 70%;">✓ Aceptar y Firmar</button>
-                        </div>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-
+        {# VISOR SIEMPRE VISIBLE ABAJO #}
         <div class="doc-viewer">
-            <h3 style="color: #1e293b; margin-top:0;">Vista Previa del Documento</h3>
+            <h3 style="color: #1e293b; margin-top:0; border-bottom: 2px solid #eee; padding-bottom: 10px;">Vista Previa del Documento</h3>
             {% if view_info == 'file' %}
                 <iframe src="{{ pdf_url }}"></iframe>
             {% elif view_info == 'summary' %}
@@ -123,6 +146,7 @@
     </div>
 </div>
 
+{% if not is_message_view %}
 <script>
     {% if not is_registered %}
     const canvas = document.getElementById('pizarra'); const ctx = canvas.getContext('2d'); let dibujando = false, haDibujado = false;
@@ -179,16 +203,19 @@
             body: JSON.stringify(payload)
         }).then(r => r.json()).then(data => {
             if(data.status === 'success') {
+                // Exito estilizado
                 document.querySelector('.content-body').innerHTML = `
-                    <div style="text-align: center; padding: 50px 20px;">
-                        <h2 style="color:#10b981; font-size: 2rem; margin-bottom:10px;">¡Certificación Exitosa! ✓</h2>
-                        <p style="font-size: 1.1rem; color: #475569;">Tu firma y los datos han sido estampados de forma segura en el documento.</p>
-                        <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 30px;">Ya puedes cerrar esta ventana con total seguridad.</p>
+                    <div class="message-container">
+                        <span class="message-icon" style="color:#10b981">✓</span>
+                        <h2 class="message-title" style="color:#10b981">¡Certificación Exitosa!</h2>
+                        <p class="message-body">Tu firma y los datos han sido estampados de forma segura en el documento.</p>
+                        <p class="message-sub">Ya puedes cerrar esta ventana con total seguridad.</p>
                     </div>`;
             }
             else { alert("Error: " + data.error); btn.disabled = false; btn.innerText = "Reintentar Certificación"; }
         });
     }
 </script>
+{% endif %}
 </body>
 </html>
