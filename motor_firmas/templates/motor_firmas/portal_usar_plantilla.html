@@ -16,10 +16,10 @@
 
 <div class="card">
     <h2>{{ plantilla.nombre }}</h2>
-
+    
     <div class="section">
         <label>Folio (Opcional, dejar vacío para autogenerar)</label>
-        <input type="text" id="folio_id" placeholder="Ej. CONTRATO-RALOY-2026-">
+        <input type="text" id="folio_id" value="{{ plantilla.formato_folio|default:'' }}" placeholder="Ej. CONTRATO-RALOY-2026-">
     </div>
 
     <div class="section">
@@ -63,7 +63,7 @@
             firmantesArr.push({ nombre: nombres[i].value, email: correos[i].value });
         }
 
-        // Crear Folio Random si está vacío
+        // Crear Folio Random si está vacío (Si el admin no le puso prefijo, o el usuario lo borra)
         let folio = document.getElementById('folio_id').value;
         if(!folio) folio = "DOC-" + Math.floor(Date.now() / 1000);
 

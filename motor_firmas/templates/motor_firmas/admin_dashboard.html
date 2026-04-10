@@ -119,7 +119,7 @@
                         <span style="font-size: 0.75rem; color: #777;">Creado por: {{ p.owner_email }}</span>
 
                         <div style="margin-top: 8px; display: flex; gap: 15px;">
-                            <a href="/portal/usar-plantilla/{{ p.id }}/" target="_blank" style="font-size: 0.8rem; color: #27ae60; text-decoration: none; font-weight: bold;">➔ Usar Plantilla</a>
+                            <a href="{% url 'admin_editar_plantilla' p.id %}" style="font-size: 0.8rem; color: #f39c12; text-decoration: none; font-weight: bold;">✏️ Editar Plantilla</a>
                             <a href="javascript:void(0);" onclick="eliminarPlantilla('{{ p.id }}')" style="font-size: 0.8rem; color: #e74c3c; text-decoration: none; font-weight: bold;">✖ Eliminar</a>
                         </div>
                     </div>

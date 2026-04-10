@@ -323,7 +323,6 @@ def admin_dashboard(request):
     if not admin_email: return redirect('admin_login')
     admin_obj = AdministradorPortal.objects.get(email=admin_email)
 
-    # Extraer todos los documentos
     todos_docs = ProcesoFirma.objects.all().order_by('-created_at')
     docs_json = [{'reference_id': d.reference_id, 'token': str(d.token_acceso), 'owner_email': d.owner_email or 'N/A',
                   'dominio': d.owner_email.split('@')[1] if d.owner_email and '@' in d.owner_email else 'N/A',
@@ -331,7 +330,6 @@ def admin_dashboard(request):
                   'progreso': f"{sum(1 for f in d.firmantes if f.get('fecha_firma'))}/{len(d.firmantes)}"} for d in
                  todos_docs]
 
-    # Extraer todas las plantillas creadas
     plantillas = PlantillaFormulario.objects.all().order_by('-created_at')
 
     return render(request, 'motor_firmas/admin_dashboard.html', {
@@ -351,6 +349,14 @@ def admin_crear_plantilla(request):
     if not request.session.get('admin_email'): return redirect('admin_login')
     return render(request, 'motor_firmas/admin_crear_plantilla.html',
                   {'admin_email': request.session.get('admin_email')})
+
+
+# NUEVA VISTA PARA EDITAR PLANTILLA COMO ADMINISTRADOR
+def admin_editar_plantilla(request, plantilla_id):
+    if not request.session.get('admin_email'): return redirect('admin_login')
+    plantilla = get_object_or_404(PlantillaFormulario, id=plantilla_id)
+    return render(request, 'motor_firmas/admin_editar_plantilla.html',
+                  {'admin_email': request.session.get('admin_email'), 'plantilla': plantilla})
 
 
 @csrf_exempt
@@ -395,6 +401,7 @@ def admin_api(request, accion):
                 owner_email=data['owner_email'],
                 drive_folder_id=data['drive_folder_id'],
                 view_info=data['view_info'],
+                formato_folio=data.get('formato_folio', ''),  # AHORA GUARDAMOS EL FOLIO
                 contexto=data['contexto'],
                 intencion=data['intencion'],
                 variables=data['variables'],
@@ -402,6 +409,21 @@ def admin_api(request, accion):
                 usuarios_permitidos=data['usuarios_permitidos']
             )
             return JsonResponse({"status": "success", "msg": "Plantilla guardada exitosamente."})
+
+        # ACCIÓN PARA ACTUALIZAR PLANTILLA EXISTENTE
+        elif accion == 'actualizar_plantilla':
+            p = PlantillaFormulario.objects.filter(id=data.get('id')).first()
+            if p:
+                p.nombre = data.get('nombre')
+                p.formato_folio = data.get('formato_folio', '')
+                p.drive_folder_id = data.get('drive_folder_id')
+                p.view_info = data.get('view_info')
+                p.usuarios_permitidos = data.get('usuarios_permitidos')
+                p.variables = data.get('variables')
+                p.firmantes_config = data.get('firmantes_config')
+                p.save()
+                return JsonResponse({"status": "success", "msg": "Plantilla actualizada."})
+            return JsonResponse({"error": "Plantilla no encontrada"}, status=404)
 
         elif accion == 'eliminar_plantilla':
             PlantillaFormulario.objects.filter(id=data.get('id')).delete()

@@ -52,6 +52,13 @@
 
     <div id="step3" class="step">
         <div class="form-group"><label>5. Nombre de la Plantilla</label><input type="text" id="p_nombre" placeholder="Contrato de Equipo 2026"></div>
+
+        <div class="form-group">
+            <label>5.1. Formato o Prefijo de Folio</label>
+            <input type="text" id="p_folio" placeholder="Ej. CONTRATO-RALOY-2026-">
+            <small style="color:#666; font-size:0.75rem;">Si lo dejas vacío, se autogenerará con fecha y hora al usarlo.</small>
+        </div>
+
         <div class="form-group"><label>6. ID de Carpeta Drive (Resguardo)</label><input type="text" id="p_drive" placeholder="1bDP1Q-4wRK6c5Bdx..."></div>
         <div class="form-group">
             <label>7. Formato de Vista para Firmantes</label>
@@ -147,7 +154,6 @@
 
                 if(rawData.firmas && Array.isArray(rawData.firmas)) {
                     rawData.firmas.forEach((f, idx) => {
-                        // SE AGREGÓ EL INPUT PARA CAPTURAR EL CORREO, PRECARGADO CON EL OWNER
                         tbF.innerHTML += `<tr>
                             <td>${idx+1}</td>
                             <td><input type="text" class="firma-key" value="${f}" disabled></td>
@@ -174,7 +180,6 @@
     }
 
     function guardarPlantilla() {
-        // Recolectar variables mapeadas
         let varsMap = [];
         document.querySelectorAll('.var-email').forEach(inp => {
             const v = rawData.variables.find(x => x.key === inp.dataset.key);
@@ -184,7 +189,6 @@
             }
         });
 
-        // NUEVO: Recolectar firmas con su correo sugerido
         let firmasMap = [];
         const firmaKeys = document.querySelectorAll('.firma-key');
         const firmaEmails = document.querySelectorAll('.firma-default-email');
@@ -202,8 +206,9 @@
             contexto: rawData.contexto,
             intencion: rawData.intencion,
             variables: varsMap,
-            firmantes_config: firmasMap, // AHORA SE MANDA EL ARREGLO DE OBJETOS
+            firmantes_config: firmasMap,
             nombre: document.getElementById('p_nombre').value,
+            formato_folio: document.getElementById('p_folio').value, // NUEVO ENVIO AL BACKEND
             drive_folder_id: document.getElementById('p_drive').value,
             view_info: document.getElementById('p_view').value,
             usuarios_permitidos: document.getElementById('p_usuarios').value.split(',').map(s=>s.trim()).filter(s=>s)

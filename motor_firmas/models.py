@@ -17,11 +17,10 @@ class ProcesoFirma(models.Model):
     view_info = models.CharField(max_length=20, default='file')
     summary_data = models.JSONField(null=True, blank=True)
 
-    # --- NUEVOS CAMPOS PARA FLUJOS DINÁMICOS ---
     dir_drive = models.CharField(max_length=200, null=True, blank=True)
     exec_mode = models.CharField(max_length=20, default='normal')
-    document_variables = models.JSONField(default=dict, blank=True)  # Guarda a quién le toca cada variable
-    valores_capturados = models.JSONField(default=dict, blank=True)  # Guarda lo que la gente responde
+    document_variables = models.JSONField(default=dict, blank=True)
+    valores_capturados = models.JSONField(default=dict, blank=True)
 
     owner_email = models.CharField(max_length=200, null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
@@ -31,18 +30,20 @@ class ProcesoFirma(models.Model):
 
 
 class PlantillaFormulario(models.Model):
-    """Guarda la configuración de las plantillas creadas por los administradores"""
     nombre = models.CharField(max_length=200)
     doc_id = models.CharField(max_length=200)
     owner_email = models.CharField(max_length=200)
     drive_folder_id = models.CharField(max_length=200)
     view_info = models.CharField(max_length=50, default='file')
+
+    # NUEVO CAMPO: Prefijo del Folio
+    formato_folio = models.CharField(max_length=100, blank=True, null=True, default='')
+
     contexto = models.TextField(blank=True, null=True)
     intencion = models.TextField(blank=True, null=True)
-    variables = models.JSONField(
-        default=list)  # [{'key': 'NOMBRE', 'label': 'Nombre', 'type': 'text', 'default_email': 'x@x.com'}]
-    firmantes_config = models.JSONField(default=list)  # ['{{FIRMA_1}}', '{{FIRMA_2}}']
-    usuarios_permitidos = models.JSONField(default=list)  # Correos permitidos
+    variables = models.JSONField(default=list)
+    firmantes_config = models.JSONField(default=list)
+    usuarios_permitidos = models.JSONField(default=list)
     created_at = models.DateTimeField(default=timezone.now)
 
 

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Editar Plantilla - Raloy</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #ecf0f1; padding: 30px; }
+        .card { background: white; padding: 30px; border-radius: 8px; max-width: 800px; margin: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .section { margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem;}
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 10px; box-sizing: border-box; }
+        .btn { background: #3498db; color: white; padding: 12px; border: none; border-radius: 4px; cursor: pointer; width: 100%; font-size:1.1rem; font-weight:bold;}
+        .btn-success { background: #27ae60; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <a href="/admin-portal/dashboard/" style="color:#666; text-decoration:none; margin-bottom:15px; display:inline-block;">⬅ Volver al Panel</a>
+    <h2 style="color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px;">Editar Plantilla</h2>
+
+    <div class="section">
+        <label>Nombre de la Plantilla</label>
+        <input type="text" id="p_nombre" value="{{ plantilla.nombre }}">
+
+        <label>Formato o Prefijo de Folio</label>
+        <input type="text" id="p_folio" value="{{ plantilla.formato_folio }}">
+
+        <label>ID de Carpeta Drive (Resguardo)</label>
+        <input type="text" id="p_drive" value="{{ plantilla.drive_folder_id }}">
+
+        <label>Formato de Vista para Firmantes</label>
+        <select id="p_view">
+            <option value="file" {% if plantilla.view_info == 'file' %}selected{% endif %}>Archivo PDF Completo</option>
+            <option value="summary" {% if plantilla.view_info == 'summary' %}selected{% endif %}>Extracto Resumen por IA</option>
+        </select>
+
+        <label>Correos permitidos (separados por coma)</label>
+        <input type="text" id="p_usuarios" value="{{ plantilla.usuarios_permitidos|join:', ' }}">
+    </div>
+
+    <div class="section">
+        <h3>Correos Predeterminados para Variables</h3>
+        <p style="font-size: 0.85rem; color:#666;">Edita quién será el encargado de rellenar cada campo.</p>
+        {% for var in plantilla.variables %}
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:5px;">
+                <span style="width: 250px; font-size:0.9rem;"><strong>{{ var.label }}</strong> ({{ var.key }})</span>
+                <input type="email" class="var-map" data-key="{{ var.key }}" data-label="{{ var.label }}" data-type="{{ var.type }}" value="{{ var.default_email }}" style="margin-bottom:0;">
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="section">
+        <h3>Correos Predeterminados para Firmantes</h3>
+        <div id="firmantesContainer">
+            {% for firma in plantilla.firmantes_config %}
+                <div style="display:flex; gap:10px; background:#f9f9f9; padding:10px; margin-bottom:5px; align-items: center;">
+                    <span style="font-weight:bold; width: 150px;">{{ firma.key }}:</span>
+                    <input type="email" class="firma-email" data-key="{{ firma.key }}" value="{{ firma.default_email }}" style="margin-bottom: 0;">
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <button class="btn btn-success" onclick="guardarEdicion()">Guardar Cambios</button>
+</div>
+
+<script>
+    function guardarEdicion() {
+        const btn = event.target; btn.disabled = true; btn.innerText = "Guardando...";
+
+        // Reconstruir Variables
+        let varsMap = [];
+        document.querySelectorAll('.var-map').forEach(inp => {
+            varsMap.push({
+                key: inp.dataset.key,
+                label: inp.dataset.label,
+                type: inp.dataset.type,
+                default_email: inp.value
+            });
+        });
+
+        // Reconstruir Firmantes
+        let firmasMap = [];
+        document.querySelectorAll('.firma-email').forEach(inp => {
+            firmasMap.push({
+                key: inp.dataset.key,
+                default_email: inp.value
+            });
+        });
+
+        const payload = {
+            id: "{{ plantilla.id }}",
+            nombre: document.getElementById('p_nombre').value,
+            formato_folio: document.getElementById('p_folio').value,
+            drive_folder_id: document.getElementById('p_drive').value,
+            view_info: document.getElementById('p_view').value,
+            usuarios_permitidos: document.getElementById('p_usuarios').value.split(',').map(s=>s.trim()).filter(s=>s),
+            variables: varsMap,
+            firmantes_config: firmasMap
+        };
+
+        fetch('/api/admin-action/actualizar_plantilla/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(r => r.json()).then(res => {
+            if(res.status === 'success') { alert(res.msg); window.location.href = '/admin-portal/dashboard/'; }
+            else { alert("Error al guardar: " + res.error); btn.disabled = false; btn.innerText = "Guardar Cambios"; }
+        });
+    }
+</script>
+</body>
+</html>
