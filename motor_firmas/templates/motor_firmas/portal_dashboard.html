@@ -5,87 +5,142 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mi Portal de Documentos - Raloy</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; padding: 30px; margin: 0; }
-        .header { display: flex; justify-content: space-between; align-items: center; max-width: 1000px; margin: 0 auto 30px auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);}
-        .header h2 { color: #0056b3; margin: 0; }
-        .btn-logout { background-color: #dc3545; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 0.9rem;}
-        .btn-crear { background-color: #27ae60; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 0.9rem; margin-right: 15px;}
-        .btn-crear:hover { background-color: #219150; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1f5f9; padding: 30px 15px; margin: 0; color: #334155; }
 
-        .container { max-width: 1000px; margin: auto; }
-        .doc-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; border-left: 5px solid #0056b3; }
-        .doc-card.completed { border-left-color: #28a745; }
-        .doc-card.cancelled { border-left-color: #dc3545; opacity: 0.8; }
+        /* Topbar */
+        .topbar { background: #0f172a; color: white; padding: 15px 30px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); max-width: 1200px; margin-left: auto; margin-right: auto;}
+        .topbar h1 { margin: 0; font-size: 1.3rem; letter-spacing: 0.5px; }
+        .topbar .user-info { font-size: 0.9rem; color: #94a3b8; display: flex; align-items: center; gap: 15px;}
+        .btn-logout { background: #e74c3c; color: white; padding: 7px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 0.85rem; transition: background 0.2s;}
+        .btn-logout:hover { background: #c0392b; }
 
-        .doc-info h3 { margin: 0 0 5px 0; color: #333; font-size: 1.2rem; }
-        .doc-info p { margin: 0; color: #777; font-size: 0.9rem; }
+        .container { max-width: 1200px; margin: auto; }
 
-        .progress-container { width: 150px; background-color: #e9ecef; border-radius: 10px; height: 10px; margin-top: 10px; overflow: hidden;}
-        .progress-bar { height: 100%; background-color: #0056b3; }
-        .progress-bar.completed { background-color: #28a745; }
+        /* Barra de Acciones */
+        .actions-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; background: white; padding: 20px 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); border: 1px solid #e2e8f0; flex-wrap: wrap; gap: 15px;}
+        .actions-info h2 { margin: 0 0 5px 0; color: #1e293b; font-size: 1.2rem;}
+        .actions-info p { margin: 0; color: #64748b; font-size: 0.9rem;}
+        .btn-crear { background-color: #2563eb; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; transition: background 0.2s; display: inline-flex; align-items: center; gap: 8px;}
+        .btn-crear:hover { background-color: #1d4ed8; }
 
-        .btn-ver { background-color: #f8f9fa; border: 1px solid #ddd; color: #333; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; transition: 0.2s;}
-        .btn-ver:hover { background-color: #e2e6ea; }
-        .status-badge { font-size: 0.8rem; padding: 3px 8px; border-radius: 12px; color: white; font-weight: bold; margin-left: 10px; }
+        /* Grid de Documentos */
+        .doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
+
+        /* Tarjeta Individual */
+        .doc-card { background: white; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 5px rgba(0,0,0,0.02); overflow: hidden; display: flex; flex-direction: column; transition: transform 0.2s, box-shadow 0.2s; border-top: 4px solid #3b82f6; }
+        .doc-card:hover { transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        .doc-card.completed { border-top-color: #10b981; }
+        .doc-card.cancelled { border-top-color: #ef4444; opacity: 0.9;}
+
+        .card-header { padding: 20px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;}
+        .card-title { margin: 0; font-size: 1.1rem; color: #1e293b; font-weight: 700; word-break: break-word; line-height: 1.3;}
+
+        /* Badges */
+        .status-badge { font-size: 0.75rem; padding: 5px 10px; border-radius: 20px; font-weight: bold; white-space: nowrap; letter-spacing: 0.5px;}
+        .bg-processing { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe;}
+        .bg-completed { background: #d1fae5; color: #047857; border: 1px solid #a7f3d0;}
+        .bg-cancelled { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca;}
+
+        .card-body { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 15px;}
+        .info-line { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; color: #475569; }
+        .info-icon { font-size: 1.1rem; color: #94a3b8; width: 20px; text-align: center;}
+
+        /* Barra de progreso */
+        .progress-wrapper { background: #f8fafc; padding: 15px; border-radius: 6px; border: 1px solid #e2e8f0;}
+        .progress-header { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.85rem; font-weight: 600; color: #334155;}
+        .progress-container { width: 100%; background-color: #e2e8f0; border-radius: 10px; height: 8px; overflow: hidden;}
+        .progress-bar { height: 100%; background-color: #3b82f6; transition: width 0.3s ease; border-radius: 10px;}
+        .progress-bar.completed { background-color: #10b981; }
+
+        .card-footer { padding: 15px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; }
+        .btn-ver { display: flex; align-items: center; justify-content: center; gap: 8px; background-color: white; border: 1px solid #cbd5e1; color: #334155; padding: 10px; text-decoration: none; border-radius: 6px; font-weight: 600; transition: all 0.2s; font-size: 0.9rem;}
+        .btn-ver:hover { background-color: #f1f5f9; border-color: #94a3b8; }
+
+        .empty-state { text-align: center; padding: 60px 20px; background: white; border-radius: 8px; border: 1px solid #e2e8f0; color: #64748b; }
     </style>
 </head>
 <body>
 
-<div class="header">
-    <div>
-        <h2>Mis Documentos Enviados</h2>
-        <p style="margin: 5px 0 0 0; color: #666;">Sesión iniciada como: <strong>{{ owner_email }}</strong></p>
-        <p style="margin: 5px 0 0 0; color: #dc3545; font-size: 0.85rem; font-weight: bold;">
-            * Si necesitas cancelar algún documento activo, por favor acércate a tu administrador de TI o RH.
-        </p>
-    </div>
-    <div>
-        <a href="{% url 'portal_plantillas' %}" class="btn-crear">+ Generar Nuevo Documento</a>
-        <a href="{% url 'portal_logout' %}" class="btn-logout">Cerrar Sesión</a>
-    </div>
-</div>
-
-<div class="container">
-    {% if documentos %}
-        {% for item in documentos %}
-            <div class="doc-card {% if item.proceso.status == 'COMPLETED' %}completed{% elif item.proceso.status == 'CANCELLED' %}cancelled{% endif %}">
-                <div class="doc-info">
-                    <h3 style="display:flex; align-items:center;">
-                        Folio: {{ item.proceso.reference_id }}
-                        {% if item.proceso.status == 'CANCELLED' %}
-                            <span class="status-badge" style="background:#dc3545;">CANCELADO</span>
-                        {% elif item.proceso.status == 'COMPLETED' %}
-                            <span class="status-badge" style="background:#28a745;">COMPLETADO</span>
-                        {% else %}
-                            <span class="status-badge" style="background:#0056b3;">EN PROCESO</span>
-                        {% endif %}
-                    </h3>
-                    <p>Enviado el: {{ item.proceso.created_at|date:"d/m/Y H:i" }}</p>
-
-                    {% if item.proceso.status != 'CANCELLED' %}
-                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
-                        <span style="font-size: 0.85rem; font-weight: bold; color: {% if item.proceso.status == 'COMPLETED' %}#28a745{% else %}#0056b3{% endif %};">
-                            {{ item.firmas_hechas }} de {{ item.total_firmas }} Firmas
-                        </span>
-                        <div class="progress-container">
-                            <div class="progress-bar {% if item.proceso.status == 'COMPLETED' %}completed{% endif %}" style="width: {{ item.porcentaje }}%;"></div>
-                        </div>
-                    </div>
-                    {% endif %}
-                </div>
-
-                <div>
-                    <a href="{% url 'vista_trazabilidad' item.proceso.token_acceso %}" target="_blank" class="btn-ver">Ver Trazabilidad ➔</a>
-                </div>
-            </div>
-        {% endfor %}
-    {% else %}
-        <div style="text-align: center; padding: 50px; background: white; border-radius: 8px;">
-            <h3 style="color: #666;">No has enviado ningún documento todavía.</h3>
-            <p>Haz clic en "Generar Nuevo Documento" para comenzar.</p>
+    <div class="topbar">
+        <h1>Mi Portal de Documentos</h1>
+        <div class="user-info">
+            <span>Sesión: <strong>{{ owner_email }}</strong></span>
+            <a href="{% url 'portal_logout' %}" class="btn-logout">Cerrar Sesión</a>
         </div>
-    {% endif %}
-</div>
+    </div>
+
+    <div class="container">
+
+        <div class="actions-bar">
+            <div class="actions-info">
+                <h2>Seguimiento de Firmas</h2>
+                <p>Monitorea el progreso de los documentos que has enviado.</p>
+                <p style="color: #ef4444; font-size: 0.8rem; margin-top: 5px;">* Si necesitas cancelar un documento en proceso, acércate a TI o RH.</p>
+            </div>
+            <a href="{% url 'portal_plantillas' %}" class="btn-crear">
+                <span>➕</span> Generar Nuevo Documento
+            </a>
+        </div>
+
+        <div class="doc-grid">
+            {% if documentos %}
+                {% for item in documentos %}
+                    <div class="doc-card {% if item.proceso.status == 'COMPLETED' %}completed{% elif item.proceso.status == 'CANCELLED' %}cancelled{% endif %}">
+
+                        <div class="card-header">
+                            <h3 class="card-title">{{ item.proceso.reference_id }}</h3>
+                            {% if item.proceso.status == 'CANCELLED' %}
+                                <span class="status-badge bg-cancelled">CANCELADO</span>
+                            {% elif item.proceso.status == 'COMPLETED' %}
+                                <span class="status-badge bg-completed">COMPLETADO</span>
+                            {% else %}
+                                <span class="status-badge bg-processing">EN PROCESO</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="card-body">
+                            <div class="info-line">
+                                <span class="info-icon">📅</span>
+                                <span>Enviado: <strong>{{ item.proceso.created_at|date:"d/m/Y H:i" }}</strong></span>
+                            </div>
+
+                            {% if item.proceso.status != 'CANCELLED' %}
+                            <div class="progress-wrapper">
+                                <div class="progress-header">
+                                    <span>Progreso de Firmas</span>
+                                    <span style="color: {% if item.proceso.status == 'COMPLETED' %}#10b981{% else %}#2563eb{% endif %};">
+                                        {{ item.firmas_hechas }} / {{ item.total_firmas }}
+                                    </span>
+                                </div>
+                                <div class="progress-container">
+                                    <div class="progress-bar {% if item.proceso.status == 'COMPLETED' %}completed{% endif %}" style="width: {{ item.porcentaje }}%;"></div>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="progress-wrapper" style="background: #fee2e2; border-color: #fecaca; text-align: center;">
+                                <span style="font-size: 0.85rem; color: #b91c1c; font-weight: bold;">Proceso Detenido</span>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="card-footer">
+                            <a href="{% url 'vista_trazabilidad' item.proceso.token_acceso %}" target="_blank" class="btn-ver">
+                                <span>👁️</span> Ver Trazabilidad y Documento
+                            </a>
+                        </div>
+
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state" style="grid-column: 1 / -1;">
+                    <span style="font-size: 3rem; display: block; margin-bottom: 15px;">📭</span>
+                    <h3 style="color: #334155; margin: 0 0 10px 0;">No has enviado ningún documento todavía</h3>
+                    <p style="margin: 0;">Haz clic en "Generar Nuevo Documento" para comenzar tu primer proceso de firma.</p>
+                </div>
+            {% endif %}
+        </div>
+
+    </div>
 
 </body>
 </html>
