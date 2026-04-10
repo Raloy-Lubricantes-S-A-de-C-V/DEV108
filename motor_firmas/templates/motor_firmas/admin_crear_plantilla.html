@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Generador de Formulario de Firma</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #ecf0f1; padding: 30px; }
+        .wizard-card { background: white; padding: 30px; border-radius: 8px; max-width: 800px; margin: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .step { display: none; }
+        .step.active { display: block; }
+        h2 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px;}
+        .form-group { margin-bottom: 15px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; font-size: 0.9rem;}
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .btn { background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-success { background: #27ae60; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #eee; padding: 10px; text-align: left;}
+        th { background: #f8f9fa; }
+    </style>
+</head>
+<body>
+
+<div class="wizard-card">
+    <h2 id="stepTitle">Paso 1: Configuración Inicial</h2>
+
+    <div id="step1" class="step active">
+        <div class="form-group"><label>1. ID del Documento de Google Docs</label><input type="text" id="doc_id" placeholder="19U1b55WEqvPtQ6jAtn5..."></div>
+        <div class="form-group"><label>2. Correo del Propietario</label><input type="email" id="owner" value="{{ admin_email }}"></div>
+        <button class="btn" onclick="analizarDoc()">Analizar Documento con IA ➔</button>
+    </div>
+
+    <div id="step2" class="step">
+        <h3 style="color:#27ae60;">Análisis Completado</h3>
+        <p><strong>Contexto:</strong> <span id="txtContexto"></span></p>
+        <p><strong>Intención:</strong> <span id="txtIntencion"></span></p>
+
+        <h4>Variables del Documento a Llenar</h4>
+        <table>
+            <thead><tr><th>Título (Sugerido)</th><th>Llave</th><th>Tipo</th><th>Responsable de Llenar (Correo)</th></tr></thead>
+            <tbody id="tbodyVars"></tbody>
+        </table>
+
+        <h4>Orden de Firmantes</h4>
+        <table>
+            <thead><tr><th>Orden</th><th>Llave de Firma</th></tr></thead>
+            <tbody id="tbodyFirmas"></tbody>
+        </table>
+
+        <button class="btn btn-success" style="margin-top:20px;" onclick="nextStep(3)">Continuar Configuración ➔</button>
+    </div>
+
+    <div id="step3" class="step">
+        <div class="form-group"><label>5. Nombre de la Plantilla</label><input type="text" id="p_nombre" placeholder="Contrato de Equipo 2026"></div>
+        <div class="form-group"><label>6. ID de Carpeta Drive (Resguardo)</label><input type="text" id="p_drive" placeholder="1bDP1Q-4wRK6c5Bdx..."></div>
+        <div class="form-group">
+            <label>7. Formato de Vista para Firmantes</label>
+            <select id="p_view"><option value="file">Archivo PDF Completo</option><option value="summary">Extracto Resumen por IA</option></select>
+        </div>
+        <div class="form-group"><label>8. Correos que pueden usar esta plantilla (separados por coma)</label><input type="text" id="p_usuarios" placeholder="usuario@raloy.com.mx, otro@raloy.com.mx"></div>
+
+        <button class="btn btn-success" onclick="guardarPlantilla()">Finalizar y Guardar Plantilla</button>
+    </div>
+</div>
+
+<script>
+    let rawData = {};
+
+    function nextStep(n) {
+        document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+        document.getElementById('step'+n).classList.add('active');
+        document.getElementById('stepTitle').innerText = n === 2 ? 'Paso 3 y 4: Mapeo de Variables y Firmas' : 'Paso 5 al 8: Detalles Finales';
+    }
+
+    function analizarDoc() {
+        const doc_id = document.getElementById('doc_id').value;
+        const owner = document.getElementById('owner').value;
+        if(!doc_id || !owner) return alert("Completa los campos.");
+
+        const btn = event.target; btn.innerText = "Analizando con IA..."; btn.disabled = true;
+
+        fetch('/api/admin-action/analizar_plantilla/', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ doc_id: doc_id, owner_email: owner })
+        }).then(r => r.json()).then(resp => {
+            if(resp.status !== 'success') return alert("Error al analizar.");
+
+            rawData = resp.data; // { contexto, intencion, variables: [{key, label, type}], firmas: ['{{FIRMA_1}}'] }
+            document.getElementById('txtContexto').innerText = rawData.contexto;
+            document.getElementById('txtIntencion').innerText = rawData.intencion;
+
+            const tbV = document.getElementById('tbodyVars'); tbV.innerHTML = '';
+            rawData.variables.forEach(v => {
+                tbV.innerHTML += `<tr><td>${v.label}</td><td>${v.key}</td><td>${v.type}</td><td><input type="email" class="var-email" data-key="${v.key}" value="${owner}"></td></tr>`;
+            });
+
+            const tbF = document.getElementById('tbodyFirmas'); tbF.innerHTML = '';
+            rawData.firmas.forEach((f, idx) => {
+                tbF.innerHTML += `<tr><td>${idx+1}</td><td><input type="text" class="firma-key" value="${f}" disabled></td></tr>`;
+            });
+
+            nextStep(2);
+        });
+    }
+
+    function guardarPlantilla() {
+        // Recolectar variables mapeadas
+        let varsMap = [];
+        document.querySelectorAll('.var-email').forEach(inp => {
+            const v = rawData.variables.find(x => x.key === inp.dataset.key);
+            v.default_email = inp.value;
+            varsMap.push(v);
+        });
+
+        const payload = {
+            doc_id: document.getElementById('doc_id').value,
+            owner_email: document.getElementById('owner').value,
+            contexto: rawData.contexto,
+            intencion: rawData.intencion,
+            variables: varsMap,
+            firmantes_config: rawData.firmas,
+            nombre: document.getElementById('p_nombre').value,
+            drive_folder_id: document.getElementById('p_drive').value,
+            view_info: document.getElementById('p_view').value,
+            usuarios_permitidos: document.getElementById('p_usuarios').value.split(',').map(s=>s.trim()).filter(s=>s)
+        };
+
+        fetch('/api/admin-action/guardar_plantilla/', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        }).then(r => r.json()).then(res => {
+            if(res.status === 'success') { alert(res.msg); window.location.href = '/admin-portal/dashboard/'; }
+        });
+    }
+</script>
+</body>
+</html>

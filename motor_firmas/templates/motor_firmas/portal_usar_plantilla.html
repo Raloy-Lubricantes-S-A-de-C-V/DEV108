@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Usar Plantilla - Raloy</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #ecf0f1; padding: 30px; }
+        .card { background: white; padding: 30px; border-radius: 8px; max-width: 800px; margin: auto; }
+        .section { margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
+        label { display: block; font-weight: bold; margin-bottom: 5px;}
+        input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 10px; box-sizing: border-box;}
+        .btn { background: #3498db; color: white; padding: 12px; border: none; border-radius: 4px; cursor: pointer; width: 100%; font-size:1.1rem; font-weight:bold;}
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>{{ plantilla.nombre }}</h2>
+
+    <div class="section">
+        <label>Folio (Opcional, dejar vacío para autogenerar)</label>
+        <input type="text" id="folio_id" placeholder="Ej. CONTRATO-RALOY-2026-">
+    </div>
+
+    <div class="section">
+        <h3>1. Asignar Correos Responsables a Variables</h3>
+        <p style="font-size: 0.85rem; color:#666;">Indica a qué correo se le pedirá llenar cada dato al momento de firmar.</p>
+        {% for var in plantilla.variables %}
+            <label>{{ var.label }} ({{ var.key }})</label>
+            <input type="email" class="var-map" data-key="{{ var.key }}" value="{{ var.default_email }}" required>
+        {% endfor %}
+    </div>
+
+    <div class="section">
+        <h3>2. Asignar Firmantes</h3>
+        <div id="firmantesContainer">
+            {% for firma in plantilla.firmantes_config %}
+                <div style="display:flex; gap:10px; background:#f9f9f9; padding:10px; margin-bottom:5px;">
+                    <span style="font-weight:bold; width: 100px;">{{ firma }}:</span>
+                    <input type="text" class="firma-nombre" placeholder="Nombre completo" required>
+                    <input type="email" class="firma-email" placeholder="Correo electrónico" required>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <button class="btn" onclick="enviarSolicitud()">Enviar Solicitud a Firma</button>
+</div>
+
+<script>
+    function enviarSolicitud() {
+        const btn = event.target; btn.disabled = true; btn.innerText = "Enviando...";
+
+        // Extraer Document Variables
+        let docVars = {};
+        document.querySelectorAll('.var-map').forEach(inp => { docVars[inp.dataset.key] = inp.value; });
+
+        // Extraer Firmantes
+        let firmantesArr = [];
+        const nombres = document.querySelectorAll('.firma-nombre');
+        const correos = document.querySelectorAll('.firma-email');
+        for(let i=0; i<nombres.length; i++) {
+            firmantesArr.push({ nombre: nombres[i].value, email: correos[i].value });
+        }
+
+        // Crear Folio Random si está vacío
+        let folio = document.getElementById('folio_id').value;
+        if(!folio) folio = "DOC-" + Math.floor(Date.now() / 1000);
+
+        const payload = {
+            reference_id: folio,
+            dir: "{{ plantilla.drive_folder_id }}",
+            template_id: "{{ plantilla.doc_id }}",
+            view_info: "{{ plantilla.view_info }}",
+            exec: "form",
+            owner: "{{ owner_email }}",
+            document_variables: docVars,
+            firmantes: firmantesArr
+        };
+
+        // ENVIAR DIRECTO AL WEBHOOK DE N8N
+        fetch('https://n8n.raloy.com.mx/webhook/request-signature', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(r => {
+            alert("¡Documento enviado a n8n con éxito!");
+            window.location.href = '/portal/dashboard/';
+        }).catch(err => {
+            alert("Error al enviar."); btn.disabled = false; btn.innerText = "Enviar Solicitud";
+        });
+    }
+</script>
+</body>
+</html>

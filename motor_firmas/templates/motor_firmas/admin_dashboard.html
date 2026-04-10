@@ -7,7 +7,7 @@
         body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background-color: #ecf0f1; margin: 0; padding: 20px; }
         .topbar { background: #2c3e50; color: white; padding: 15px 30px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;}
         .topbar h1 { margin: 0; font-size: 1.5rem; }
-        .btn-logout { background: #e74c3c; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; }
+        .btn-logout { background: #e74c3c; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; font-weight: bold;}
 
         .grid-layout { display: grid; grid-template-columns: 3fr 1fr; gap: 20px; }
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
@@ -39,6 +39,8 @@
         /* Formularios laterales */
         .side-input { width: 100%; padding: 10px; box-sizing: border-box; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px;}
         .side-btn { width: 100%; padding: 10px; border: none; border-radius: 4px; color: white; font-weight: bold; cursor: pointer; background: #34495e;}
+        .side-btn-primary { display: block; text-align: center; text-decoration: none; background: #2980b9; margin-top: 10px; padding: 12px; border-radius: 4px; color: white; font-weight: bold;}
+        .side-btn-primary:hover { background: #2471a3; }
     </style>
 </head>
 <body>
@@ -103,6 +105,12 @@
     </div>
 
     <div>
+        <div class="card" style="border-left: 5px solid #2980b9;">
+            <h3>Gestión de Plantillas</h3>
+            <p style="font-size: 0.85rem; color:#666;">Crea nuevos flujos documentales y formularios dinámicos a partir de Google Docs.</p>
+            <a href="{% url 'admin_crear_plantilla' %}" class="side-btn-primary">+ Generar Formulario Nuevo</a>
+        </div>
+
         <div class="card">
             <h3>Invitar a Registro de Firma</h3>
             <p style="font-size: 0.85rem; color:#666;">Envía la liga para generar PIN a un colaborador o proveedor.</p>
@@ -149,8 +157,6 @@
 
         // Escuchar cambios
         [selGroup, filDominio, filFechaIni, filFechaFin].forEach(el => el.addEventListener('change', renderTable));
-
-        // Escuchar cambios en tiempo real mientras se escribe en el folio
         filFolio.addEventListener('keyup', renderTable);
 
         renderTable();
@@ -261,7 +267,6 @@
         });
     }
 
-    // Arrancar el Dashboard
     init();
 </script>
 </body>

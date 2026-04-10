@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Mis Plantillas - Raloy</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #ecf0f1; padding: 30px; }
+        .card { background: white; padding: 20px; border-radius: 8px; margin-bottom: 15px; border-left: 5px solid #3498db; }
+        .btn { background: #27ae60; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h2>Formularios de Firma Disponibles</h2>
+    <a href="/portal/dashboard/" style="color:#666;">Volver al Dashboard</a>
+    <div style="margin-top: 20px;">
+        {% for p in plantillas %}
+            <div class="card">
+                <h3>{{ p.nombre }}</h3>
+                <p>Carpeta Drive: {{ p.drive_folder_id }}</p>
+                <a href="{% url 'portal_usar_plantilla' p.id %}" class="btn">Usar esta Plantilla</a>
+            </div>
+        {% empty %}
+            <p>No tienes plantillas asignadas.</p>
+        {% endfor %}
+    </div>
+</body>
+</html>

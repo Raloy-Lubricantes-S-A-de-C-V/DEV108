@@ -12,7 +12,7 @@
         button { padding: 12px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1rem; margin-top: 10px;}
         .btn-firmar { background-color: #0056b3; color: white; }
         input[type="password"] { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; text-align: center; font-size: 1.2rem; letter-spacing: 5px;}
-        .forgot-pin { color: #0056b3; font-size: 0.85rem; cursor: pointer; text-decoration: underline; margin-top: 10px; display: block;}
+        .doc-var-input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; margin-top: 5px;}
     </style>
 </head>
 <body>
@@ -21,13 +21,24 @@
     <h2>Firma Digital Raloy</h2>
     <p>Hola <strong>{{ nombre_firmante }}</strong> ({{ email_firmante }}).</p>
 
+    {% if campos_a_llenar %}
+        <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #ffc107; text-align: left;">
+            <h3 style="margin-top:0; color: #856404;">📋 Información Requerida</h3>
+            <p style="font-size: 0.9rem; color: #666;">Completa los siguientes datos antes de firmar para que sean agregados al documento:</p>
+            {% for campo in campos_a_llenar %}
+                <div style="margin-bottom: 10px;">
+                    <label style="font-weight: bold; font-size: 0.85rem;">{{ campo }}</label>
+                    <input type="text" class="doc-var-input" data-key="{{ campo }}" required placeholder="Escribe aquí...">
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
     {% if is_registered %}
-        <div id="pinSection" style="background: #e9ecef; padding: 20px; border-radius: 8px;">
+        <div style="background: #e9ecef; padding: 20px; border-radius: 8px;">
             <h3>🔑 Firma Rápida con PIN</h3>
-            <p>Ingresa tu PIN de seguridad de 4 a 6 dígitos para firmar automáticamente.</p>
             <input type="password" id="inputPin" placeholder="****" maxlength="6">
-            <button class="btn-firmar" id="btnFirmarPin" onclick="enviarPin()">Certificar Documento</button>
-            <a class="forgot-pin" onclick="recuperarPin()">¿Olvidaste tu PIN?</a>
+            <button class="btn-firmar" id="btnFirmarPin" onclick="enviar(true)">Certificar Documento</button>
         </div>
     {% else %}
         <div id="canvasSection">
@@ -35,7 +46,7 @@
             <div class="canvas-container"><canvas id="pizarra"></canvas></div>
             <div style="display: flex; gap: 10px;">
                 <button style="background: #e0e0e0; color: #333;" onclick="limpiarCanvas()">Limpiar</button>
-                <button class="btn-firmar" id="btnFirmarCanvas" onclick="enviarCanvas()">Aceptar y Firmar</button>
+                <button class="btn-firmar" id="btnFirmarCanvas" onclick="enviar(false)">Aceptar y Firmar</button>
             </div>
         </div>
     {% endif %}
@@ -53,59 +64,48 @@
 </div>
 
 <script>
-    // --- LÓGICA PARA USUARIOS CON PIN ---
-    function enviarPin() {
-        const pin = document.getElementById('inputPin').value;
-        if (!pin) return alert("Ingresa tu PIN");
-        procesarFetch({ pin: pin }, document.getElementById('btnFirmarPin'));
-    }
-
-    function recuperarPin() {
-        if(confirm("¿Enviar enlace de recuperación de PIN a tu correo?")) {
-            fetch('/api/solicitar-recuperacion/', {
-                method: 'POST',
-                body: JSON.stringify({ email: '{{ email_firmante }}' })
-            }).then(() => alert("Correo enviado. Revisa tu bandeja de entrada."));
-        }
-    }
-
-    // --- LÓGICA PARA USUARIOS SIN REGISTRO (CANVAS) ---
     {% if not is_registered %}
-    const canvas = document.getElementById('pizarra');
-    const ctx = canvas.getContext('2d');
-    let dibujando = false, haDibujado = false;
-
+    const canvas = document.getElementById('pizarra'); const ctx = canvas.getContext('2d'); let dibujando = false, haDibujado = false;
     function redimensionarCanvas() { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; ctx.lineWidth = 3; ctx.strokeStyle = '#000080'; }
     window.addEventListener('resize', redimensionarCanvas); redimensionarCanvas();
-
     canvas.addEventListener('mousedown', (e) => { dibujando = true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); });
     canvas.addEventListener('mousemove', (e) => { if(dibujando){ ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); haDibujado=true; }});
     canvas.addEventListener('mouseup', () => dibujando = false);
-
     function limpiarCanvas() { ctx.clearRect(0,0,canvas.width,canvas.height); haDibujado=false; }
-
-    function enviarCanvas() {
-        if (!haDibujado) return alert("Dibuja tu firma");
-        procesarFetch({ firma_base64: canvas.toDataURL('image/png') }, document.getElementById('btnFirmarCanvas'));
-    }
     {% endif %}
 
-    // --- FUNCIÓN CENTRAL DE ENVÍO ---
-    function procesarFetch(payload, btn) {
+    function enviar(esPin) {
+        // Extraer variables
+        let variables = {};
+        let valid = true;
+        document.querySelectorAll('.doc-var-input').forEach(input => {
+            if(!input.value) valid = false;
+            variables[input.dataset.key] = input.value;
+        });
+
+        if(!valid) return alert("Por favor, completa todos los campos requeridos en la sección amarilla.");
+
+        let payload = { variables: variables };
+
+        if(esPin) {
+            const pin = document.getElementById('inputPin').value;
+            if(!pin) return alert("Ingresa tu PIN.");
+            payload.pin = pin;
+        } else {
+            if(!haDibujado) return alert("Dibuja tu firma.");
+            payload.firma_base64 = canvas.toDataURL('image/png');
+        }
+
+        const btn = document.getElementById(esPin ? 'btnFirmarPin' : 'btnFirmarCanvas');
         btn.disabled = true; btn.innerText = "Procesando...";
+
         fetch('/api/procesar/{{ token }}/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
-        })
-        .then(r => r.json())
-        .then(data => {
-            if(data.status === 'success') {
-                document.querySelector('.card').innerHTML = `<h2 style="color:green;">¡Firma Registrada!</h2><p>Gracias. Puedes cerrar esta ventana.</p>`;
-            } else {
-                alert("Error: " + data.error);
-                btn.disabled = false; btn.innerText = "Reintentar";
-            }
+        }).then(r => r.json()).then(data => {
+            if(data.status === 'success') { document.querySelector('.card').innerHTML = `<h2 style="color:green;">¡Firma Exitosa!</h2><p>Gracias.</p>`; }
+            else { alert("Error: " + data.error); btn.disabled = false; btn.innerText = "Reintentar"; }
         });
     }
 </script>
