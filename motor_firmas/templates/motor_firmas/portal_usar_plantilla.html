@@ -35,10 +35,10 @@
         <h3>2. Asignar Firmantes</h3>
         <div id="firmantesContainer">
             {% for firma in plantilla.firmantes_config %}
-                <div style="display:flex; gap:10px; background:#f9f9f9; padding:10px; margin-bottom:5px;">
-                    <span style="font-weight:bold; width: 100px;">{{ firma }}:</span>
-                    <input type="text" class="firma-nombre" placeholder="Nombre completo" required>
-                    <input type="email" class="firma-email" placeholder="Correo electrónico" required>
+                <div style="display:flex; gap:10px; background:#f9f9f9; padding:10px; margin-bottom:5px; align-items: center;">
+                    <span style="font-weight:bold; width: 100px;">{{ firma.key }}:</span>
+                    <input type="text" class="firma-nombre" placeholder="Nombre completo" required style="margin-bottom: 0;">
+                    <input type="email" class="firma-email" value="{{ firma.default_email }}" placeholder="Correo electrónico" required style="margin-bottom: 0;">
                 </div>
             {% endfor %}
         </div>

@@ -43,7 +43,7 @@
 
         <h4>Orden de Firmantes</h4>
         <table>
-            <thead><tr><th>Orden</th><th>Llave de Firma</th></tr></thead>
+            <thead><tr><th>Orden</th><th>Llave de Firma</th><th>Correo Sugerido</th></tr></thead>
             <tbody id="tbodyFirmas"></tbody>
         </table>
 
@@ -112,56 +112,47 @@
                     throw new Error("No se encontró el texto en el JSON de respuesta.");
                 }
 
-                // Variable temporal para guardar el string limpio
                 let cleanedJsonString = "";
 
                 if (textToParse) {
-                    // Guardamos el texto original para buscar las firmas manualmente
                     cleanedJsonString = textToParse.replace(/```json/gi, '').replace(/```/g, '').trim();
                     rawData = JSON.parse(cleanedJsonString);
                 }
 
-                // INYECCIÓN DE DATOS HTML
                 document.getElementById('txtContexto').innerText = rawData.contexto || "No definido";
                 document.getElementById('txtIntencion').innerText = rawData.intencion || "No definida";
 
                 const tbV = document.getElementById('tbodyVars'); tbV.innerHTML = '';
                 if(rawData.variables && Array.isArray(rawData.variables)) {
                     rawData.variables.forEach(v => {
-                        // Asegurarnos de que no muestre las llaves FIRMA_X como variables normales
                         if(!v.key.includes("FIRMA_")) {
                             tbV.innerHTML += `<tr><td>${v.label}</td><td>${v.key}</td><td>${v.type}</td><td><input type="email" class="var-email" data-key="${v.key}" value="${owner}"></td></tr>`;
                         }
                     });
                 }
 
-                // --- SOLUCIÓN: BÚSQUEDA MANUAL DE FIRMAS OBLIGATORIAS ---
                 const tbF = document.getElementById('tbodyFirmas'); tbF.innerHTML = '';
 
-                // Si Gemini falló en devolver el array 'firmas', o lo mandó vacío, forzamos la búsqueda
                 if(!rawData.firmas || rawData.firmas.length === 0) {
-                    // Usamos una expresión regular para encontrar todas las ocurrencias de {{FIRMA_algo}} en la respuesta cruda de n8n
-                    // Esto asume que Gemini al menos repitió la plantilla o incluyó el texto original en su análisis.
-                    // Nota: Si Gemini no incluye el texto original, esto buscará en el string JSON limpio.
-
-                    // Como respaldo, busquemos directamente en la cadena original que Gemini generó
                     let strParaBuscar = cleanedJsonString || JSON.stringify(dataExtraida);
                     let regexFirmas = /\{\{FIRMA_\d+\}\}/g;
                     let encontradas = strParaBuscar.match(regexFirmas);
 
                     if (encontradas) {
-                        // Quitamos duplicados y ordenamos
                         rawData.firmas = [...new Set(encontradas)].sort();
                     } else {
-                        // Si de plano no encontró nada, forzamos al menos la firma 1 para que el flujo no se rompa
                         rawData.firmas = ["{{FIRMA_1}}"];
                     }
                 }
 
-                // Renderizamos las firmas en la tabla
                 if(rawData.firmas && Array.isArray(rawData.firmas)) {
                     rawData.firmas.forEach((f, idx) => {
-                        tbF.innerHTML += `<tr><td>${idx+1}</td><td><input type="text" class="firma-key" value="${f}" disabled></td></tr>`;
+                        // SE AGREGÓ EL INPUT PARA CAPTURAR EL CORREO, PRECARGADO CON EL OWNER
+                        tbF.innerHTML += `<tr>
+                            <td>${idx+1}</td>
+                            <td><input type="text" class="firma-key" value="${f}" disabled></td>
+                            <td><input type="email" class="firma-default-email" value="${owner}"></td>
+                        </tr>`;
                     });
                 }
 
@@ -183,6 +174,7 @@
     }
 
     function guardarPlantilla() {
+        // Recolectar variables mapeadas
         let varsMap = [];
         document.querySelectorAll('.var-email').forEach(inp => {
             const v = rawData.variables.find(x => x.key === inp.dataset.key);
@@ -192,13 +184,25 @@
             }
         });
 
+        // NUEVO: Recolectar firmas con su correo sugerido
+        let firmasMap = [];
+        const firmaKeys = document.querySelectorAll('.firma-key');
+        const firmaEmails = document.querySelectorAll('.firma-default-email');
+
+        for(let i=0; i < firmaKeys.length; i++) {
+            firmasMap.push({
+                key: firmaKeys[i].value,
+                default_email: firmaEmails[i].value
+            });
+        }
+
         const payload = {
             doc_id: document.getElementById('doc_id').value,
             owner_email: document.getElementById('owner').value,
             contexto: rawData.contexto,
             intencion: rawData.intencion,
             variables: varsMap,
-            firmantes_config: rawData.firmas,
+            firmantes_config: firmasMap, // AHORA SE MANDA EL ARREGLO DE OBJETOS
             nombre: document.getElementById('p_nombre').value,
             drive_folder_id: document.getElementById('p_drive').value,
             view_info: document.getElementById('p_view').value,
