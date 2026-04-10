@@ -17,7 +17,7 @@
 <div class="card">
     <a href="/portal/plantillas/" style="color:#666; text-decoration:none; margin-bottom:15px; display:inline-block;">⬅ Volver a Mis Plantillas</a>
     <h2>{{ plantilla.nombre }}</h2>
-
+    
     <div class="section">
         <label>Folio (Opcional, dejar vacío para autogenerar)</label>
         <input type="text" id="folio_id" value="{{ plantilla.formato_folio|default:'' }}" placeholder="Ej. CONTRATO-RALOY-2026-">
@@ -52,11 +52,9 @@
     function enviarSolicitud() {
         const btn = event.target; btn.disabled = true; btn.innerText = "Enviando...";
 
-        // Extraer Document Variables
         let docVars = {};
         document.querySelectorAll('.var-map').forEach(inp => { docVars[inp.dataset.key] = inp.value; });
 
-        // Extraer Firmantes
         let firmantesArr = [];
         const nombres = document.querySelectorAll('.firma-nombre');
         const correos = document.querySelectorAll('.firma-email');
@@ -69,12 +67,15 @@
 
         const payload = {
             reference_id: folio,
-            dir: "{{ plantilla.carpeta_firmados_id|default:plantilla.drive_folder_id }}", // ENVÍA A LA SUBCARPETA
+            dir: "{{ plantilla.carpeta_firmados_id|default:plantilla.drive_folder_id }}",
             template_id: "{{ plantilla.doc_id }}",
             view_info: "{{ plantilla.view_info }}",
             exec: "form",
             owner: "{{ owner_email }}",
-            document_variables: docVars,
+            
+            // MAGIA: Le cambiamos el nombre para que el Apps Script no las reemplace con correos
+            variables_asignadas: docVars, 
+            
             firmantes: firmantesArr
         };
 

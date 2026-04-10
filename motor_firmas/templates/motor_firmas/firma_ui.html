@@ -3,70 +3,130 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Firmar Documento - Raloy</title>
+    <title>Certificación de Documento - Raloy</title>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f7f6; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
-        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 100%; max-width: 800px; text-align: center; }
-        .canvas-container { border: 2px dashed #0056b3; background-color: #f9f9f9; border-radius: 8px; margin-bottom: 20px; position: relative; width: 100%; height: 250px; touch-action: none; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1f5f9; display: flex; flex-direction: column; align-items: center; padding: 30px 15px; margin: 0; color: #334155; }
+        .main-container { background: #ffffff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); width: 100%; max-width: 850px; overflow: hidden; }
+
+        .header { background-color: #0f172a; color: white; padding: 25px 30px; text-align: center; }
+        .header h2 { margin: 0 0 5px 0; font-size: 1.5rem; letter-spacing: 0.5px;}
+        .header p { margin: 0; color: #94a3b8; font-size: 0.95rem; }
+
+        .content-body { padding: 30px; }
+
+        /* Estilo de los Pasos */
+        .step-box { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+        .step-header { background: #f8fafc; padding: 15px 20px; border-bottom: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; display: flex; align-items: center; gap: 10px; }
+        .step-number { background: #2563eb; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 0.9rem; }
+        .step-header h3 { margin: 0; color: #1e293b; font-size: 1.1rem; }
+        .step-content { padding: 25px; }
+
+        /* Formulario Dinámico */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+        .input-group label { display: block; font-weight: 600; color: #475569; margin-bottom: 8px; font-size: 0.9rem; }
+        .input-group input { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 0.95rem; background: #f8fafc; transition: all 0.2s;}
+        .input-group input:focus { border-color: #2563eb; background: white; outline: none; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+
+        /* Zona de Firmas */
+        .pin-box { text-align: center; max-width: 350px; margin: auto; }
+        .pin-box input[type="password"] { width: 100%; padding: 15px; border: 2px solid #cbd5e1; border-radius: 8px; text-align: center; font-size: 1.5rem; letter-spacing: 8px; margin-bottom: 15px;}
+        .pin-box input[type="password"]:focus { border-color: #10b981; outline: none; }
+
+        .canvas-container { border: 2px dashed #94a3b8; background-color: #f8fafc; border-radius: 8px; margin-bottom: 15px; position: relative; width: 100%; height: 250px; touch-action: none; }
         canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; }
-        button { padding: 12px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1rem; margin-top: 10px;}
-        .btn-firmar { background-color: #0056b3; color: white; }
-        input[type="password"] { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; text-align: center; font-size: 1.2rem; letter-spacing: 5px;}
-        .doc-var-input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; margin-top: 5px;}
+
+        .btn-action { background-color: #2563eb; color: white; padding: 14px 24px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%; font-size: 1rem; transition: background 0.2s;}
+        .btn-action:hover { background-color: #1d4ed8; }
+        .btn-action.success { background-color: #10b981; }
+        .btn-action.success:hover { background-color: #059669; }
+        .btn-secondary { background: #e2e8f0; color: #475569; }
+        .btn-secondary:hover { background: #cbd5e1; }
+
+        .forgot-pin { color: #2563eb; font-size: 0.85rem; cursor: pointer; text-decoration: underline; margin-top: 15px; display: inline-block;}
+
+        /* Visor de Documento */
+        .doc-viewer { margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 30px; }
+        iframe { width: 100%; height: 700px; border: none; border-radius: 8px; background: #f8fafc; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);}
     </style>
 </head>
 <body>
 
-<div class="card">
-    <h2>Firma Digital Raloy</h2>
-    <p>Hola <strong>{{ nombre_firmante }}</strong> ({{ email_firmante }}).</p>
+<div class="main-container">
+    <div class="header">
+        <h2>Certificación Digital de Documento</h2>
+        <p>Proceso Seguro para: <strong>{{ nombre_firmante }}</strong> ({{ email_firmante }})</p>
+    </div>
 
-    {% if campos_a_llenar %}
-        <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #ffc107; text-align: left;">
-            <h3 style="margin-top:0; color: #856404;">📋 Información Requerida</h3>
-            <p style="font-size: 0.9rem; color: #666;">Completa los siguientes datos antes de firmar para que sean agregados al documento:</p>
-            {% for campo in campos_a_llenar %}
-                <div style="margin-bottom: 10px;">
-                    <label style="font-weight: bold; font-size: 0.85rem;">{{ campo }}</label>
-                    <input type="text" class="doc-var-input" data-key="{{ campo }}" required placeholder="Escribe aquí...">
+    <div class="content-body">
+
+        {% if campos_a_llenar %}
+        <div class="step-box">
+            <div class="step-header">
+                <div class="step-number">1</div>
+                <h3>Información Requerida</h3>
+            </div>
+            <div class="step-content">
+                <p style="margin-top:0; font-size:0.9rem; color:#64748b; margin-bottom: 20px;">Por favor, completa los siguientes datos obligatorios para anexarlos al documento antes de certificar tu firma.</p>
+                <div class="form-grid">
+                    {% for campo in campos_a_llenar %}
+                        <div class="input-group">
+                            <label>{{ campo }}</label>
+                            <input type="text" class="doc-var-input" data-key="{{ campo }}" required placeholder="Ingresar valor...">
+                        </div>
+                    {% endfor %}
                 </div>
-            {% endfor %}
-        </div>
-    {% endif %}
-
-    {% if is_registered %}
-        <div style="background: #e9ecef; padding: 20px; border-radius: 8px;">
-            <h3>🔑 Firma Rápida con PIN</h3>
-            <input type="password" id="inputPin" placeholder="****" maxlength="6">
-            <button class="btn-firmar" id="btnFirmarPin" onclick="enviar(true)">Certificar Documento</button>
-        </div>
-    {% else %}
-        <div id="canvasSection">
-            <p>Dibuja tu firma para certificar el documento.</p>
-            <div class="canvas-container"><canvas id="pizarra"></canvas></div>
-            <div style="display: flex; gap: 10px;">
-                <button style="background: #e0e0e0; color: #333;" onclick="limpiarCanvas()">Limpiar</button>
-                <button class="btn-firmar" id="btnFirmarCanvas" onclick="enviar(false)">Aceptar y Firmar</button>
             </div>
         </div>
-    {% endif %}
-
-    <div style="margin-top: 30px; border-top: 1px solid #ddd; padding-top: 20px;">
-        {% if view_info == 'file' %}
-            <iframe src="{{ pdf_url }}" width="100%" height="600px"></iframe>
-        {% elif view_info == 'summary' %}
-            <div style="text-align: left; background-color: #f8f9fa; padding: 20px; border-radius: 8px;">
-                <h3 style="color: #0056b3;">CONTEXTO</h3><p>{{ summary_data.contexto }}</p>
-                <h3 style="color: #0056b3;">INTENCIÓN</h3><p>{{ summary_data.intencion }}</p>
-            </div>
         {% endif %}
+
+        <div class="step-box">
+            <div class="step-header">
+                <div class="step-number">{% if campos_a_llenar %}2{% else %}1{% endif %}</div>
+                <h3>Certificación y Firma</h3>
+            </div>
+            <div class="step-content">
+                {% if is_registered %}
+                    <div class="pin-box">
+                        <p style="margin-top:0; font-size:0.9rem; color:#64748b;">Ingresa tu PIN de seguridad para aplicar tu firma electrónica.</p>
+                        <input type="password" id="inputPin" placeholder="••••" maxlength="6">
+                        <button class="btn-action success" id="btnFirmarPin" onclick="enviar(true)">✓ Validar y Firmar Documento</button>
+                        <a class="forgot-pin" onclick="recuperarPin()">¿Olvidaste tu PIN?</a>
+                    </div>
+                {% else %}
+                    <div id="canvasSection">
+                        <p style="margin-top:0; font-size:0.9rem; color:#64748b;">Dibuja tu firma autógrafa en el siguiente recuadro para certificar el documento.</p>
+                        <div class="canvas-container"><canvas id="pizarra"></canvas></div>
+                        <div style="display: flex; gap: 15px;">
+                            <button class="btn-action btn-secondary" onclick="limpiarCanvas()" style="width: 30%;">Limpiar Pizarra</button>
+                            <button class="btn-action success" id="btnFirmarCanvas" onclick="enviar(false)" style="width: 70%;">✓ Aceptar y Firmar</button>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="doc-viewer">
+            <h3 style="color: #1e293b; margin-top:0;">Vista Previa del Documento</h3>
+            {% if view_info == 'file' %}
+                <iframe src="{{ pdf_url }}"></iframe>
+            {% elif view_info == 'summary' %}
+                <div style="background-color: #f8fafc; padding: 25px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                    <h4 style="color: #2563eb; margin-top:0;">CONTEXTO</h4>
+                    <p style="font-size: 0.95rem; line-height: 1.6;">{{ summary_data.contexto }}</p>
+                    <h4 style="color: #2563eb; margin-top: 20px;">INTENCIÓN</h4>
+                    <p style="font-size: 0.95rem; line-height: 1.6;">{{ summary_data.intencion }}</p>
+                </div>
+            {% endif %}
+        </div>
+
     </div>
 </div>
 
 <script>
     {% if not is_registered %}
     const canvas = document.getElementById('pizarra'); const ctx = canvas.getContext('2d'); let dibujando = false, haDibujado = false;
-    function redimensionarCanvas() { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; ctx.lineWidth = 3; ctx.strokeStyle = '#000080'; }
+    function redimensionarCanvas() { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; ctx.lineWidth = 3; ctx.strokeStyle = '#0f172a'; }
     window.addEventListener('resize', redimensionarCanvas); redimensionarCanvas();
     canvas.addEventListener('mousedown', (e) => { dibujando = true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); });
     canvas.addEventListener('mousemove', (e) => { if(dibujando){ ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); haDibujado=true; }});
@@ -74,8 +134,16 @@
     function limpiarCanvas() { ctx.clearRect(0,0,canvas.width,canvas.height); haDibujado=false; }
     {% endif %}
 
+    function recuperarPin() {
+        if(confirm("¿Enviar enlace de recuperación de PIN a tu correo?")) {
+            fetch('/api/solicitar-recuperacion/', {
+                method: 'POST',
+                body: JSON.stringify({ email: '{{ email_firmante }}' })
+            }).then(() => alert("Correo enviado. Revisa tu bandeja de entrada."));
+        }
+    }
+
     function enviar(esPin) {
-        // Extraer variables
         let variables = {};
         let valid = true;
         document.querySelectorAll('.doc-var-input').forEach(input => {
@@ -83,29 +151,36 @@
             variables[input.dataset.key] = input.value;
         });
 
-        if(!valid) return alert("Por favor, completa todos los campos requeridos en la sección amarilla.");
+        if(!valid) return alert("Por favor, completa todos los campos del Paso 1 antes de continuar.");
 
         let payload = { variables: variables };
 
         if(esPin) {
             const pin = document.getElementById('inputPin').value;
-            if(!pin) return alert("Ingresa tu PIN.");
+            if(!pin) return alert("Ingresa tu PIN de seguridad.");
             payload.pin = pin;
         } else {
-            if(!haDibujado) return alert("Dibuja tu firma.");
+            if(!haDibujado) return alert("Dibuja tu firma autógrafa.");
             payload.firma_base64 = canvas.toDataURL('image/png');
         }
 
         const btn = document.getElementById(esPin ? 'btnFirmarPin' : 'btnFirmarCanvas');
-        btn.disabled = true; btn.innerText = "Procesando...";
+        btn.disabled = true; btn.innerText = "Certificando Documento...";
 
         fetch('/api/procesar/{{ token }}/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         }).then(r => r.json()).then(data => {
-            if(data.status === 'success') { document.querySelector('.card').innerHTML = `<h2 style="color:green;">¡Firma Exitosa!</h2><p>Gracias.</p>`; }
-            else { alert("Error: " + data.error); btn.disabled = false; btn.innerText = "Reintentar"; }
+            if(data.status === 'success') {
+                document.querySelector('.content-body').innerHTML = `
+                    <div style="text-align: center; padding: 50px 20px;">
+                        <h2 style="color:#10b981; font-size: 2rem; margin-bottom:10px;">¡Certificación Exitosa! ✓</h2>
+                        <p style="font-size: 1.1rem; color: #475569;">Tu firma y los datos han sido estampados de forma segura en el documento.</p>
+                        <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 30px;">Ya puedes cerrar esta ventana con total seguridad.</p>
+                    </div>`;
+            }
+            else { alert("Error: " + data.error); btn.disabled = false; btn.innerText = "Reintentar Certificación"; }
         });
     }
 </script>

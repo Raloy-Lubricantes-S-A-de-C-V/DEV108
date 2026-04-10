@@ -20,7 +20,7 @@ N8N_WEBHOOK_RECUPERAR_PIN = "https://n8n.raloy.com.mx/webhook/recuperar-pin-firm
 N8N_WEBHOOK_ENVIAR_OTP = "https://n8n.raloy.com.mx/webhook/enviar-otp-portal"
 N8N_WEBHOOK_INVITAR_REGISTRO = "https://n8n.raloy.com.mx/webhook/invitar-registro-firma"
 N8N_WEBHOOK_ANALIZAR_PLANTILLA = "https://n8n.raloy.com.mx/webhook/analizar-plantilla"
-N8N_WEBHOOK_PREPARAR_DIR = "https://n8n.raloy.com.mx/webhook/preparar-directorio"  # NUEVO
+N8N_WEBHOOK_PREPARAR_DIR = "https://n8n.raloy.com.mx/webhook/preparar-directorio"
 
 
 @csrf_exempt
@@ -37,7 +37,9 @@ def recibir_documento_n8n(request):
             owner_email = data.get('owner', '')
             dir_drive = data.get('dir', '')
             exec_mode = data.get('exec', 'normal')
-            document_variables = data.get('document_variables', {})
+
+            # EL ENGAÑO A GOOGLE: Usamos 'variables_asignadas' si viene de un formulario dinámico
+            document_variables = data.get('variables_asignadas', data.get('document_variables', {}))
 
             original_ref_id = ref_id
             match = re.search(r'^(.*?-)(\d+)$', ref_id)
@@ -90,6 +92,7 @@ def recibir_documento_n8n(request):
 
             return JsonResponse({"status": "success", "msg": "Documento recibido.", "folio_asignado": ref_id})
         except Exception as e:
+            print(traceback.format_exc())
             return JsonResponse({"error": repr(e)}, status=400)
 
 
@@ -168,8 +171,6 @@ def procesar_firma(request, token):
                 proceso.save()
                 correos_destino = ",".join([f['email'] for f in proceso.firmantes])
                 if proceso.owner_email: correos_destino += f",{proceso.owner_email}"
-
-                # SE ENVÍA AL FINALIZADOR CON EL folder_id DINÁMICO (que es el dir_drive de firmados)
                 with open(proceso.pdf_path, 'rb') as f:
                     requests.post(N8N_WEBHOOK_FINALIZAR_PROCESO, data={
                         "reference_id": proceso.reference_id,
@@ -230,17 +231,13 @@ def resetear_pin(request, token):
     return render(request, 'motor_firmas/resetear_pin.html', {'token': token})
 
 
-# ================= VISTAS DE USUARIOS NORMALES =================
-
 @csrf_exempt
 def portal_login(request):
     if request.method == 'POST':
         data = json.loads(request.body)
         email, pin_ingresado = data.get('email'), data.get('pin')
-
         colaborador = DirectorioFirmas.objects.filter(email=email).first()
         otp_record = OTPLogin.objects.filter(email=email).first()
-
         if (colaborador and colaborador.check_pin(pin_ingresado)) or (
                 otp_record and otp_record.es_valido(pin_ingresado)):
             if otp_record: otp_record.delete()
@@ -284,10 +281,8 @@ def portal_logout(request):
 def portal_plantillas(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
-
     todas = PlantillaFormulario.objects.all().order_by('-created_at')
     permitidas = [p for p in todas if owner_email in p.usuarios_permitidos or p.owner_email == owner_email]
-
     return render(request, 'motor_firmas/portal_plantillas.html',
                   {'plantillas': permitidas, 'owner_email': owner_email})
 
@@ -300,8 +295,6 @@ def portal_usar_plantilla(request, plantilla_id):
                   {'plantilla': plantilla, 'owner_email': owner_email})
 
 
-# ================= VISTAS DE ADMINISTRADOR =================
-
 @csrf_exempt
 def admin_login(request):
     if not AdministradorPortal.objects.exists(): AdministradorPortal.objects.create(email="pjimenezb@raloy.com.mx")
@@ -310,7 +303,6 @@ def admin_login(request):
         email, pin_ingresado = data.get('email'), data.get('pin')
         if not AdministradorPortal.objects.filter(email=email).exists(): return JsonResponse(
             {"error": "No eres admin."}, status=403)
-
         colaborador = DirectorioFirmas.objects.filter(email=email).first()
         otp_record = OTPLogin.objects.filter(email=email).first()
         if (colaborador and colaborador.check_pin(pin_ingresado)) or (
@@ -327,22 +319,16 @@ def admin_dashboard(request):
     admin_email = request.session.get('admin_email')
     if not admin_email: return redirect('admin_login')
     admin_obj = AdministradorPortal.objects.get(email=admin_email)
-
     todos_docs = ProcesoFirma.objects.all().order_by('-created_at')
     docs_json = [{'reference_id': d.reference_id, 'token': str(d.token_acceso), 'owner_email': d.owner_email or 'N/A',
                   'dominio': d.owner_email.split('@')[1] if d.owner_email and '@' in d.owner_email else 'N/A',
                   'status': d.status, 'fecha': d.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                   'progreso': f"{sum(1 for f in d.firmantes if f.get('fecha_firma'))}/{len(d.firmantes)}"} for d in
                  todos_docs]
-
     plantillas = PlantillaFormulario.objects.all().order_by('-created_at')
-
-    return render(request, 'motor_firmas/admin_dashboard.html', {
-        'admin_email': admin_email,
-        'docs_json': json.dumps(docs_json),
-        'saved_config': json.dumps(admin_obj.configuracion_dashboard),
-        'plantillas': plantillas
-    })
+    return render(request, 'motor_firmas/admin_dashboard.html',
+                  {'admin_email': admin_email, 'docs_json': json.dumps(docs_json),
+                   'saved_config': json.dumps(admin_obj.configuracion_dashboard), 'plantillas': plantillas})
 
 
 def admin_logout(request):
@@ -374,7 +360,6 @@ def admin_api(request, accion):
                 {"error": "Ya es admin."})
             AdministradorPortal.objects.create(email=data.get('email'))
             return JsonResponse({"status": "success", "msg": "Admin agregado."})
-
         elif accion == 'cancelar_doc':
             doc = ProcesoFirma.objects.filter(token_acceso=data.get('token')).first()
             if doc:
@@ -382,25 +367,20 @@ def admin_api(request, accion):
                 doc.save()
                 return JsonResponse({"status": "success"})
             return JsonResponse({"error": "No encontrado."}, status=404)
-
         elif accion == 'invitar_registro':
             requests.post(N8N_WEBHOOK_INVITAR_REGISTRO, json={"email": data.get('email'),
                                                               "link": "https://testapppjb0001.raloy.com.mx/registro-firmas/"})
             return JsonResponse({"status": "success", "msg": "Invitación enviada."})
-
         elif accion == 'guardar_config':
             admin_obj = AdministradorPortal.objects.get(email=request.session.get('admin_email'))
             admin_obj.configuracion_dashboard = data.get('configuracion')
             admin_obj.save()
             return JsonResponse({"status": "success"})
-
         elif accion == 'analizar_plantilla':
             resp = requests.post(N8N_WEBHOOK_ANALIZAR_PLANTILLA, json=data).json()
             return JsonResponse({"status": "success", "data": resp})
-
         elif accion == 'guardar_plantilla':
-            # CONSUMIR WEBHOOK PARA PREPARAR DIRECTORIO
-            carpeta_firmados = data['drive_folder_id']  # Fallback
+            carpeta_firmados = data['drive_folder_id']
             try:
                 resp_dir = requests.post(N8N_WEBHOOK_PREPARAR_DIR,
                                          json={"doc_id": data['doc_id'], "parent_folder": data['drive_folder_id']},
@@ -411,39 +391,29 @@ def admin_api(request, accion):
                 print("Error al preparar directorio en n8n:", e)
 
             PlantillaFormulario.objects.create(
-                nombre=data['nombre'],
-                doc_id=data['doc_id'],
-                owner_email=data['owner_email'],
+                nombre=data['nombre'], doc_id=data['doc_id'], owner_email=data['owner_email'],
                 drive_folder_id=data['drive_folder_id'],
-                carpeta_firmados_id=carpeta_firmados,  # GUARDA EL ID DE "Documentos firmados"
-                view_info=data['view_info'],
+                carpeta_firmados_id=carpeta_firmados, view_info=data['view_info'],
                 formato_folio=data.get('formato_folio', ''),
-                contexto=data['contexto'],
-                intencion=data['intencion'],
-                variables=data['variables'],
-                firmantes_config=data['firmantes_config'],
-                usuarios_permitidos=data['usuarios_permitidos']
+                contexto=data['contexto'], intencion=data['intencion'], variables=data['variables'],
+                firmantes_config=data['firmantes_config'], usuarios_permitidos=data['usuarios_permitidos']
             )
             return JsonResponse({"status": "success", "msg": "Plantilla y directorio preparados exitosamente."})
-
         elif accion == 'actualizar_plantilla':
             p = PlantillaFormulario.objects.filter(id=data.get('id')).first()
             if p:
                 p.nombre = data.get('nombre')
                 p.formato_folio = data.get('formato_folio', '')
                 p.drive_folder_id = data.get('drive_folder_id')
-
-                # Si el admin cambió el folder raíz manualmente, repasar N8N
                 if 'drive_folder_id' in data and data['drive_folder_id'] != p.drive_folder_id:
                     try:
                         resp_dir = requests.post(N8N_WEBHOOK_PREPARAR_DIR,
                                                  json={"doc_id": p.doc_id, "parent_folder": data['drive_folder_id']},
                                                  timeout=20).json()
-                        if resp_dir.get('status') == 'success':
-                            p.carpeta_firmados_id = resp_dir.get('firmados_folder_id', data['drive_folder_id'])
+                        if resp_dir.get('status') == 'success': p.carpeta_firmados_id = resp_dir.get(
+                            'firmados_folder_id', data['drive_folder_id'])
                     except Exception as e:
-                        print("Error al preparar directorio al actualizar:", e)
-
+                        pass
                 p.view_info = data.get('view_info')
                 p.usuarios_permitidos = data.get('usuarios_permitidos')
                 p.variables = data.get('variables')
@@ -451,7 +421,6 @@ def admin_api(request, accion):
                 p.save()
                 return JsonResponse({"status": "success", "msg": "Plantilla actualizada."})
             return JsonResponse({"error": "Plantilla no encontrada"}, status=404)
-
         elif accion == 'eliminar_plantilla':
             PlantillaFormulario.objects.filter(id=data.get('id')).delete()
             return JsonResponse({"status": "success", "msg": "Plantilla eliminada correctamente."})
