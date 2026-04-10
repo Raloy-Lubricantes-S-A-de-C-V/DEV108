@@ -93,37 +93,43 @@
             }
 
             try {
-                // 1. Extraer la respuesta (tomar el primer elemento si es un arreglo)
+                // 1. Asegurar que extraemos del arreglo si n8n manda un Array
                 let dataExtraida = resp.data;
                 if (Array.isArray(dataExtraida)) dataExtraida = dataExtraida[0];
 
-                console.log("Respuesta recibida de n8n:", dataExtraida); // Para debug en F12
+                console.log("Respuesta cruda de n8n:", dataExtraida);
 
-                // 2. LÓGICA TODOTERRENO: Evaluar qué formato mandó n8n/Gemini
+                let textToParse = null;
 
-                // CASO A: Gemini ya mandó el Objeto JSON limpio y parseado
-                if (typeof dataExtraida === 'object' && dataExtraida.contexto) {
-                    rawData = dataExtraida;
+                // 2. BUSCAR EL TEXTO EN LA ESTRUCTURA EXACTA DE N8N
+                if (typeof dataExtraida === 'string') {
+                    textToParse = dataExtraida;
                 }
-                else if (typeof dataExtraida.content === 'object' && dataExtraida.content.contexto) {
-                    rawData = dataExtraida.content;
+                // ESTRUCTURA DEL NODO GEMINI AVANZADO (content.parts[0].text)
+                else if (dataExtraida.content && dataExtraida.content.parts && dataExtraida.content.parts.length > 0) {
+                    textToParse = dataExtraida.content.parts[0].text;
                 }
-                // CASO B: Gemini lo mandó como Texto (String) con Markdown
+                else if (dataExtraida.content && typeof dataExtraida.content === 'string') {
+                    textToParse = dataExtraida.content;
+                }
+                else if (dataExtraida.text && typeof dataExtraida.text === 'string') {
+                    textToParse = dataExtraida.text;
+                }
+                else if (dataExtraida.contexto) {
+                    rawData = dataExtraida; // Ya es un JSON parseado directamente
+                }
                 else {
-                    let jsonString = "";
-                    if (typeof dataExtraida === 'string') jsonString = dataExtraida;
-                    else if (dataExtraida.content) jsonString = dataExtraida.content;
-                    else if (dataExtraida.text) jsonString = dataExtraida.text;
-                    else jsonString = JSON.stringify(dataExtraida);
-
-                    // Limpiar basura de markdown
-                    jsonString = jsonString.replace(/```json/gi, '').replace(/```/g, '').trim();
-
-                    // Convertir a Objeto
-                    rawData = JSON.parse(jsonString);
+                    throw new Error("No se encontró el texto en el JSON de respuesta.");
                 }
 
-                // 3. INYECTAR DATOS EN LA TABLA HTML
+                // 3. PARSEAR SI ERA STRING
+                if (textToParse) {
+                    // Limpiar posibles bloques markdown ```json ... ```
+                    textToParse = textToParse.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    rawData = JSON.parse(textToParse);
+                }
+
+                // 4. INYECTAR DATOS EN LA TABLA HTML
                 document.getElementById('txtContexto').innerText = rawData.contexto || "No definido";
                 document.getElementById('txtIntencion').innerText = rawData.intencion || "No definida";
 
@@ -141,12 +147,12 @@
                     });
                 }
 
-                // 4. AVANZAR DE PANTALLA
+                // 5. AVANZAR AL PASO 2
                 nextStep(2);
 
             } catch (err) {
-                console.error("Error parseando respuesta:", err);
-                alert("La IA respondió, pero el formato no se pudo procesar. Revisa la consola (F12).");
+                console.error("Error parseando respuesta:", err, resp.data);
+                alert("Hubo un error interpretando los datos de la IA. Revisa la Consola (F12) para detalles.");
                 btn.innerText = "Analizar Documento con IA ➔";
                 btn.disabled = false;
             }
