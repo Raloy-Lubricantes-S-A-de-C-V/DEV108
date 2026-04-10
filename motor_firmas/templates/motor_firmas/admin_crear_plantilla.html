@@ -93,61 +93,78 @@
             }
 
             try {
-                // 1. Asegurar que extraemos del arreglo si n8n manda un Array
                 let dataExtraida = resp.data;
                 if (Array.isArray(dataExtraida)) dataExtraida = dataExtraida[0];
 
-                console.log("Respuesta cruda de n8n:", dataExtraida);
-
                 let textToParse = null;
 
-                // 2. BUSCAR EL TEXTO EN LA ESTRUCTURA EXACTA DE N8N
                 if (typeof dataExtraida === 'string') {
                     textToParse = dataExtraida;
-                }
-                // ESTRUCTURA DEL NODO GEMINI AVANZADO (content.parts[0].text)
-                else if (dataExtraida.content && dataExtraida.content.parts && dataExtraida.content.parts.length > 0) {
+                } else if (dataExtraida.content && dataExtraida.content.parts && dataExtraida.content.parts.length > 0) {
                     textToParse = dataExtraida.content.parts[0].text;
-                }
-                else if (dataExtraida.content && typeof dataExtraida.content === 'string') {
+                } else if (dataExtraida.content && typeof dataExtraida.content === 'string') {
                     textToParse = dataExtraida.content;
-                }
-                else if (dataExtraida.text && typeof dataExtraida.text === 'string') {
+                } else if (dataExtraida.text && typeof dataExtraida.text === 'string') {
                     textToParse = dataExtraida.text;
-                }
-                else if (dataExtraida.contexto) {
-                    rawData = dataExtraida; // Ya es un JSON parseado directamente
-                }
-                else {
+                } else if (dataExtraida.contexto) {
+                    rawData = dataExtraida;
+                } else {
                     throw new Error("No se encontró el texto en el JSON de respuesta.");
                 }
 
-                // 3. PARSEAR SI ERA STRING
+                // Variable temporal para guardar el string limpio
+                let cleanedJsonString = "";
+
                 if (textToParse) {
-                    // Limpiar posibles bloques markdown ```json ... ```
-                    textToParse = textToParse.replace(/```json/gi, '').replace(/```/g, '').trim();
-                    rawData = JSON.parse(textToParse);
+                    // Guardamos el texto original para buscar las firmas manualmente
+                    cleanedJsonString = textToParse.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    rawData = JSON.parse(cleanedJsonString);
                 }
 
-                // 4. INYECTAR DATOS EN LA TABLA HTML
+                // INYECCIÓN DE DATOS HTML
                 document.getElementById('txtContexto').innerText = rawData.contexto || "No definido";
                 document.getElementById('txtIntencion').innerText = rawData.intencion || "No definida";
 
                 const tbV = document.getElementById('tbodyVars'); tbV.innerHTML = '';
                 if(rawData.variables && Array.isArray(rawData.variables)) {
                     rawData.variables.forEach(v => {
-                        tbV.innerHTML += `<tr><td>${v.label}</td><td>${v.key}</td><td>${v.type}</td><td><input type="email" class="var-email" data-key="${v.key}" value="${owner}"></td></tr>`;
+                        // Asegurarnos de que no muestre las llaves FIRMA_X como variables normales
+                        if(!v.key.includes("FIRMA_")) {
+                            tbV.innerHTML += `<tr><td>${v.label}</td><td>${v.key}</td><td>${v.type}</td><td><input type="email" class="var-email" data-key="${v.key}" value="${owner}"></td></tr>`;
+                        }
                     });
                 }
 
+                // --- SOLUCIÓN: BÚSQUEDA MANUAL DE FIRMAS OBLIGATORIAS ---
                 const tbF = document.getElementById('tbodyFirmas'); tbF.innerHTML = '';
+
+                // Si Gemini falló en devolver el array 'firmas', o lo mandó vacío, forzamos la búsqueda
+                if(!rawData.firmas || rawData.firmas.length === 0) {
+                    // Usamos una expresión regular para encontrar todas las ocurrencias de {{FIRMA_algo}} en la respuesta cruda de n8n
+                    // Esto asume que Gemini al menos repitió la plantilla o incluyó el texto original en su análisis.
+                    // Nota: Si Gemini no incluye el texto original, esto buscará en el string JSON limpio.
+
+                    // Como respaldo, busquemos directamente en la cadena original que Gemini generó
+                    let strParaBuscar = cleanedJsonString || JSON.stringify(dataExtraida);
+                    let regexFirmas = /\{\{FIRMA_\d+\}\}/g;
+                    let encontradas = strParaBuscar.match(regexFirmas);
+
+                    if (encontradas) {
+                        // Quitamos duplicados y ordenamos
+                        rawData.firmas = [...new Set(encontradas)].sort();
+                    } else {
+                        // Si de plano no encontró nada, forzamos al menos la firma 1 para que el flujo no se rompa
+                        rawData.firmas = ["{{FIRMA_1}}"];
+                    }
+                }
+
+                // Renderizamos las firmas en la tabla
                 if(rawData.firmas && Array.isArray(rawData.firmas)) {
                     rawData.firmas.forEach((f, idx) => {
                         tbF.innerHTML += `<tr><td>${idx+1}</td><td><input type="text" class="firma-key" value="${f}" disabled></td></tr>`;
                     });
                 }
 
-                // 5. AVANZAR AL PASO 2
                 nextStep(2);
 
             } catch (err) {
@@ -166,12 +183,13 @@
     }
 
     function guardarPlantilla() {
-        // Recolectar variables mapeadas
         let varsMap = [];
         document.querySelectorAll('.var-email').forEach(inp => {
             const v = rawData.variables.find(x => x.key === inp.dataset.key);
-            v.default_email = inp.value;
-            varsMap.push(v);
+            if(v) {
+                v.default_email = inp.value;
+                varsMap.push(v);
+            }
         });
 
         const payload = {
