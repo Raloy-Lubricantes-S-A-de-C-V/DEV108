@@ -50,7 +50,7 @@ def recibir_documento_n8n(request):
             match = re.search(r'^(.*?-)(\d+)$', ref_id)
             if match:
                 base_name, num_str = match.group(1), match.group(2)
-                num_len, current_num = int(num_str)
+                num_len, current_num = len(num_str), int(num_str)
                 while ProcesoFirma.objects.filter(reference_id=ref_id).exists():
                     current_num += 1
                     ref_id = f"{base_name}{str(current_num).zfill(num_len)}"
@@ -250,7 +250,9 @@ def portal_login(request):
         otp_record = OTPLogin.objects.filter(email=email).first()
         if (colaborador and colaborador.check_pin(pin_ingresado)) or (
                 otp_record and otp_record.es_valido(pin_ingresado)):
-            if otp_record: otp_record.delete()
+            if otp_record:
+                # SOLUCIÓN DE MONGODB APLICADA AQUÍ: Borrado por QuerySet
+                OTPLogin.objects.filter(email=email).delete()
             request.session['owner_email'] = email
             return JsonResponse({"status": "success"})
         return JsonResponse({"error": "PIN incorrecto."}, status=403)
@@ -323,25 +325,32 @@ def eliminar_pdf_usuario(request, pdf_id):
     owner_email = request.session.get('owner_email')
     if not owner_email: return JsonResponse({"error": "No autorizado"}, status=403)
 
-    doc = None
+    qs = DocumentoPDFUsuario.objects.none()
+
     try:
         uid = uuid.UUID(pdf_id)
-        doc = DocumentoPDFUsuario.objects.filter(id_documento=uid, owner_email=owner_email).first()
+        qs = DocumentoPDFUsuario.objects.filter(id_documento=uid, owner_email=owner_email)
     except ValueError:
         pass
 
-    if not doc:
+    if not qs.exists():
         try:
-            doc = DocumentoPDFUsuario.objects.filter(id=pdf_id, owner_email=owner_email).first()
+            qs = DocumentoPDFUsuario.objects.filter(id=pdf_id, owner_email=owner_email)
         except Exception:
             pass
 
-    if doc:
+    if qs.exists():
+        doc = qs.first()
         if doc.archivo_local:
             full_path = os.path.join(settings.MEDIA_ROOT, doc.archivo_local)
-            if os.path.exists(full_path): os.remove(full_path)
+            if os.path.exists(full_path):
+                try:
+                    os.remove(full_path)
+                except:
+                    pass
 
-        doc.delete()
+        # SOLUCIÓN DE MONGODB APLICADA AQUÍ: Borrado por QuerySet en lugar de Instancia
+        qs.delete()
         return JsonResponse({"status": "success"})
 
     return JsonResponse({"error": "Documento no encontrado"}, status=404)
@@ -435,12 +444,10 @@ def iniciar_firma_libre(request):
         requests.post(N8N_WEBHOOK_NOTIFICAR_OWNER,
                       json={"email": owner_email, "reference_id": ref_id, "link": link_trazabilidad})
 
-        # =======================================================
-        # LIMPIEZA AUTOMÁTICA DEL BORRADOR AL ENVIAR A FIRMA
-        # =======================================================
+        # SOLUCIÓN DE MONGODB APLICADA AQUÍ: Borrado por QuerySet
         if os.path.exists(original_path):
             os.remove(original_path)
-        doc.delete()
+        DocumentoPDFUsuario.objects.filter(id_documento=doc.id_documento).delete()
 
         return JsonResponse({"status": "success"})
 
@@ -458,7 +465,9 @@ def admin_login(request):
         otp_record = OTPLogin.objects.filter(email=email).first()
         if (colaborador and colaborador.check_pin(pin_ingresado)) or (
                 otp_record and otp_record.es_valido(pin_ingresado)):
-            if otp_record: otp_record.delete()
+            if otp_record:
+                # SOLUCIÓN DE MONGODB APLICADA AQUÍ: Borrado por QuerySet
+                OTPLogin.objects.filter(email=email).delete()
             request.session['admin_email'] = email
             return JsonResponse({"status": "success"})
         return JsonResponse({"error": "PIN incorrecto."}, status=403)
@@ -565,6 +574,7 @@ def admin_api(request, accion):
                 return JsonResponse({"status": "success", "msg": "Plantilla actualizada."})
             return JsonResponse({"error": "Plantilla no encontrada"}, status=404)
         elif accion == 'eliminar_plantilla':
+            # SOLUCIÓN DE MONGODB APLICADA AQUÍ: Borrado por QuerySet
             PlantillaFormulario.objects.filter(id=data.get('id')).delete()
             return JsonResponse({"status": "success", "msg": "Plantilla eliminada."})
         elif accion == 'guardar_carpeta_dominio':
@@ -573,6 +583,7 @@ def admin_api(request, accion):
             CarpetaDominio.objects.update_or_create(dominio=dominio, defaults={'drive_folder_id': str(folder_id)})
             return JsonResponse({"status": "success", "msg": "Carpeta asignada."})
         elif accion == 'eliminar_carpeta_dominio':
+            # SOLUCIÓN DE MONGODB APLICADA AQUÍ: Borrado por QuerySet
             CarpetaDominio.objects.filter(id=data.get('id')).delete()
             return JsonResponse({"status": "success", "msg": "Configuración eliminada."})
     return JsonResponse({"error": "Acción inválida"}, status=400)
