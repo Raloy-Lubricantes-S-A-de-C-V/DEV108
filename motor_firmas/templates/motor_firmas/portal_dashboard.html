@@ -21,7 +21,6 @@
         .actions-info h2 { margin: 0 0 5px 0; color: #1e293b; font-size: 1.2rem;}
         .actions-info p { margin: 0; color: #64748b; font-size: 0.9rem;}
 
-        /* BOTÓN MODIFICADO (VERDE) */
         .btn-crear { background-color: #10b981; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; transition: background 0.2s; display: inline-flex; align-items: center; gap: 8px;}
         .btn-crear:hover { background-color: #059669; }
 
@@ -92,9 +91,18 @@
                 <p>Monitorea el progreso de los documentos que has enviado.</p>
                 <p style="color: #ef4444; font-size: 0.8rem; margin-top: 5px;">* Si necesitas cancelar un documento en proceso, acércate a TI o RH.</p>
             </div>
-            <a href="{% url 'portal_plantillas' %}" class="btn-crear">
-                <span>➕</span> USAR PLANTILLA
-            </a>
+
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                {% if tiene_carpeta_dominio %}
+                <a href="{% url 'portal_pdfs_usuario' %}" class="btn-crear" style="background-color: #8e44ad;">
+                    <span>📄</span> TRABAJAR PDF PARA FIRMA
+                </a>
+                {% endif %}
+
+                <a href="{% url 'portal_plantillas' %}" class="btn-crear">
+                    <span>➕</span> USAR PLANTILLA
+                </a>
+            </div>
         </div>
 
         <div class="filters-container">
@@ -159,18 +167,15 @@
             {% endfor %}
         ];
 
-        // Función para renderizar el Grid
         function renderGrid() {
             let docs = [...rawData];
 
-            // 1. Obtener valores de los filtros
             const fFolio = document.getElementById('filFolio').value.toLowerCase();
             const fEstado = document.getElementById('filEstado').value;
             const fIni = document.getElementById('filFechaIni').value;
             const fFin = document.getElementById('filFechaFin').value;
             const groupProp = document.getElementById('selGroup').value;
 
-            // 2. Aplicar Filtros
             if (fFolio) docs = docs.filter(d => d.reference_id.toLowerCase().includes(fFolio));
             if (fEstado !== 'all') docs = docs.filter(d => d.status === fEstado);
             if (fIni) docs = docs.filter(d => d.fecha_iso >= fIni);
@@ -179,7 +184,6 @@
             const container = document.getElementById('gridContainer');
             container.innerHTML = '';
 
-            // Si no hay resultados
             if (docs.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state" style="grid-column: 1 / -1;">
@@ -190,7 +194,6 @@
                 return;
             }
 
-            // 3. Aplicar Agrupaciones y dibujar tarjetas
             if (groupProp === 'none') {
                 docs.forEach(doc => container.appendChild(crearTarjeta(doc)));
             } else {
@@ -202,7 +205,6 @@
                 });
 
                 for (const [groupName, items] of Object.entries(groups)) {
-                    // Título del Grupo
                     const headerDiv = document.createElement('div');
                     headerDiv.className = 'group-header';
                     headerDiv.innerHTML = `
@@ -210,14 +212,11 @@
                         <span>${items.length} docs</span>
                     `;
                     container.appendChild(headerDiv);
-
-                    // Tarjetas del Grupo
                     items.forEach(doc => container.appendChild(crearTarjeta(doc)));
                 }
             }
         }
 
-        // Formateador de nombres de grupos
         function formatearNombreGrupo(tipo, valor) {
             if (tipo === 'status') {
                 if(valor === 'COMPLETED') return '🟢 Completados';
@@ -230,7 +229,6 @@
             return valor;
         }
 
-        // Creador de Tarjetas HTML
         function crearTarjeta(doc) {
             const div = document.createElement('div');
 
@@ -282,7 +280,6 @@
             return div;
         }
 
-        // Limpiar Filtros
         function limpiarFiltros() {
             document.getElementById('filFolio').value = '';
             document.getElementById('filEstado').value = 'all';
@@ -292,14 +289,13 @@
             renderGrid();
         }
 
-        // Listeners
         document.addEventListener("DOMContentLoaded", () => {
             document.getElementById('filFolio').addEventListener('keyup', renderGrid);
             document.getElementById('filEstado').addEventListener('change', renderGrid);
             document.getElementById('selGroup').addEventListener('change', renderGrid);
             document.getElementById('filFechaIni').addEventListener('change', renderGrid);
             document.getElementById('filFechaFin').addEventListener('change', renderGrid);
-            renderGrid(); // Carga inicial
+            renderGrid();
         });
     </script>
 </body>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subir PDF Libre - Raloy</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1f5f9; padding: 30px; color: #334155; }
+        .wizard-card { background: white; padding: 30px; border-radius: 8px; max-width: 800px; margin: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .step { display: none; }
+        .step.active { display: block; }
+        h2 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px;}
+        .form-group { margin-bottom: 15px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; font-size: 0.9rem;}
+        input { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; }
+        .btn { background: #3b82f6; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1rem; width: 100%;}
+        .btn:hover { background: #2563eb; }
+        .btn-success { background: #10b981; }
+        .instruction-box { background: #f8fafc; padding: 15px; border-left: 4px solid #3b82f6; margin-bottom: 20px; border-radius: 0 5px 5px 0;}
+    </style>
+</head>
+<body>
+
+<div class="wizard-card">
+    <a href="/portal/mis-pdfs/" style="color:#64748b; text-decoration:none; margin-bottom:15px; display:inline-block;">⬅ Cancelar y volver</a>
+    <h2 id="stepTitle">Alta de PDF Libre</h2>
+
+    <div id="step1" class="step active">
+        <div class="instruction-box">
+            <strong>Instrucciones:</strong>
+            <ol style="margin-bottom:0;">
+                <li>Sube tu archivo PDF a tu cuenta personal de Google Drive.</li>
+                <li>Haz clic derecho en el archivo ➔ Compartir.</li>
+                <li>Concede acceso de <strong>Lector</strong> o <strong>Editor</strong> al correo: <strong style="color:#e74c3c;">apps@raloy.com.mx</strong></li>
+                <li>Haz clic en "Copiar enlace" y pégalo aquí abajo.</li>
+            </ol>
+        </div>
+
+        <div class="form-group">
+            <label>Enlace del PDF en Google Drive:</label>
+            <input type="url" id="driveUrl" placeholder="https://drive.google.com/file/d/1XyZ.../view" required>
+        </div>
+        <button class="btn" onclick="verificarPdf()">Validar y Conectar ➔</button>
+    </div>
+
+    <div id="step2" class="step">
+        <div style="text-align: center; margin-bottom: 20px;">
+            <span style="font-size: 3rem; color: #10b981;">✅</span>
+            <h3 style="color: #10b981; margin-top: 10px;">¡Documento Enlazado con Éxito!</h3>
+            <p>Nombre del archivo detectado: <strong id="docName" style="color:#333;"></strong></p>
+        </div>
+
+        <button class="btn btn-success" onclick="alert('En el próximo paso configuraremos las firmas')">SOLICITAR FIRMA</button>
+    </div>
+</div>
+
+<script>
+    function verificarPdf() {
+        const url = document.getElementById('driveUrl').value;
+        if(!url) return alert("Por favor pega el enlace de Google Drive.");
+
+        const btn = event.target;
+        btn.disabled = true; btn.innerText = "Verificando permisos con n8n...";
+
+        fetch('/api/verificar-pdf/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: url })
+        }).then(r => r.json()).then(res => {
+            if(res.status === 'success') {
+                document.getElementById('docName').innerText = res.nombre;
+                document.getElementById('step1').classList.remove('active');
+                document.getElementById('step2').classList.add('active');
+            } else {
+                alert(res.error);
+                btn.disabled = false; btn.innerText = "Validar y Conectar ➔";
+            }
+        });
+    }
+</script>
+</body>
+</html>

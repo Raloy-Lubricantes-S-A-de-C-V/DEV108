@@ -91,11 +91,15 @@ class AdministradorPortal(models.Model):
     configuracion_dashboard = models.JSONField(default=dict, blank=True)
 
 
-# NUEVO MODELO PARA GESTIONAR CARPETAS POR DOMINIO
 class CarpetaDominio(models.Model):
     dominio = models.CharField(max_length=100, unique=True)
     drive_folder_id = models.CharField(max_length=200)
     created_at = models.DateTimeField(default=timezone.now)
 
-    def __str__(self):
-        return f"{self.dominio} - {self.drive_folder_id}"
+
+# NUEVO MODELO PARA PDFS DE USUARIOS
+class DocumentoPDFUsuario(models.Model):
+    nombre = models.CharField(max_length=200)
+    drive_file_id = models.CharField(max_length=200)
+    owner_email = models.CharField(max_length=200)
+    created_at = models.DateTimeField(default=timezone.now)

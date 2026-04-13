@@ -4,14 +4,10 @@ from . import views
 urlpatterns = [
     # RUTAS API N8N Y FIRMA
     path('api/recibir-documento/', views.recibir_documento_n8n, name='recibir_documento'),
-
-    # Compatibilidad con ligas viejas (opcional) y nueva liga segura
     path('firmar/<uuid:token>/', views.vista_firma_ui, name='vista_firma_old'),
     path('firmar/<uuid:token>/<str:firmante_token>/', views.vista_firma_ui, name='vista_firma'),
-
     path('api/procesar/<uuid:token>/', views.procesar_firma, name='procesar_firma_old'),
     path('api/procesar/<uuid:token>/<str:firmante_token>/', views.procesar_firma, name='procesar_firma'),
-
     path('trazabilidad/<uuid:token>/', views.vista_trazabilidad, name='vista_trazabilidad'),
 
     # RUTAS DE BANCO DE FIRMAS
@@ -25,9 +21,14 @@ urlpatterns = [
     path('portal/dashboard/', views.portal_dashboard, name='portal_dashboard'),
     path('portal/logout/', views.portal_logout, name='portal_logout'),
 
-    # RUTAS DE PLANTILLAS PARA USUARIOS NORMALES
+    # RUTAS DE PLANTILLAS
     path('portal/plantillas/', views.portal_plantillas, name='portal_plantillas'),
     path('portal/usar-plantilla/<int:plantilla_id>/', views.portal_usar_plantilla, name='portal_usar_plantilla'),
+
+    # NUEVAS RUTAS DE PDFS LIBRES
+    path('portal/mis-pdfs/', views.portal_pdfs_usuario, name='portal_pdfs_usuario'),
+    path('portal/subir-pdf/', views.portal_subir_pdf, name='portal_subir_pdf'),
+    path('api/verificar-pdf/', views.verificar_pdf_n8n, name='verificar_pdf_n8n'),
 
     # RUTAS DEL PORTAL (ADMINISTRADORES)
     path('admin-portal/', views.admin_login, name='admin_login'),
