@@ -17,6 +17,12 @@
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #eee; padding: 10px; text-align: left;}
         th { background: #f8f9fa; }
+
+        /* Estilos para el Drag and Drop */
+        .drag-handle { cursor: grab; color: #94a3b8; margin-right: 10px; font-size: 1.2rem; user-select: none; }
+        .drag-handle:active { cursor: grabbing; }
+        #tbodyFirmas tr { transition: background-color 0.2s; background-color: white; }
+        #tbodyFirmas tr.dragging { opacity: 0.5; }
     </style>
 </head>
 <body>
@@ -42,6 +48,7 @@
         </table>
 
         <h4>Orden de Firmantes</h4>
+        <p style="font-size: 0.85rem; color:#666;">Arrastra las filas (☰) para cambiar el orden en que se solicitarán las firmas.</p>
         <table>
             <thead><tr><th>Orden</th><th>Llave de Firma</th><th>Correo Sugerido</th></tr></thead>
             <tbody id="tbodyFirmas"></tbody>
@@ -152,14 +159,21 @@
                     }
                 }
 
+                // Generar filas arrastrables
                 if(rawData.firmas && Array.isArray(rawData.firmas)) {
                     rawData.firmas.forEach((f, idx) => {
-                        tbF.innerHTML += `<tr>
-                            <td>${idx+1}</td>
+                        tbF.innerHTML += `<tr draggable="true">
+                            <td style="width: 80px;">
+                                <span class="drag-handle">☰</span>
+                                <span class="orden-num" style="font-weight:bold;">${idx+1}</span>
+                            </td>
                             <td><input type="text" class="firma-key" value="${f}" disabled></td>
                             <td><input type="email" class="firma-default-email" value="${owner}"></td>
                         </tr>`;
                     });
+
+                    // Activar eventos Drag & Drop después de inyectar el HTML
+                    setTimeout(habilitarDragAndDrop, 100);
                 }
 
                 nextStep(2);
@@ -179,6 +193,75 @@
         });
     }
 
+    // ==========================================
+    // FUNCIONES PARA EL DRAG AND DROP (ARRASTRAR)
+    // ==========================================
+    function habilitarDragAndDrop() {
+        const tableBody = document.getElementById('tbodyFirmas');
+        let draggedRow = null;
+
+        tableBody.querySelectorAll('tr').forEach(row => {
+            row.addEventListener('dragstart', function (e) {
+                draggedRow = this;
+                e.dataTransfer.effectAllowed = 'move';
+                setTimeout(() => this.classList.add('dragging'), 0);
+            });
+
+            row.addEventListener('dragend', function (e) {
+                this.classList.remove('dragging');
+                draggedRow = null;
+                actualizarOrdenFirmas();
+                tableBody.querySelectorAll('tr').forEach(r => r.style.background = '');
+            });
+
+            row.addEventListener('dragover', function (e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                return false;
+            });
+
+            row.addEventListener('dragenter', function (e) {
+                e.preventDefault();
+                if (this !== draggedRow) {
+                    this.style.background = '#f1f5f9';
+                }
+            });
+
+            row.addEventListener('dragleave', function (e) {
+                if (this !== draggedRow) {
+                    this.style.background = '';
+                }
+            });
+
+            row.addEventListener('drop', function (e) {
+                e.preventDefault();
+                this.style.background = '';
+                if (draggedRow !== this) {
+                    const rowsArray = Array.from(tableBody.children);
+                    const draggedIndex = rowsArray.indexOf(draggedRow);
+                    const targetIndex = rowsArray.indexOf(this);
+
+                    if (draggedIndex < targetIndex) {
+                        tableBody.insertBefore(draggedRow, this.nextSibling);
+                    } else {
+                        tableBody.insertBefore(draggedRow, this);
+                    }
+                }
+                return false;
+            });
+        });
+    }
+
+    function actualizarOrdenFirmas() {
+        // Recalcular los números de la columna "Orden"
+        document.querySelectorAll('#tbodyFirmas tr').forEach((row, index) => {
+            row.querySelector('.orden-num').innerText = index + 1;
+        });
+    }
+
+    // ==========================================
+    // GUARDADO FINAL
+    // ==========================================
     function guardarPlantilla() {
         let varsMap = [];
         document.querySelectorAll('.var-email').forEach(inp => {
@@ -193,6 +276,7 @@
         const firmaKeys = document.querySelectorAll('.firma-key');
         const firmaEmails = document.querySelectorAll('.firma-default-email');
 
+        // Aquí se guardan en el nuevo orden visual en el que quedaron las filas
         for(let i=0; i < firmaKeys.length; i++) {
             firmasMap.push({
                 key: firmaKeys[i].value,
@@ -208,7 +292,7 @@
             variables: varsMap,
             firmantes_config: firmasMap,
             nombre: document.getElementById('p_nombre').value,
-            formato_folio: document.getElementById('p_folio').value, // NUEVO ENVIO AL BACKEND
+            formato_folio: document.getElementById('p_folio').value,
             drive_folder_id: document.getElementById('p_drive').value,
             view_info: document.getElementById('p_view').value,
             usuarios_permitidos: document.getElementById('p_usuarios').value.split(',').map(s=>s.trim()).filter(s=>s)
