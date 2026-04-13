@@ -92,8 +92,11 @@ class CarpetaDominio(models.Model):
 
 
 class DocumentoPDFUsuario(models.Model):
+    # NUEVO CAMPO QUE EVITA EL ERROR DE DJANGO-MONGODB
+    id_documento = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+
     nombre = models.CharField(max_length=200)
     drive_file_id = models.CharField(max_length=200)
     owner_email = models.CharField(max_length=200)
-    archivo_local = models.CharField(max_length=500, blank=True, null=True)  # NUEVO: Ruta local para visualizar
+    archivo_local = models.CharField(max_length=500, blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)

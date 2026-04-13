@@ -163,10 +163,7 @@ def procesar_firma(request, token, firmante_token=None):
                 estampar_variables_en_pdf(proceso.pdf_path, data.get('variables'))
                 proceso.save()
 
-            # EXTRAER COORDENADAS PARA DRAG AND DROP
             coordenadas = firmante_esperado.get('coordenadas')
-
-            # ESTAMPAR CON COORDENADAS O CON {{FIRMA_X}}
             estampar_firma_en_pdf(proceso.pdf_path, firma_b64, proceso.indice_actual, firmante_esperado['email'],
                                   firmante_esperado['nombre'], ip_user, coordenadas)
 
@@ -325,7 +322,7 @@ def portal_pdfs_usuario(request):
 def eliminar_pdf_usuario(request, pdf_id):
     owner_email = request.session.get('owner_email')
     if not owner_email: return JsonResponse({"error": "No autorizado"}, status=403)
-    doc = get_object_or_404(DocumentoPDFUsuario, id=pdf_id, owner_email=owner_email)
+    doc = get_object_or_404(DocumentoPDFUsuario, id_documento=pdf_id, owner_email=owner_email)
 
     if doc.archivo_local:
         full_path = os.path.join(settings.MEDIA_ROOT, doc.archivo_local)
@@ -371,7 +368,7 @@ def subir_pdf_usuario(request):
                     nombre=pdf_file.name, drive_file_id=resp.get('file_id'), owner_email=owner_email,
                     archivo_local=local_path
                 )
-                return JsonResponse({"status": "success", "nombre": pdf_file.name, "id": str(nuevo_doc.id)})
+                return JsonResponse({"status": "success", "nombre": pdf_file.name, "id": str(nuevo_doc.id_documento)})
             else:
                 return JsonResponse({"error": "N8n falló al subir a Drive."})
         except Exception as e:
@@ -381,7 +378,7 @@ def subir_pdf_usuario(request):
 def portal_configurar_pdf(request, pdf_id):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
-    doc = get_object_or_404(DocumentoPDFUsuario, id=pdf_id, owner_email=owner_email)
+    doc = get_object_or_404(DocumentoPDFUsuario, id_documento=pdf_id, owner_email=owner_email)
     pdf_url = f"{settings.MEDIA_URL}{doc.archivo_local}"
     return render(request, 'motor_firmas/portal_configurar_pdf.html',
                   {'doc': doc, 'pdf_url': pdf_url, 'owner_email': owner_email})
@@ -393,7 +390,7 @@ def iniciar_firma_libre(request):
     if not owner_email: return JsonResponse({"error": "No autorizado"}, status=403)
     if request.method == 'POST':
         data = json.loads(request.body)
-        doc = get_object_or_404(DocumentoPDFUsuario, id=data['pdf_id'], owner_email=owner_email)
+        doc = get_object_or_404(DocumentoPDFUsuario, id_documento=data['pdf_id'], owner_email=owner_email)
 
         firmantes = data.get('firmantes', [])
         for f in firmantes: f['token_firmante'] = str(uuid.uuid4())

@@ -224,10 +224,11 @@
             const btn = document.getElementById('btnEnviar');
             btn.disabled = true; btn.innerText = "Procesando Documento...";
 
+            // AQUÍ APLICAMOS LA CORRECCIÓN DEL UUID PARA MONGODB
             fetch('/api/iniciar-firma-libre/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pdf_id: "{{ doc.id }}", firmantes: payloadFirmantes })
+                body: JSON.stringify({ pdf_id: "{{ doc.id_documento }}", firmantes: payloadFirmantes })
             }).then(r => r.json()).then(res => {
                 if(res.status === 'success') {
                     alert("Documento procesado. Se ha enviado el correo al primer firmante.");
@@ -236,6 +237,9 @@
                     alert("Error: " + res.error);
                     btn.disabled = false; btn.innerText = "✓ ENVIAR A FIRMA";
                 }
+            }).catch(err => {
+                alert("Error de conexión al enviar el documento.");
+                btn.disabled = false; btn.innerText = "✓ ENVIAR A FIRMA";
             });
         }
     </script>

@@ -53,8 +53,8 @@
                         <div style="font-size: 0.9rem; color: #475569;"><strong>Subido el:</strong> {{ p.created_at|date:"d/m/Y H:i" }}</div>
                     </div>
                     <div class="card-footer">
-                        <a href="{% url 'portal_configurar_pdf' p.id %}" class="btn-use">Solicitar Firma ➔</a>
-                        <button class="btn-del" onclick="eliminarPdf('{{ p.id }}')">🗑️</button>
+                        <a href="{% url 'portal_configurar_pdf' p.id_documento %}" class="btn-use">Solicitar Firma ➔</a>
+                        <button class="btn-del" onclick="eliminarPdf('{{ p.id_documento }}')">🗑️</button>
                     </div>
                 </div>
             {% empty %}
@@ -67,9 +67,9 @@
     </div>
 
     <script>
-        function eliminarPdf(id) {
+        function eliminarPdf(id_doc) {
             if(confirm("¿Seguro que deseas eliminar este documento? Esta acción no se puede deshacer.")) {
-                fetch(`/api/eliminar-pdf-usuario/${id}/`, { method: 'POST' })
+                fetch(`/api/eliminar-pdf-usuario/${id_doc}/`, { method: 'POST' })
                 .then(r => r.json())
                 .then(res => {
                     if(res.status === 'success') window.location.reload();
