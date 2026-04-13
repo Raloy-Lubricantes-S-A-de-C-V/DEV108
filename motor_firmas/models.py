@@ -33,13 +33,10 @@ class PlantillaFormulario(models.Model):
     nombre = models.CharField(max_length=200)
     doc_id = models.CharField(max_length=200)
     owner_email = models.CharField(max_length=200)
-
     drive_folder_id = models.CharField(max_length=200)
     carpeta_firmados_id = models.CharField(max_length=200, blank=True, null=True)
-
     view_info = models.CharField(max_length=50, default='file')
     formato_folio = models.CharField(max_length=100, blank=True, null=True, default='')
-
     contexto = models.TextField(blank=True, null=True)
     intencion = models.TextField(blank=True, null=True)
     variables = models.JSONField(default=list)
@@ -60,11 +57,9 @@ class DirectorioFirmas(models.Model):
     reset_token = models.UUIDField(null=True, blank=True)
     reset_token_expires = models.DateTimeField(null=True, blank=True)
 
-    def set_pin(self, raw_pin):
-        self.pin_hash = make_password(raw_pin)
+    def set_pin(self, raw_pin): self.pin_hash = make_password(raw_pin)
 
-    def check_pin(self, raw_pin):
-        return check_password(raw_pin, self.pin_hash)
+    def check_pin(self, raw_pin): return check_password(raw_pin, self.pin_hash)
 
     def generar_token_recuperacion(self):
         self.reset_token = uuid.uuid4()
@@ -82,8 +77,7 @@ class OTPLogin(models.Model):
         self.expires_at = timezone.now() + timedelta(minutes=15)
         self.save()
 
-    def es_valido(self, code_ingresado):
-        return self.otp_code == code_ingresado and timezone.now() <= self.expires_at
+    def es_valido(self, code_ingresado): return self.otp_code == code_ingresado and timezone.now() <= self.expires_at
 
 
 class AdministradorPortal(models.Model):
@@ -97,9 +91,9 @@ class CarpetaDominio(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
 
 
-# NUEVO MODELO PARA PDFS DE USUARIOS
 class DocumentoPDFUsuario(models.Model):
     nombre = models.CharField(max_length=200)
     drive_file_id = models.CharField(max_length=200)
     owner_email = models.CharField(max_length=200)
+    archivo_local = models.CharField(max_length=500, blank=True, null=True)  # NUEVO: Ruta local para visualizar
     created_at = models.DateTimeField(default=timezone.now)

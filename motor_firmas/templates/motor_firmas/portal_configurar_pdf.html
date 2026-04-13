@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Configurar Firmas - Raloy</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px; color: #334155; display: flex; height: 100vh; box-sizing: border-box; gap: 20px;}
+
+        /* Contenedor del PDF (Izquierda) */
+        .pdf-area { flex: 1; background: #cbd5e1; border-radius: 8px; overflow: auto; display: flex; flex-direction: column; align-items: center; padding: 20px; box-shadow: inset 0 0 10px rgba(0,0,0,0.1); position: relative;}
+
+        #pdf-wrapper { position: relative; display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.2); background: white; }
+        canvas { display: block; }
+
+        /* Cajas de Firma Draggables */
+        .signature-box { position: absolute; border: 2px dashed #e74c3c; background: rgba(231, 76, 60, 0.1); width: 150px; height: 60px; display: flex; justify-content: center; align-items: center; color: #c0392b; font-weight: bold; cursor: grab; user-select: none; font-size: 0.8rem; text-align: center; border-radius: 4px; z-index: 10;}
+        .signature-box:active { cursor: grabbing; }
+        .signature-box.selected { border-color: #2980b9; background: rgba(41, 128, 185, 0.2); color: #2980b9; }
+
+        /* Barra Lateral de Herramientas (Derecha) */
+        .sidebar { width: 350px; background: white; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #e2e8f0;}
+        .side-header { background: #0f172a; color: white; padding: 20px; text-align: center;}
+        .side-header h2 { margin: 0; font-size: 1.2rem; }
+        .side-body { padding: 20px; flex: 1; overflow-y: auto;}
+
+        .btn-add { background: #8e44ad; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; font-size: 1rem; transition: 0.2s; margin-bottom: 20px;}
+        .btn-add:hover { background: #732d91; }
+
+        .properties-panel { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 15px; display: none;}
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 5px; color: #475569;}
+        input { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; font-size: 0.9rem;}
+        input:not([type="email"]) { text-transform: uppercase; }
+        input:focus { outline: none; border-color: #3b82f6; }
+
+        .btn-success { background: #10b981; color: white; border: none; padding: 15px; cursor: pointer; font-weight: bold; font-size: 1.1rem; transition: 0.2s;}
+        .btn-success:hover { background: #059669; }
+    </style>
+</head>
+<body>
+
+    <div class="pdf-area">
+        <a href="/portal/mis-pdfs/" style="align-self: flex-start; color: #475569; text-decoration: none; font-weight: bold; margin-bottom: 10px;">⬅ Volver</a>
+        <div id="pdf-wrapper">
+            <canvas id="pdf-render"></canvas>
+            </div>
+    </div>
+
+    <div class="sidebar">
+        <div class="side-header">
+            <h2>Panel de Firmantes</h2>
+            <p style="margin: 5px 0 0 0; font-size: 0.85rem; color:#cbd5e1;">Agrega y arrastra al PDF</p>
+        </div>
+        <div class="side-body">
+            <button class="btn-add" onclick="agregarFirmante()">+ Añadir Espacio de Firma</button>
+
+            <div class="properties-panel" id="propsPanel">
+                <h4 style="margin-top:0; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px;" id="propsTitle">Firmante Seleccionado</h4>
+
+                <div class="form-group">
+                    <label>Orden de Firma (Secuencia)</label>
+                    <input type="number" id="inpOrden" min="1" onchange="updateBoxData()">
+                </div>
+                <div class="form-group">
+                    <label>Nombre Completo</label>
+                    <input type="text" id="inpNombre" placeholder="JUAN PEREZ" onkeyup="updateBoxData()">
+                </div>
+                <div class="form-group">
+                    <label>Iniciales o Abreviatura</label>
+                    <input type="text" id="inpIniciales" placeholder="JP" onkeyup="updateBoxData()">
+                </div>
+                <div class="form-group">
+                    <label>Correo Electrónico</label>
+                    <input type="email" id="inpEmail" placeholder="juan@empresa.com" onkeyup="updateBoxData()">
+                </div>
+                <button onclick="eliminarCajaActual()" style="background: none; border:none; color:#e74c3c; cursor:pointer; font-weight:bold; font-size:0.85rem; width:100%; text-align:right;">🗑️ Quitar Firmante</button>
+            </div>
+        </div>
+        <button class="btn-success" id="btnEnviar" onclick="enviarAFirma()">✓ ENVIAR A FIRMA</button>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+        const url = '{{ pdf_url }}';
+        const wrapper = document.getElementById('pdf-wrapper');
+        let boxes = [];
+        let activeBoxId = null;
+
+        // 1. RENDERIZAR EL PDF
+        pdfjsLib.getDocument(url).promise.then(pdfDoc => {
+            pdfDoc.getPage(1).then(page => {
+                const scale = 1.5;
+                const viewport = page.getViewport({ scale: scale });
+                const canvas = document.getElementById('pdf-render');
+                const ctx = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                wrapper.style.width = viewport.width + 'px';
+                wrapper.style.height = viewport.height + 'px';
+
+                page.render({ canvasContext: ctx, viewport: viewport });
+            });
+        });
+
+        // 2. LÓGICA DE CAJAS DRAG & DROP
+        function agregarFirmante() {
+            const id = Date.now().toString();
+            const ordenNum = boxes.length + 1;
+
+            const box = document.createElement('div');
+            box.className = 'signature-box';
+            box.id = id;
+            box.innerText = 'FIRMANTE ' + ordenNum;
+            box.style.left = '50px';
+            box.style.top = '50px';
+
+            // Estructura de datos por firma
+            const boxData = { id: id, orden: ordenNum, nombre: '', email: '', iniciales: '' };
+            boxes.push(boxData);
+
+            // Eventos de arrastre nativos de Mouse
+            let isDragging = false, startX, startY, initialLeft, initialTop;
+
+            box.addEventListener('mousedown', (e) => {
+                seleccionarCaja(id);
+                isDragging = true;
+                startX = e.clientX; startY = e.clientY;
+                initialLeft = parseInt(box.style.left || 0);
+                initialTop = parseInt(box.style.top || 0);
+                box.style.cursor = 'grabbing';
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                let newX = initialLeft + (e.clientX - startX);
+                let newY = initialTop + (e.clientY - startY);
+
+                // Límites para que no se salga del PDF
+                if(newX < 0) newX = 0; if(newX > wrapper.clientWidth - 150) newX = wrapper.clientWidth - 150;
+                if(newY < 0) newY = 0; if(newY > wrapper.clientHeight - 60) newY = wrapper.clientHeight - 60;
+
+                box.style.left = newX + 'px';
+                box.style.top = newY + 'px';
+            });
+
+            document.addEventListener('mouseup', () => {
+                if(isDragging) { isDragging = false; box.style.cursor = 'grab'; }
+            });
+
+            wrapper.appendChild(box);
+            seleccionarCaja(id);
+        }
+
+        // 3. BARRA LATERAL (PROPIEDADES)
+        function seleccionarCaja(id) {
+            activeBoxId = id;
+            document.querySelectorAll('.signature-box').forEach(b => b.classList.remove('selected'));
+            const activeEl = document.getElementById(id);
+            if(activeEl) activeEl.classList.add('selected');
+
+            const data = boxes.find(b => b.id === id);
+            if(data) {
+                document.getElementById('propsPanel').style.display = 'block';
+                document.getElementById('propsTitle').innerText = 'Editando: ' + activeEl.innerText;
+                document.getElementById('inpOrden').value = data.orden;
+                document.getElementById('inpNombre').value = data.nombre;
+                document.getElementById('inpIniciales').value = data.iniciales;
+                document.getElementById('inpEmail').value = data.email;
+            }
+        }
+
+        function updateBoxData() {
+            if(!activeBoxId) return;
+            const data = boxes.find(b => b.id === activeBoxId);
+            if(data) {
+                data.orden = document.getElementById('inpOrden').value;
+                data.nombre = document.getElementById('inpNombre').value.toUpperCase();
+                data.iniciales = document.getElementById('inpIniciales').value.toUpperCase();
+                data.email = document.getElementById('inpEmail').value;
+                document.getElementById(activeBoxId).innerText = (data.nombre || 'FIRMANTE') + ' (' + data.orden + ')';
+            }
+        }
+
+        function eliminarCajaActual() {
+            if(!activeBoxId) return;
+            document.getElementById(activeBoxId).remove();
+            boxes = boxes.filter(b => b.id !== activeBoxId);
+            document.getElementById('propsPanel').style.display = 'none';
+            activeBoxId = null;
+        }
+
+        // 4. ENVÍO FINAL A DJANGO
+        function enviarAFirma() {
+            if(boxes.length === 0) return alert("Añade al menos un espacio de firma.");
+
+            let payloadFirmantes = [];
+            let isValid = true;
+
+            boxes.forEach(b => {
+                if(!b.nombre || !b.email || !b.orden) isValid = false;
+
+                const el = document.getElementById(b.id);
+                // Calculamos el porcentaje visual para que encaje perfecto sin importar resoluciones
+                const xPercent = parseInt(el.style.left) / wrapper.clientWidth;
+                const yPercent = parseInt(el.style.top) / wrapper.clientHeight;
+
+                payloadFirmantes.push({
+                    nombre: b.nombre,
+                    email: b.email,
+                    iniciales: b.iniciales,
+                    orden: parseInt(b.orden),
+                    coordenadas: { page: 1, x: xPercent, y: yPercent }
+                });
+            });
+
+            if(!isValid) return alert("Completa el nombre, correo y orden de todos los firmantes en el panel.");
+
+            // Ordenamos el array por el orden que especificó el usuario
+            payloadFirmantes.sort((a, b) => a.orden - b.orden);
+
+            const btn = document.getElementById('btnEnviar');
+            btn.disabled = true; btn.innerText = "Procesando Documento...";
+
+            fetch('/api/iniciar-firma-libre/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pdf_id: "{{ doc.id }}", firmantes: payloadFirmantes })
+            }).then(r => r.json()).then(res => {
+                if(res.status === 'success') {
+                    alert("Documento procesado. Se ha enviado el correo al primer firmante.");
+                    window.location.href = '/portal/dashboard/';
+                } else {
+                    alert("Error: " + res.error);
+                    btn.disabled = false; btn.innerText = "✓ ENVIAR A FIRMA";
+                }
+            });
+        }
+    </script>
+</body>
+</html>

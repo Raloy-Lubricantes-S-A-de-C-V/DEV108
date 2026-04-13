@@ -2,7 +2,7 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    # RUTAS API N8N Y FIRMA
+    # RUTAS API N8N Y FIRMA NORMAL
     path('api/recibir-documento/', views.recibir_documento_n8n, name='recibir_documento'),
     path('firmar/<uuid:token>/', views.vista_firma_ui, name='vista_firma_old'),
     path('firmar/<uuid:token>/<str:firmante_token>/', views.vista_firma_ui, name='vista_firma'),
@@ -15,7 +15,7 @@ urlpatterns = [
     path('api/solicitar-recuperacion/', views.solicitar_recuperacion, name='solicitar_recuperacion'),
     path('recuperar-pin/<uuid:token>/', views.resetear_pin, name='resetear_pin'),
 
-    # RUTAS DEL PORTAL (USUARIOS NORMALES)
+    # RUTAS DEL PORTAL
     path('portal/', views.portal_login, name='portal_login'),
     path('api/solicitar-otp/', views.solicitar_otp, name='solicitar_otp'),
     path('portal/dashboard/', views.portal_dashboard, name='portal_dashboard'),
@@ -25,10 +25,13 @@ urlpatterns = [
     path('portal/plantillas/', views.portal_plantillas, name='portal_plantillas'),
     path('portal/usar-plantilla/<int:plantilla_id>/', views.portal_usar_plantilla, name='portal_usar_plantilla'),
 
-    # NUEVAS RUTAS DE PDFS LIBRES
+    # === RUTAS DE PDFS LIBRES (DRAG & DROP) ===
     path('portal/mis-pdfs/', views.portal_pdfs_usuario, name='portal_pdfs_usuario'),
     path('portal/subir-pdf/', views.portal_subir_pdf, name='portal_subir_pdf'),
-    path('api/subir-pdf-usuario/', views.subir_pdf_usuario, name='subir_pdf_usuario'),  # REEMPLAZA A LA ANTERIOR
+    path('api/subir-pdf-usuario/', views.subir_pdf_usuario, name='subir_pdf_usuario'),
+    path('api/eliminar-pdf-usuario/<int:pdf_id>/', views.eliminar_pdf_usuario, name='eliminar_pdf_usuario'),
+    path('portal/configurar-pdf/<int:pdf_id>/', views.portal_configurar_pdf, name='portal_configurar_pdf'),
+    path('api/iniciar-firma-libre/', views.iniciar_firma_libre, name='iniciar_firma_libre'),
 
     # RUTAS DEL PORTAL (ADMINISTRADORES)
     path('admin-portal/', views.admin_login, name='admin_login'),

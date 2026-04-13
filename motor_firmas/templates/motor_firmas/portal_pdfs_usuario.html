@@ -2,7 +2,6 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mis PDFs - Raloy</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1f5f9; margin: 0; padding: 30px; color: #334155; }
@@ -16,16 +15,16 @@
         .btn-crear { background-color: #8e44ad; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; display: inline-flex; align-items: center; gap: 8px;}
         .btn-crear:hover { background-color: #732d91; }
 
-        .search-container { background: white; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 1px solid #e2e8f0; display: flex; gap: 15px; align-items: center;}
-        .search-container input { flex: 1; padding: 10px 15px; border: 1px solid #cbd5e1; border-radius: 6px; background: #f8fafc; font-size: 0.95rem; }
-
         .templates-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; }
         .template-card { background: white; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 5px rgba(0,0,0,0.02); display: flex; flex-direction: column; }
         .card-header { padding: 20px; border-bottom: 1px solid #eee; background: #f8fafc; }
-        .card-title { margin: 0; font-size: 1.15rem; color: #1e293b; font-weight: 700; }
+        .card-title { margin: 0; font-size: 1.15rem; color: #1e293b; font-weight: 700; word-break: break-all;}
         .card-body { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 12px; }
-        .card-footer { padding: 15px 20px; background: white; margin-top: auto; }
-        .btn-use { background-color: #10b981; color: white; padding: 12px; border-radius: 6px; text-decoration: none; font-weight: 700; text-align: center; display: block; }
+        .card-footer { padding: 15px 20px; background: white; margin-top: auto; display: flex; gap: 10px;}
+        .btn-use { background-color: #10b981; color: white; padding: 12px; border-radius: 6px; border: none; cursor: pointer; text-decoration: none; font-weight: 700; text-align: center; flex: 1; transition: 0.2s;}
+        .btn-use:hover { background-color: #059669; }
+        .btn-del { background-color: white; border: 1px solid #e74c3c; color: #e74c3c; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s;}
+        .btn-del:hover { background-color: #e74c3c; color: white;}
     </style>
 </head>
 <body>
@@ -41,7 +40,7 @@
         <div class="actions-bar">
             <div>
                 <h2 style="margin: 0 0 5px 0;">Biblioteca de PDFs</h2>
-                <p style="margin: 0; color:#64748b; font-size:0.9rem;">Sube y envía a firma documentos personalizados en formato PDF.</p>
+                <p style="margin: 0; color:#64748b; font-size:0.9rem;">Documentos subidos listos para ser configurados y enviados a firma.</p>
             </div>
             <a href="{% url 'portal_subir_pdf' %}" class="btn-crear"><span>⬆️</span> SUBIR NUEVO PDF</a>
         </div>
@@ -51,10 +50,11 @@
                 <div class="template-card">
                     <div class="card-header"><h3 class="card-title">{{ p.nombre }}</h3></div>
                     <div class="card-body">
-                        <div style="font-size: 0.9rem; color: #475569;"><strong>Subido el:</strong> {{ p.created_at|date:"d/m/Y" }}</div>
+                        <div style="font-size: 0.9rem; color: #475569;"><strong>Subido el:</strong> {{ p.created_at|date:"d/m/Y H:i" }}</div>
                     </div>
                     <div class="card-footer">
-                        <button class="btn-use" onclick="alert('Módulo en construcción para firmar PDFs guardados.')">Solicitar Firma</button>
+                        <a href="{% url 'portal_configurar_pdf' p.id %}" class="btn-use">Solicitar Firma ➔</a>
+                        <button class="btn-del" onclick="eliminarPdf('{{ p.id }}')">🗑️</button>
                     </div>
                 </div>
             {% empty %}
@@ -65,5 +65,18 @@
             {% endfor %}
         </div>
     </div>
+
+    <script>
+        function eliminarPdf(id) {
+            if(confirm("¿Seguro que deseas eliminar este documento? Esta acción no se puede deshacer.")) {
+                fetch(`/api/eliminar-pdf-usuario/${id}/`, { method: 'POST' })
+                .then(r => r.json())
+                .then(res => {
+                    if(res.status === 'success') window.location.reload();
+                    else alert("Error al eliminar.");
+                });
+            }
+        }
+    </script>
 </body>
 </html>
