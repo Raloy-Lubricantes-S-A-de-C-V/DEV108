@@ -50,7 +50,7 @@ def recibir_documento_n8n(request):
             match = re.search(r'^(.*?-)(\d+)$', ref_id)
             if match:
                 base_name, num_str = match.group(1), match.group(2)
-                num_len, current_num = len(num_str), int(num_str)
+                num_len, current_num = int(num_str)
                 while ProcesoFirma.objects.filter(reference_id=ref_id).exists():
                     current_num += 1
                     ref_id = f"{base_name}{str(current_num).zfill(num_len)}"
@@ -310,7 +310,7 @@ def portal_usar_plantilla(request, plantilla_id):
                   {'plantilla': plantilla, 'owner_email': owner_email})
 
 
-# ================= VISTAS DE PDFS LIBRES =================
+# ================= VISTAS DE PDFS LIBRES (DRAG & DROP) =================
 def portal_pdfs_usuario(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
@@ -435,8 +435,12 @@ def iniciar_firma_libre(request):
         requests.post(N8N_WEBHOOK_NOTIFICAR_OWNER,
                       json={"email": owner_email, "reference_id": ref_id, "link": link_trazabilidad})
 
-        doc.enviado_a_firma = True
-        doc.save()
+        # =======================================================
+        # LIMPIEZA AUTOMÁTICA DEL BORRADOR AL ENVIAR A FIRMA
+        # =======================================================
+        if os.path.exists(original_path):
+            os.remove(original_path)
+        doc.delete()
 
         return JsonResponse({"status": "success"})
 

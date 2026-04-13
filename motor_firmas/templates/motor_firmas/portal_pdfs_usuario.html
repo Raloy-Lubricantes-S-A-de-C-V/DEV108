@@ -39,8 +39,8 @@
     <div class="main-container">
         <div class="actions-bar">
             <div>
-                <h2 style="margin: 0 0 5px 0;">Biblioteca de PDFs</h2>
-                <p style="margin: 0; color:#64748b; font-size:0.9rem;">Documentos subidos listos para ser configurados y enviados a firma.</p>
+                <h2 style="margin: 0 0 5px 0;">Borradores de PDFs</h2>
+                <p style="margin: 0; color:#64748b; font-size:0.9rem;">Documentos pendientes de configurar. Al enviarlos a firma, se moverán a tu Panel Principal.</p>
             </div>
             <a href="{% url 'portal_subir_pdf' %}" class="btn-crear"><span>⬆️</span> SUBIR NUEVO PDF</a>
         </div>
@@ -54,12 +54,8 @@
                     </div>
                     <div class="card-footer">
                         {% if p.id_documento %}
-                            {% if p.enviado_a_firma %}
-                                <span style="flex:1; color:#10b981; font-weight:bold; text-align:center; padding: 12px; background:#f1f5f9; border-radius:6px; border: 1px solid #cbd5e1;">✓ Firma Solicitada</span>
-                            {% else %}
-                                <a href="{% url 'portal_configurar_pdf' p.id_documento %}" class="btn-use">Solicitar Firma ➔</a>
-                            {% endif %}
-                            <button class="btn-del" onclick="eliminarPdf('{{ p.id_documento }}')" title="Eliminar Documento">🗑️</button>
+                            <a href="{% url 'portal_configurar_pdf' p.id_documento %}" class="btn-use">Configurar y Enviar ➔</a>
+                            <button class="btn-del" onclick="eliminarPdf('{{ p.id_documento }}')" title="Eliminar Borrador">🗑️</button>
                         {% else %}
                             <span style="flex:1; color: #e74c3c; font-size: 0.85rem; font-weight: bold; text-align: center; display: flex; align-items: center; justify-content: center;">
                                 ⚠️ Registro antiguo
@@ -71,7 +67,7 @@
             {% empty %}
                 <div style="grid-column: 1 / -1; text-align: center; padding: 50px; background: white; border-radius: 8px; border: 1px solid #e2e8f0; color: #94a3b8;">
                     <span style="font-size: 3rem; display: block; margin-bottom: 15px;">📥</span>
-                    No has subido ningún PDF libre todavía.
+                    No tienes ningún borrador de PDF pendiente.
                 </div>
             {% endfor %}
         </div>
@@ -79,7 +75,7 @@
 
     <script>
         function eliminarPdf(id_doc) {
-            if(confirm("¿Seguro que deseas eliminar este documento? Esta acción no se puede deshacer.")) {
+            if(confirm("¿Seguro que deseas eliminar este borrador de forma permanente?")) {
                 fetch(`/api/eliminar-pdf-usuario/${id_doc}/`, { method: 'POST' })
                 .then(r => r.json())
                 .then(res => {
