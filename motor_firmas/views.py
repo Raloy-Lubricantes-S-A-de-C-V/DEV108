@@ -23,7 +23,7 @@ N8N_WEBHOOK_ENVIAR_OTP = "https://n8n.raloy.com.mx/webhook/enviar-otp-portal"
 N8N_WEBHOOK_INVITAR_REGISTRO = "https://n8n.raloy.com.mx/webhook/invitar-registro-firma"
 N8N_WEBHOOK_ANALIZAR_PLANTILLA = "https://n8n.raloy.com.mx/webhook/analizar-plantilla"
 N8N_WEBHOOK_PREPARAR_DIR = "https://n8n.raloy.com.mx/webhook/preparar-directorio"
-N8N_WEBHOOK_SUBIR_PDF_USUARIO = "https://n8n.raloy.com.mx/webhook/subir-pdf-usuario"  # NUEVO
+N8N_WEBHOOK_SUBIR_PDF_USUARIO = "https://n8n.raloy.com.mx/webhook/subir-pdf-usuario"
 
 
 @csrf_exempt
@@ -321,10 +321,6 @@ def portal_subir_pdf(request):
 
 @csrf_exempt
 def subir_pdf_usuario(request):
-    """
-    Recibe el archivo PDF del portal web, busca el Drive ID del dominio del usuario
-    y lo envía a n8n por form-data para que lo suba a Google Drive de Apps.
-    """
     owner_email = request.session.get('owner_email')
     if not owner_email: return JsonResponse({"error": "No autenticado"}, status=403)
 
@@ -332,7 +328,6 @@ def subir_pdf_usuario(request):
         pdf_file = request.FILES.get('pdf_file')
         if not pdf_file: return JsonResponse({"error": "No se seleccionó ningún archivo PDF."}, status=400)
 
-        # Buscar la carpeta del dominio
         dominio = owner_email.split('@')[1] if '@' in owner_email else ''
         carpeta_dom = CarpetaDominio.objects.filter(dominio=dominio).first()
 
@@ -342,20 +337,19 @@ def subir_pdf_usuario(request):
                                 status=400)
 
         try:
-            # Enviar el archivo real a n8n
             files = {'data': (pdf_file.name, pdf_file.read(), 'application/pdf')}
             data_payload = {'folder_id': carpeta_dom.drive_folder_id}
 
             resp = requests.post(N8N_WEBHOOK_SUBIR_PDF_USUARIO, data=data_payload, files=files, timeout=30).json()
 
             if resp.get('status') == 'success':
-                # Guardar el registro localmente
                 nuevo_doc = DocumentoPDFUsuario.objects.create(
                     nombre=pdf_file.name,
                     drive_file_id=resp.get('file_id'),
                     owner_email=owner_email
                 )
-                return JsonResponse({"status": "success", "nombre": pdf_file.name, "id": nuevo_doc.id})
+                # AQUÍ ESTÁ EL FIX: str(nuevo_doc.id) para que MongoDB no explote al mandarlo por JSON
+                return JsonResponse({"status": "success", "nombre": pdf_file.name, "id": str(nuevo_doc.id)})
             else:
                 return JsonResponse({"error": "N8n falló al subir el archivo a Google Drive."})
         except Exception as e:
@@ -487,7 +481,9 @@ def admin_api(request, accion):
         elif accion == 'guardar_carpeta_dominio':
             dominio, folder_id = data.get('dominio', '').strip().lower(), data.get('drive_folder_id', '').strip()
             if not dominio or not folder_id: return JsonResponse({"error": "Faltan campos"}, status=400)
-            CarpetaDominio.objects.update_or_create(dominio=dominio, defaults={'drive_folder_id': folder_id})
+
+            # Castear a string por seguridad en MongoDB
+            CarpetaDominio.objects.update_or_create(dominio=dominio, defaults={'drive_folder_id': str(folder_id)})
             return JsonResponse({"status": "success", "msg": "Carpeta asignada."})
         elif accion == 'eliminar_carpeta_dominio':
             CarpetaDominio.objects.filter(id=data.get('id')).delete()
