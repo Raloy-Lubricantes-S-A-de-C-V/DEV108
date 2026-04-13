@@ -16,6 +16,7 @@
         .btn { background: #3b82f6; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1rem; width: 100%;}
         .btn:hover { background: #2563eb; }
         .btn-success { background: #10b981; }
+        .btn-success:hover { background: #059669; }
         .instruction-box { background: #f8fafc; padding: 15px; border-left: 4px solid #3b82f6; margin-bottom: 20px; border-radius: 0 5px 5px 0;}
     </style>
 </head>
@@ -48,7 +49,7 @@
             <p>Nombre del archivo: <strong id="docName" style="color:#333;"></strong></p>
         </div>
 
-        <button class="btn btn-success" onclick="alert('En el próximo paso configuraremos las firmas')">SOLICITAR FIRMA</button>
+        <button class="btn btn-success" id="btnSiguientePaso">SOLICITAR FIRMA ➔</button>
     </div>
 </div>
 
@@ -68,12 +69,18 @@
 
         fetch('/api/subir-pdf-usuario/', {
             method: 'POST',
-            body: formData // Enviamos multipart/form-data real
+            body: formData
         }).then(r => r.json()).then(res => {
             if(res.status === 'success') {
                 document.getElementById('docName').innerText = res.nombre;
                 document.getElementById('step1').classList.remove('active');
                 document.getElementById('step2').classList.add('active');
+
+                // MAGIA APLICADA AQUÍ: Redirigimos usando el ID real que nos dio la base de datos
+                document.getElementById('btnSiguientePaso').onclick = function() {
+                    window.location.href = `/portal/configurar-pdf/${res.id}/`;
+                };
+
             } else {
                 alert(res.error);
                 btn.disabled = false; btn.innerText = "Subir y Conectar ➔";
