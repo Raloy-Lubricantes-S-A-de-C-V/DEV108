@@ -35,7 +35,7 @@ class PlantillaFormulario(models.Model):
     owner_email = models.CharField(max_length=200)
 
     drive_folder_id = models.CharField(max_length=200)
-    carpeta_firmados_id = models.CharField(max_length=200, blank=True, null=True)  # NUEVO CAMPO
+    carpeta_firmados_id = models.CharField(max_length=200, blank=True, null=True)
 
     view_info = models.CharField(max_length=50, default='file')
     formato_folio = models.CharField(max_length=100, blank=True, null=True, default='')
@@ -89,3 +89,13 @@ class OTPLogin(models.Model):
 class AdministradorPortal(models.Model):
     email = models.EmailField(unique=True)
     configuracion_dashboard = models.JSONField(default=dict, blank=True)
+
+
+# NUEVO MODELO PARA GESTIONAR CARPETAS POR DOMINIO
+class CarpetaDominio(models.Model):
+    dominio = models.CharField(max_length=100, unique=True)
+    drive_folder_id = models.CharField(max_length=200)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        return f"{self.dominio} - {self.drive_folder_id}"

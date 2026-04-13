@@ -13,7 +13,6 @@
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
         .card h3 { margin-top: 0; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
 
-        /* Controles de filtro */
         .controls { display: flex; gap: 15px; margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 5px; align-items: flex-end; flex-wrap: wrap;}
         .control-group { display: flex; flex-direction: column; flex: 1; min-width: 150px; }
         .control-group label { font-size: 0.85rem; font-weight: bold; margin-bottom: 5px; color: #555;}
@@ -21,13 +20,11 @@
         .btn-action { background: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;}
         .btn-save { background: #27ae60; }
 
-        /* Tabla */
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
         th { background: #f8f9fa; color: #333; }
         .group-header { background: #34495e; color: white; font-weight: bold; }
 
-        /* Badges */
         .badge { padding: 5px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
         .bg-processing { background: #f1c40f; color: #8a6d3b; }
         .bg-completed { background: #2ecc71; color: white; }
@@ -36,7 +33,6 @@
         .btn-cancelar { color: #e74c3c; cursor: pointer; text-decoration: underline; background: none; border: none; font-weight:bold; }
         .btn-traz { color: #3498db; text-decoration: none; font-weight: bold; margin-right: 10px;}
 
-        /* Formularios laterales */
         .side-input { width: 100%; padding: 10px; box-sizing: border-box; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px;}
         .side-btn { width: 100%; padding: 10px; border: none; border-radius: 4px; color: white; font-weight: bold; cursor: pointer; background: #34495e;}
         .side-btn-primary { display: block; text-align: center; text-decoration: none; background: #2980b9; margin-top: 10px; padding: 12px; border-radius: 4px; color: white; font-weight: bold;}
@@ -129,6 +125,24 @@
             </div>
         </div>
 
+        <div class="card" style="border-left: 5px solid #8e44ad;">
+            <h3>Carpetas por Dominio</h3>
+            <p style="font-size: 0.85rem; color:#666;">Asigna un ID de Google Drive estándar para agrupar documentos por dominio.</p>
+
+            <label style="font-size: 0.8rem; font-weight: bold; margin-bottom: 5px; display:block;">Dominio Sugerido o Nuevo:</label>
+            <input type="text" id="inpDominio" class="side-input" placeholder="Ej. raloy.com.mx" list="listaDominios">
+            <datalist id="listaDominios"></datalist>
+
+            <label style="font-size: 0.8rem; font-weight: bold; margin-bottom: 5px; display:block;">ID de Carpeta Drive:</label>
+            <input type="text" id="inpDriveDom" class="side-input" placeholder="1bDP1Q-4wRK6c5Bdx...">
+
+            <button class="side-btn" onclick="guardarCarpetaDominio()" style="background: #8e44ad; margin-bottom: 15px;">Guardar Carpeta</button>
+
+            <h4 style="margin-top: 10px; font-size: 0.95rem; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 5px;">Configuraciones Activas</h4>
+            <div id="listCarpetasDominio" style="max-height: 200px; overflow-y: auto;">
+                </div>
+        </div>
+
         <div class="card">
             <h3>Invitar a Registro de Firma</h3>
             <p style="font-size: 0.85rem; color:#666;">Envía la liga para generar PIN a un colaborador o proveedor.</p>
@@ -146,9 +160,9 @@
 </div>
 
 <script>
-    // Data inyectada desde Django
     const rawData = {{ docs_json|safe }};
     const savedConfig = {{ saved_config|safe }};
+    const carpetasDominio = {{ carpetas_dominio|safe }}; // Nativos desde Django
 
     const tableBody = document.getElementById('tableBody');
     const selGroup = document.getElementById('selGroup');
@@ -157,12 +171,22 @@
     const filFechaIni = document.getElementById('filFechaIni');
     const filFechaFin = document.getElementById('filFechaFin');
 
-    // Inicialización
     function init() {
         const dominios = [...new Set(rawData.map(d => d.dominio))];
+
+        // Poblado de Filtros
         dominios.forEach(dom => {
             const opt = document.createElement('option'); opt.value = dom; opt.innerText = dom;
             filDominio.appendChild(opt);
+        });
+
+        // Poblado de Autocompletado de Dominios (DataList)
+        const dataList = document.getElementById('listaDominios');
+        dominios.forEach(dom => {
+            if (dom !== 'N/A' && dom !== 'Desconocido') {
+                const opt = document.createElement('option'); opt.value = dom;
+                dataList.appendChild(opt);
+            }
         });
 
         if(savedConfig.group) selGroup.value = savedConfig.group;
@@ -175,7 +199,48 @@
         filFolio.addEventListener('keyup', renderTable);
 
         renderTable();
+        renderCarpetasDominio();
     }
+
+    // --- NUEVO: FUNCIONES PARA CARPETAS POR DOMINIO ---
+    function renderCarpetasDominio() {
+        const container = document.getElementById('listCarpetasDominio');
+        container.innerHTML = '';
+
+        if (carpetasDominio.length === 0) {
+            container.innerHTML = '<p style="font-size: 0.85rem; color: #999; text-align: center;">No hay carpetas configuradas aún.</p>';
+            return;
+        }
+
+        carpetasDominio.forEach(c => {
+            container.innerHTML += `
+                <div style="background: #f8f9fa; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #e9ecef;">
+                    <strong style="display: block; font-size: 0.9rem; color: #333;">@${c.dominio}</strong>
+                    <span style="font-size: 0.75rem; color: #777; word-break: break-all;">ID: ${c.drive_folder_id}</span>
+                    <div style="margin-top: 8px; text-align: right;">
+                        <a href="javascript:void(0);" onclick="eliminarCarpetaDominio(${c.id})" style="font-size: 0.8rem; color: #e74c3c; text-decoration: none; font-weight: bold;">✖ Eliminar</a>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    function guardarCarpetaDominio() {
+        const dominio = document.getElementById('inpDominio').value;
+        const drive_folder_id = document.getElementById('inpDriveDom').value;
+        if(!dominio || !drive_folder_id) return alert("Completa ambos campos");
+
+        ejecutarAccion('guardar_carpeta_dominio', {dominio, drive_folder_id}).then(() => {
+            window.location.reload();
+        });
+    }
+
+    function eliminarCarpetaDominio(id) {
+        if(confirm("¿Seguro de eliminar esta configuración de carpeta para el dominio?")) {
+            ejecutarAccion('eliminar_carpeta_dominio', {id}).then(() => window.location.reload());
+        }
+    }
+    // ----------------------------------------------------
 
     function renderTable() {
         let docs = [...rawData];
@@ -241,8 +306,6 @@
         return tr;
     }
 
-    // --- ACCIONES AL BACKEND ---
-
     function cancelarDoc(token) {
         if(confirm("ATENCIÓN: Cancelar el documento bloqueará la recolección de firmas de forma permanente. ¿Deseas continuar?")) {
             ejecutarAccion('cancelar_doc', { token: token }).then(() => {
@@ -255,9 +318,7 @@
 
     function eliminarPlantilla(id) {
         if(confirm("¿Estás seguro de eliminar esta plantilla de forma permanente?")) {
-            ejecutarAccion('eliminar_plantilla', { id: id }).then(() => {
-                window.location.reload(); // Recarga para actualizar la lista visual
-            });
+            ejecutarAccion('eliminar_plantilla', { id: id }).then(() => window.location.reload());
         }
     }
 
@@ -280,7 +341,10 @@
         })
         .then(r => r.json())
         .then(data => {
-            if(data.status === 'success') { alert(data.msg || "Acción exitosa."); return true; }
+            if(data.status === 'success') {
+                if(data.msg) alert(data.msg);
+                return true;
+            }
             else { alert("Error: " + data.error); throw new Error(); }
         });
     }

@@ -10,7 +10,7 @@ from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
-from .models import ProcesoFirma, DirectorioFirmas, OTPLogin, AdministradorPortal, PlantillaFormulario
+from .models import ProcesoFirma, DirectorioFirmas, OTPLogin, AdministradorPortal, PlantillaFormulario, CarpetaDominio
 from .utils import estampar_firma_en_pdf, estampar_variables_en_pdf
 
 # WEBHOOKS DE N8N
@@ -39,10 +39,8 @@ def recibir_documento_n8n(request):
             dir_drive = data.get('dir', '')
             exec_mode = data.get('exec', 'normal')
 
-            # EL ENGAÑO A GOOGLE: Usamos 'variables_asignadas' si viene de un formulario dinámico
             document_variables = data.get('variables_asignadas', data.get('document_variables', {}))
 
-            # 1. ASIGNAR TOKEN ÚNICO A CADA FIRMANTE
             for f in firmantes:
                 if 'token_firmante' not in f:
                     f['token_firmante'] = str(uuid.uuid4())
@@ -85,7 +83,6 @@ def recibir_documento_n8n(request):
             )
 
             primer_firmante = firmantes[0]
-            # SE ENVÍA EL TOKEN ESPECÍFICO DEL PRIMER FIRMANTE
             link_firma = f"https://testapppjb0001.raloy.com.mx/firmar/{proceso.token_acceso}/{primer_firmante.get('token_firmante', '')}/"
             requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
                           json={"email": primer_firmante['email'], "nombre": primer_firmante['nombre'],
@@ -106,20 +103,18 @@ def recibir_documento_n8n(request):
 def vista_firma_ui(request, token, firmante_token=None):
     proceso = get_object_or_404(ProcesoFirma, token_acceso=token)
 
-    # Contexto base para mensajes estilizados
     message_context = {
         'token': token,
         'view_info': proceso.view_info,
         'summary_data': proceso.summary_data,
         'pdf_url': f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}",
         'is_message_view': True,
-        'message_icon': '',  # Unicode Icon
-        'message_color': '',  # Color para el título
+        'message_icon': '',
+        'message_color': '',
         'message_title': '',
         'message_body': ''
     }
 
-    # NUEVO: MENSAJES DE CONFIRMACIÓN Y ESTADO ESTILIZADOS
     if proceso.status == 'CANCELLED':
         message_context.update({
             'message_icon': '⚠️',
@@ -138,7 +133,6 @@ def vista_firma_ui(request, token, firmante_token=None):
         })
         return render(request, 'motor_firmas/firma_ui.html', message_context)
 
-    # 2. VALIDAR AL FIRMANTE ESPECÍFICO
     if firmante_token:
         firmante_actual = next((f for f in proceso.firmantes if f.get('token_firmante') == firmante_token), None)
         if not firmante_actual:
@@ -167,7 +161,6 @@ def vista_firma_ui(request, token, firmante_token=None):
             })
             return render(request, 'motor_firmas/firma_ui.html', message_context)
     else:
-        # Fallback para ligas viejas
         firmante_actual = proceso.firmantes[proceso.indice_actual - 1]
 
     filename = os.path.basename(proceso.pdf_path)
@@ -189,7 +182,7 @@ def vista_firma_ui(request, token, firmante_token=None):
         'pdf_url': f"{settings.MEDIA_URL}{filename}",
         'is_registered': bool(colaborador),
         'campos_a_llenar': campos_a_llenar,
-        'is_message_view': False,  # Vista normal de firma
+        'is_message_view': False,
     }
     return render(request, 'motor_firmas/firma_ui.html', context)
 
@@ -204,7 +197,6 @@ def procesar_firma(request, token, firmante_token=None):
 
         firmante_esperado = proceso.firmantes[proceso.indice_actual - 1]
 
-        # Validar Token de Firmante
         if firmante_token and firmante_token != firmante_esperado.get('token_firmante'):
             return JsonResponse({"error": "No es tu turno o el enlace es inválido."}, status=403)
 
@@ -230,7 +222,6 @@ def procesar_firma(request, token, firmante_token=None):
             estampar_firma_en_pdf(proceso.pdf_path, firma_b64, proceso.indice_actual, firmante_actual['email'],
                                   firmante_actual['nombre'], ip_user)
 
-            # 3. FORZAR ACTUALIZACIÓN DEL JSON EN DJANGO PARA QUE NO FALLE
             firmantes_lista = list(proceso.firmantes)
             firmantes_lista[proceso.indice_actual - 1]['fecha_firma'] = timezone.now().strftime("%d/%m/%Y %H:%M:%S")
             proceso.firmantes = firmantes_lista
@@ -244,7 +235,6 @@ def procesar_firma(request, token, firmante_token=None):
                 if siguiente_firmante.get('token_firmante'):
                     link_firma += f"{siguiente_firmante['token_firmante']}/"
 
-                # Enviamos el correo al siguiente
                 try:
                     requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
                                   json={"email": siguiente_firmante['email'], "nombre": siguiente_firmante['nombre'],
@@ -370,11 +360,8 @@ def portal_logout(request):
 def portal_plantillas(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
-
     todas = PlantillaFormulario.objects.all().order_by('-created_at')
-    # NUEVO: Traemos solo las que el usuario puede usar o creó
     permitidas = [p for p in todas if owner_email in p.usuarios_permitidos or p.owner_email == owner_email]
-
     return render(request, 'motor_firmas/portal_plantillas.html',
                   {'plantillas': permitidas, 'owner_email': owner_email})
 
@@ -417,10 +404,19 @@ def admin_dashboard(request):
                   'status': d.status, 'fecha': d.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                   'progreso': f"{sum(1 for f in d.firmantes if f.get('fecha_firma'))}/{len(d.firmantes)}"} for d in
                  todos_docs]
+
     plantillas = PlantillaFormulario.objects.all().order_by('-created_at')
-    return render(request, 'motor_firmas/admin_dashboard.html',
-                  {'admin_email': admin_email, 'docs_json': json.dumps(docs_json),
-                   'saved_config': json.dumps(admin_obj.configuracion_dashboard), 'plantillas': plantillas})
+
+    # Extraemos carpetas_dominio para enviarlo al HTML
+    carpetas_dominio = list(CarpetaDominio.objects.values('id', 'dominio', 'drive_folder_id'))
+
+    return render(request, 'motor_firmas/admin_dashboard.html', {
+        'admin_email': admin_email,
+        'docs_json': json.dumps(docs_json),
+        'saved_config': json.dumps(admin_obj.configuracion_dashboard),
+        'plantillas': plantillas,
+        'carpetas_dominio': json.dumps(carpetas_dominio)
+    })
 
 
 def admin_logout(request):
@@ -480,7 +476,7 @@ def admin_api(request, accion):
                 if resp_dir.get('status') == 'success':
                     carpeta_firmados = resp_dir.get('firmados_folder_id', data['drive_folder_id'])
             except Exception as e:
-                print("Error al preparar directorio en n8n:", e)
+                pass
 
             PlantillaFormulario.objects.create(
                 nombre=data['nombre'], doc_id=data['doc_id'], owner_email=data['owner_email'],
@@ -515,6 +511,23 @@ def admin_api(request, accion):
             return JsonResponse({"error": "Plantilla no encontrada"}, status=404)
         elif accion == 'eliminar_plantilla':
             PlantillaFormulario.objects.filter(id=data.get('id')).delete()
-            return JsonResponse({"status": "success", "msg": "Plantilla eliminada correctamente."})
+            return JsonResponse({"status": "success", "msg": "Plantilla eliminada."})
+
+        # NUEVAS ACCIONES: GUARDAR Y ELIMINAR CARPETA POR DOMINIO
+        elif accion == 'guardar_carpeta_dominio':
+            dominio = data.get('dominio', '').strip().lower()
+            folder_id = data.get('drive_folder_id', '').strip()
+            if not dominio or not folder_id:
+                return JsonResponse({"error": "El dominio y el ID de carpeta son obligatorios"}, status=400)
+
+            CarpetaDominio.objects.update_or_create(
+                dominio=dominio,
+                defaults={'drive_folder_id': folder_id}
+            )
+            return JsonResponse({"status": "success", "msg": f"Carpeta asignada al dominio {dominio}."})
+
+        elif accion == 'eliminar_carpeta_dominio':
+            CarpetaDominio.objects.filter(id=data.get('id')).delete()
+            return JsonResponse({"status": "success", "msg": "Configuración de dominio eliminada."})
 
     return JsonResponse({"error": "Acción inválida"}, status=400)
