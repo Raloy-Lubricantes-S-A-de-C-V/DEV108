@@ -28,6 +28,9 @@
         .input-group input { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 0.95rem; background: #f8fafc; transition: all 0.2s;}
         .input-group input:focus { border-color: #2563eb; background: white; outline: none; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
 
+        /* MAYÚSCULAS VISUALES */
+        input:not([type="email"]):not([type="password"]) { text-transform: uppercase; }
+
         /* Zona de Firmas */
         .pin-box { text-align: center; max-width: 350px; margin: auto; }
         .pin-box input[type="password"] { width: 100%; padding: 15px; border: 2px solid #cbd5e1; border-radius: 8px; text-align: center; font-size: 1.5rem; letter-spacing: 8px; margin-bottom: 15px;}
@@ -71,7 +74,7 @@
 
     <div class="content-body">
 
-        {# NUEVO: BLOQUE DE MENSAJES ESTILIZADOS #}
+        {# BLOQUE DE MENSAJES ESTILIZADOS #}
         {% if is_message_view %}
             <div class="message-container">
                 <span class="message-icon">{{ message_icon }}</span>
@@ -148,6 +151,19 @@
 
 {% if not is_message_view %}
 <script>
+    // FORZAR MAYÚSCULAS REALES EN DATA
+    document.addEventListener('input', function (e) {
+        if (e.target.tagName === 'INPUT') {
+            const type = e.target.type.toLowerCase();
+            if (type !== 'email' && type !== 'password') {
+                const start = e.target.selectionStart;
+                const end = e.target.selectionEnd;
+                e.target.value = e.target.value.toUpperCase();
+                try { e.target.setSelectionRange(start, end); } catch(err) {}
+            }
+        }
+    });
+
     {% if not is_registered %}
     const canvas = document.getElementById('pizarra'); const ctx = canvas.getContext('2d'); let dibujando = false, haDibujado = false;
     function redimensionarCanvas() { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; ctx.lineWidth = 3; ctx.strokeStyle = '#0f172a'; }

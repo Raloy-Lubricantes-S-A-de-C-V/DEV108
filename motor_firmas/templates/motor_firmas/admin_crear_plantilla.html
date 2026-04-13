@@ -18,6 +18,9 @@
         th, td { border: 1px solid #eee; padding: 10px; text-align: left;}
         th { background: #f8f9fa; }
 
+        /* MAYÚSCULAS VISUALES - EXCEPTUANDO LOS IDS DE GOOGLE y CORREOS */
+        input:not([type="email"]):not([type="password"]):not(#doc_id):not(#p_drive):not(#p_usuarios) { text-transform: uppercase; }
+
         /* Estilos para el Drag and Drop */
         .drag-handle { cursor: grab; color: #94a3b8; margin-right: 10px; font-size: 1.2rem; user-select: none; }
         .drag-handle:active { cursor: grabbing; }
@@ -58,7 +61,7 @@
     </div>
 
     <div id="step3" class="step">
-        <div class="form-group"><label>5. Nombre de la Plantilla</label><input type="text" id="p_nombre" placeholder="Contrato de Equipo 2026"></div>
+        <div class="form-group"><label>5. Nombre de la Plantilla</label><input type="text" id="p_nombre" placeholder="CONTRATO DE EQUIPO 2026"></div>
 
         <div class="form-group">
             <label>5.1. Formato o Prefijo de Folio</label>
@@ -78,6 +81,21 @@
 </div>
 
 <script>
+    // FORZAR MAYÚSCULAS REALES EN DATA (Omitiendo IDs de Google y Emails)
+    document.addEventListener('input', function (e) {
+        if (e.target.tagName === 'INPUT') {
+            const type = e.target.type.toLowerCase();
+            const id = e.target.id;
+            const excluidos = ['doc_id', 'p_drive', 'p_usuarios']; // Protegemos los IDs
+            if (type !== 'email' && type !== 'password' && !excluidos.includes(id)) {
+                const start = e.target.selectionStart;
+                const end = e.target.selectionEnd;
+                e.target.value = e.target.value.toUpperCase();
+                try { e.target.setSelectionRange(start, end); } catch(err) {}
+            }
+        }
+    });
+
     let rawData = {};
 
     function nextStep(n) {
@@ -159,7 +177,6 @@
                     }
                 }
 
-                // Generar filas arrastrables
                 if(rawData.firmas && Array.isArray(rawData.firmas)) {
                     rawData.firmas.forEach((f, idx) => {
                         tbF.innerHTML += `<tr draggable="true">
@@ -172,7 +189,6 @@
                         </tr>`;
                     });
 
-                    // Activar eventos Drag & Drop después de inyectar el HTML
                     setTimeout(habilitarDragAndDrop, 100);
                 }
 
@@ -193,9 +209,6 @@
         });
     }
 
-    // ==========================================
-    // FUNCIONES PARA EL DRAG AND DROP (ARRASTRAR)
-    // ==========================================
     function habilitarDragAndDrop() {
         const tableBody = document.getElementById('tbodyFirmas');
         let draggedRow = null;
@@ -253,15 +266,11 @@
     }
 
     function actualizarOrdenFirmas() {
-        // Recalcular los números de la columna "Orden"
         document.querySelectorAll('#tbodyFirmas tr').forEach((row, index) => {
             row.querySelector('.orden-num').innerText = index + 1;
         });
     }
 
-    // ==========================================
-    // GUARDADO FINAL
-    // ==========================================
     function guardarPlantilla() {
         let varsMap = [];
         document.querySelectorAll('.var-email').forEach(inp => {
@@ -276,7 +285,6 @@
         const firmaKeys = document.querySelectorAll('.firma-key');
         const firmaEmails = document.querySelectorAll('.firma-default-email');
 
-        // Aquí se guardan en el nuevo orden visual en el que quedaron las filas
         for(let i=0; i < firmaKeys.length; i++) {
             firmasMap.push({
                 key: firmaKeys[i].value,

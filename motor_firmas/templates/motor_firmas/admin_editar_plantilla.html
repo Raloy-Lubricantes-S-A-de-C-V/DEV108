@@ -11,6 +11,9 @@
         input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 10px; box-sizing: border-box; }
         .btn { background: #3498db; color: white; padding: 12px; border: none; border-radius: 4px; cursor: pointer; width: 100%; font-size:1.1rem; font-weight:bold;}
         .btn-success { background: #27ae60; }
+
+        /* MAYÚSCULAS VISUALES */
+        input:not([type="email"]):not([type="password"]):not(#p_drive):not(#p_usuarios) { text-transform: uppercase; }
     </style>
 </head>
 <body>
@@ -25,7 +28,6 @@
 
         <label>Formato o Prefijo de Folio</label>
         <input type="text" id="p_folio" value="{{ plantilla.formato_folio }}">
-        <small style="color:#666; font-size:0.75rem; display:block; margin-bottom:10px;">El prefijo que verán los usuarios (Ej. CONTRATO-RALOY-2026-)</small>
 
         <label>ID de Carpeta Drive (Resguardo)</label>
         <input type="text" id="p_drive" value="{{ plantilla.drive_folder_id }}">
@@ -42,7 +44,6 @@
 
     <div class="section">
         <h3>Correos Predeterminados para Variables</h3>
-        <p style="font-size: 0.85rem; color:#666;">Edita quién será el encargado de rellenar cada campo de texto en el documento.</p>
         {% for var in plantilla.variables %}
             <div style="display:flex; gap:10px; align-items:center; margin-bottom:5px;">
                 <span style="width: 250px; font-size:0.9rem;"><strong>{{ var.label }}</strong> ({{ var.key }})</span>
@@ -67,27 +68,34 @@
 </div>
 
 <script>
+    // FORZAR MAYÚSCULAS REALES EN DATA
+    document.addEventListener('input', function (e) {
+        if (e.target.tagName === 'INPUT') {
+            const type = e.target.type.toLowerCase();
+            const id = e.target.id;
+            const excluidos = ['p_drive', 'p_usuarios']; // Protegemos los IDs
+            if (type !== 'email' && type !== 'password' && !excluidos.includes(id)) {
+                const start = e.target.selectionStart;
+                const end = e.target.selectionEnd;
+                e.target.value = e.target.value.toUpperCase();
+                try { e.target.setSelectionRange(start, end); } catch(err) {}
+            }
+        }
+    });
+
     function guardarEdicion() {
         const btn = event.target; btn.disabled = true; btn.innerText = "Guardando...";
 
-        // Reconstruir Variables
         let varsMap = [];
         document.querySelectorAll('.var-map').forEach(inp => {
             varsMap.push({
-                key: inp.dataset.key,
-                label: inp.dataset.label,
-                type: inp.dataset.type,
-                default_email: inp.value
+                key: inp.dataset.key, label: inp.dataset.label, type: inp.dataset.type, default_email: inp.value
             });
         });
 
-        // Reconstruir Firmantes
         let firmasMap = [];
         document.querySelectorAll('.firma-email').forEach(inp => {
-            firmasMap.push({
-                key: inp.dataset.key,
-                default_email: inp.value
-            });
+            firmasMap.push({ key: inp.dataset.key, default_email: inp.value });
         });
 
         const payload = {
@@ -97,24 +105,14 @@
             drive_folder_id: document.getElementById('p_drive').value,
             view_info: document.getElementById('p_view').value,
             usuarios_permitidos: document.getElementById('p_usuarios').value.split(',').map(s=>s.trim()).filter(s=>s),
-            variables: varsMap,
-            firmantes_config: firmasMap
+            variables: varsMap, firmantes_config: firmasMap
         };
 
-        // SOLO GUARDA EN BASE DE DATOS, NO ENVÍA A N8N
         fetch('/api/admin-action/actualizar_plantilla/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         }).then(r => r.json()).then(res => {
-            if(res.status === 'success') {
-                alert(res.msg);
-                window.location.href = '/admin-portal/dashboard/';
-            } else {
-                alert("Error al guardar: " + res.error);
-                btn.disabled = false;
-                btn.innerText = "Guardar Cambios en Plantilla";
-            }
+            if(res.status === 'success') { alert(res.msg); window.location.href = '/admin-portal/dashboard/'; }
+            else { alert("Error al guardar: " + res.error); btn.disabled = false; btn.innerText = "Guardar Cambios en Plantilla"; }
         });
     }
 </script>

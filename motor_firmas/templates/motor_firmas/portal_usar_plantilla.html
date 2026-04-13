@@ -16,22 +16,23 @@
 
         .content-body { padding: 30px; }
 
-        /* Estilo de los Pasos */
         .step-box { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
         .step-header { background: #f8fafc; padding: 15px 20px; border-bottom: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; display: flex; align-items: center; gap: 10px; }
         .step-number { background: #2563eb; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 0.9rem; }
         .step-header h3 { margin: 0; color: #1e293b; font-size: 1.1rem; }
         .step-content { padding: 25px; }
 
-        /* Controles de Formulario */
         .form-group { margin-bottom: 20px; }
         .form-group:last-child { margin-bottom: 0; }
         .form-group label { display: block; font-weight: 600; color: #475569; margin-bottom: 8px; font-size: 0.9rem; }
         .form-group input { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 0.95rem; background: #f8fafc; transition: all 0.2s;}
         .form-group input:focus { border-color: #2563eb; background: white; outline: none; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+
+        /* MAYÚSCULAS VISUALES */
+        input:not([type="email"]):not([type="password"]) { text-transform: uppercase; }
+
         .help-text { font-size: 0.8rem; color: #64748b; margin-top: 6px; display: block; }
 
-        /* Fila de Firmantes */
         .signer-row { display: flex; gap: 15px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 15px; align-items: center; flex-wrap: wrap; }
         .signer-row:last-child { margin-bottom: 0; }
         .signer-label { font-weight: 700; color: #1e293b; width: 100px; display: flex; align-items: center; gap: 5px;}
@@ -98,7 +99,7 @@
                         <div class="signer-row">
                             <span class="signer-label">✍️ {{ firma.key }}:</span>
                             <div class="signer-inputs">
-                                <input type="text" class="firma-nombre" placeholder="Nombre completo" required>
+                                <input type="text" class="firma-nombre" placeholder="NOMBRE COMPLETO" required>
                                 <input type="email" class="firma-email" value="{{ firma.default_email }}" placeholder="Correo electrónico" required>
                             </div>
                         </div>
@@ -115,16 +116,27 @@
 </div>
 
 <script>
+    // FORZAR MAYÚSCULAS REALES EN DATA
+    document.addEventListener('input', function (e) {
+        if (e.target.tagName === 'INPUT') {
+            const type = e.target.type.toLowerCase();
+            if (type !== 'email' && type !== 'password') {
+                const start = e.target.selectionStart;
+                const end = e.target.selectionEnd;
+                e.target.value = e.target.value.toUpperCase();
+                try { e.target.setSelectionRange(start, end); } catch(err) {}
+            }
+        }
+    });
+
     function enviarSolicitud() {
         const btn = event.target;
         btn.disabled = true;
         btn.innerHTML = "<span>⏳</span> Procesando envío...";
 
-        // Extraer Document Variables
         let docVars = {};
         document.querySelectorAll('.var-map').forEach(inp => { docVars[inp.dataset.key] = inp.value; });
 
-        // Extraer Firmantes
         let firmantesArr = [];
         const nombres = document.querySelectorAll('.firma-nombre');
         const correos = document.querySelectorAll('.firma-email');
@@ -132,7 +144,6 @@
             firmantesArr.push({ nombre: nombres[i].value, email: correos[i].value });
         }
 
-        // Crear Folio Random si está vacío
         let folio = document.getElementById('folio_id').value;
         if(!folio) folio = "DOC-" + Math.floor(Date.now() / 1000);
 
