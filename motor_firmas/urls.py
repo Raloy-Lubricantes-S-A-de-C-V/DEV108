@@ -28,7 +28,7 @@ urlpatterns = [
     # NUEVAS RUTAS DE PDFS LIBRES
     path('portal/mis-pdfs/', views.portal_pdfs_usuario, name='portal_pdfs_usuario'),
     path('portal/subir-pdf/', views.portal_subir_pdf, name='portal_subir_pdf'),
-    path('api/verificar-pdf/', views.verificar_pdf_n8n, name='verificar_pdf_n8n'),
+    path('api/subir-pdf-usuario/', views.subir_pdf_usuario, name='subir_pdf_usuario'),  # REEMPLAZA A LA ANTERIOR
 
     # RUTAS DEL PORTAL (ADMINISTRADORES)
     path('admin-portal/', views.admin_login, name='admin_login'),

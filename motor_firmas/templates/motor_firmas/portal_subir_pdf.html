@@ -12,7 +12,7 @@
         h2 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px;}
         .form-group { margin-bottom: 15px; }
         label { font-weight: bold; display: block; margin-bottom: 5px; font-size: 0.9rem;}
-        input { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; }
+        input[type="file"] { width: 100%; padding: 12px; border: 1px dashed #cbd5e1; border-radius: 4px; box-sizing: border-box; background: #f8fafc; cursor: pointer;}
         .btn { background: #3b82f6; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1rem; width: 100%;}
         .btn:hover { background: #2563eb; }
         .btn-success { background: #10b981; }
@@ -29,25 +29,23 @@
         <div class="instruction-box">
             <strong>Instrucciones:</strong>
             <ol style="margin-bottom:0;">
-                <li>Sube tu archivo PDF a tu cuenta personal de Google Drive.</li>
-                <li>Haz clic derecho en el archivo ➔ Compartir.</li>
-                <li>Concede acceso de <strong>Lector</strong> o <strong>Editor</strong> al correo: <strong style="color:#e74c3c;">apps@raloy.com.mx</strong></li>
-                <li>Haz clic en "Copiar enlace" y pégalo aquí abajo.</li>
+                <li>Selecciona el archivo PDF desde tu computadora.</li>
+                <li>El sistema lo subirá automáticamente al repositorio seguro de tu empresa.</li>
             </ol>
         </div>
 
         <div class="form-group">
-            <label>Enlace del PDF en Google Drive:</label>
-            <input type="url" id="driveUrl" placeholder="https://drive.google.com/file/d/1XyZ.../view" required>
+            <label>Seleccionar Archivo PDF:</label>
+            <input type="file" id="pdfFile" accept="application/pdf" required>
         </div>
-        <button class="btn" onclick="verificarPdf()">Validar y Conectar ➔</button>
+        <button class="btn" onclick="subirPdf()">Subir y Conectar ➔</button>
     </div>
 
     <div id="step2" class="step">
         <div style="text-align: center; margin-bottom: 20px;">
             <span style="font-size: 3rem; color: #10b981;">✅</span>
-            <h3 style="color: #10b981; margin-top: 10px;">¡Documento Enlazado con Éxito!</h3>
-            <p>Nombre del archivo detectado: <strong id="docName" style="color:#333;"></strong></p>
+            <h3 style="color: #10b981; margin-top: 10px;">¡Documento Subido con Éxito!</h3>
+            <p>Nombre del archivo: <strong id="docName" style="color:#333;"></strong></p>
         </div>
 
         <button class="btn btn-success" onclick="alert('En el próximo paso configuraremos las firmas')">SOLICITAR FIRMA</button>
@@ -55,17 +53,22 @@
 </div>
 
 <script>
-    function verificarPdf() {
-        const url = document.getElementById('driveUrl').value;
-        if(!url) return alert("Por favor pega el enlace de Google Drive.");
+    function subirPdf() {
+        const fileInput = document.getElementById('pdfFile');
+        if(fileInput.files.length === 0) return alert("Por favor selecciona un archivo PDF.");
+
+        const file = fileInput.files[0];
+        if(file.type !== "application/pdf") return alert("Solo se permiten archivos en formato PDF.");
 
         const btn = event.target;
-        btn.disabled = true; btn.innerText = "Verificando permisos con n8n...";
+        btn.disabled = true; btn.innerText = "Subiendo archivo a Drive de forma segura...";
 
-        fetch('/api/verificar-pdf/', {
+        const formData = new FormData();
+        formData.append('pdf_file', file);
+
+        fetch('/api/subir-pdf-usuario/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: url })
+            body: formData // Enviamos multipart/form-data real
         }).then(r => r.json()).then(res => {
             if(res.status === 'success') {
                 document.getElementById('docName').innerText = res.nombre;
@@ -73,8 +76,11 @@
                 document.getElementById('step2').classList.add('active');
             } else {
                 alert(res.error);
-                btn.disabled = false; btn.innerText = "Validar y Conectar ➔";
+                btn.disabled = false; btn.innerText = "Subir y Conectar ➔";
             }
+        }).catch(err => {
+            alert("Error de red.");
+            btn.disabled = false; btn.innerText = "Subir y Conectar ➔";
         });
     }
 </script>
