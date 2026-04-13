@@ -54,12 +54,17 @@
                     </div>
                     <div class="card-footer">
                         {% if p.id_documento %}
-                            <a href="{% url 'portal_configurar_pdf' p.id_documento %}" class="btn-use">Solicitar Firma ➔</a>
-                            <button class="btn-del" onclick="eliminarPdf('{{ p.id_documento }}')">🗑️</button>
+                            {% if p.enviado_a_firma %}
+                                <span style="flex:1; color:#10b981; font-weight:bold; text-align:center; padding: 12px; background:#f1f5f9; border-radius:6px; border: 1px solid #cbd5e1;">✓ Firma Solicitada</span>
+                            {% else %}
+                                <a href="{% url 'portal_configurar_pdf' p.id_documento %}" class="btn-use">Solicitar Firma ➔</a>
+                            {% endif %}
+                            <button class="btn-del" onclick="eliminarPdf('{{ p.id_documento }}')" title="Eliminar Documento">🗑️</button>
                         {% else %}
-                            <span style="color: #e74c3c; font-size: 0.85rem; font-weight: bold; text-align: center; width: 100%;">
-                                ⚠️ Registro antiguo. Sube el PDF nuevamente.
+                            <span style="flex:1; color: #e74c3c; font-size: 0.85rem; font-weight: bold; text-align: center; display: flex; align-items: center; justify-content: center;">
+                                ⚠️ Registro antiguo
                             </span>
+                            <button class="btn-del" onclick="eliminarPdf('{{ p.id }}')" title="Forzar Eliminación">🗑️</button>
                         {% endif %}
                     </div>
                 </div>

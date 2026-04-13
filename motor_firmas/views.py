@@ -310,7 +310,7 @@ def portal_usar_plantilla(request, plantilla_id):
                   {'plantilla': plantilla, 'owner_email': owner_email})
 
 
-# ================= VISTAS DE PDFS LIBRES (DRAG & DROP) =================
+# ================= VISTAS DE PDFS LIBRES =================
 def portal_pdfs_usuario(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
@@ -322,14 +322,29 @@ def portal_pdfs_usuario(request):
 def eliminar_pdf_usuario(request, pdf_id):
     owner_email = request.session.get('owner_email')
     if not owner_email: return JsonResponse({"error": "No autorizado"}, status=403)
-    doc = get_object_or_404(DocumentoPDFUsuario, id_documento=pdf_id, owner_email=owner_email)
 
-    if doc.archivo_local:
-        full_path = os.path.join(settings.MEDIA_ROOT, doc.archivo_local)
-        if os.path.exists(full_path): os.remove(full_path)
+    doc = None
+    try:
+        uid = uuid.UUID(pdf_id)
+        doc = DocumentoPDFUsuario.objects.filter(id_documento=uid, owner_email=owner_email).first()
+    except ValueError:
+        pass
 
-    doc.delete()
-    return JsonResponse({"status": "success"})
+    if not doc:
+        try:
+            doc = DocumentoPDFUsuario.objects.filter(id=pdf_id, owner_email=owner_email).first()
+        except Exception:
+            pass
+
+    if doc:
+        if doc.archivo_local:
+            full_path = os.path.join(settings.MEDIA_ROOT, doc.archivo_local)
+            if os.path.exists(full_path): os.remove(full_path)
+
+        doc.delete()
+        return JsonResponse({"status": "success"})
+
+    return JsonResponse({"error": "Documento no encontrado"}, status=404)
 
 
 def portal_subir_pdf(request):
@@ -419,6 +434,9 @@ def iniciar_firma_libre(request):
         link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
         requests.post(N8N_WEBHOOK_NOTIFICAR_OWNER,
                       json={"email": owner_email, "reference_id": ref_id, "link": link_trazabilidad})
+
+        doc.enviado_a_firma = True
+        doc.save()
 
         return JsonResponse({"status": "success"})
 
@@ -548,7 +566,6 @@ def admin_api(request, accion):
         elif accion == 'guardar_carpeta_dominio':
             dominio, folder_id = data.get('dominio', '').strip().lower(), data.get('drive_folder_id', '').strip()
             if not dominio or not folder_id: return JsonResponse({"error": "Faltan campos"}, status=400)
-
             CarpetaDominio.objects.update_or_create(dominio=dominio, defaults={'drive_folder_id': str(folder_id)})
             return JsonResponse({"status": "success", "msg": "Carpeta asignada."})
         elif accion == 'eliminar_carpeta_dominio':
