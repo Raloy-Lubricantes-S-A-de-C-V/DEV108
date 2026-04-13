@@ -4,6 +4,7 @@ import requests
 import traceback
 import re
 import uuid
+import shutil
 from datetime import datetime
 from django.conf import settings
 from django.http import JsonResponse, HttpResponse
@@ -39,6 +40,7 @@ def recibir_documento_n8n(request):
             owner_email = data.get('owner', '')
             dir_drive = data.get('dir', '')
             exec_mode = data.get('exec', 'normal')
+
             document_variables = data.get('variables_asignadas', data.get('document_variables', {}))
 
             for f in firmantes:
@@ -83,6 +85,7 @@ def recibir_documento_n8n(request):
 
             return JsonResponse({"status": "success", "msg": "Documento recibido.", "folio_asignado": ref_id})
         except Exception as e:
+            print(traceback.format_exc())
             return JsonResponse({"error": repr(e)}, status=400)
 
 
@@ -160,8 +163,12 @@ def procesar_firma(request, token, firmante_token=None):
                 estampar_variables_en_pdf(proceso.pdf_path, data.get('variables'))
                 proceso.save()
 
+            # EXTRAER COORDENADAS PARA DRAG AND DROP
+            coordenadas = firmante_esperado.get('coordenadas')
+
+            # ESTAMPAR CON COORDENADAS O CON {{FIRMA_X}}
             estampar_firma_en_pdf(proceso.pdf_path, firma_b64, proceso.indice_actual, firmante_esperado['email'],
-                                  firmante_esperado['nombre'], ip_user)
+                                  firmante_esperado['nombre'], ip_user, coordenadas)
 
             firmantes_lista = list(proceso.firmantes)
             firmantes_lista[proceso.indice_actual - 1]['fecha_firma'] = timezone.now().strftime("%d/%m/%Y %H:%M:%S")
@@ -188,6 +195,7 @@ def procesar_firma(request, token, firmante_token=None):
                             "pdf_final": (f"{proceso.reference_id}_CERTIFICADO.pdf", f, "application/pdf")})
                 return JsonResponse({"status": "success"})
         except Exception as e:
+            print(traceback.format_exc())
             return JsonResponse({"error": repr(e)}, status=500)
 
 
@@ -305,12 +313,26 @@ def portal_usar_plantilla(request, plantilla_id):
                   {'plantilla': plantilla, 'owner_email': owner_email})
 
 
-# ================= VISTAS DE PDFS LIBRES =================
+# ================= VISTAS DE PDFS LIBRES (DRAG & DROP) =================
 def portal_pdfs_usuario(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
     pdfs = DocumentoPDFUsuario.objects.filter(owner_email=owner_email).order_by('-created_at')
     return render(request, 'motor_firmas/portal_pdfs_usuario.html', {'pdfs': pdfs, 'owner_email': owner_email})
+
+
+@csrf_exempt
+def eliminar_pdf_usuario(request, pdf_id):
+    owner_email = request.session.get('owner_email')
+    if not owner_email: return JsonResponse({"error": "No autorizado"}, status=403)
+    doc = get_object_or_404(DocumentoPDFUsuario, id=pdf_id, owner_email=owner_email)
+
+    if doc.archivo_local:
+        full_path = os.path.join(settings.MEDIA_ROOT, doc.archivo_local)
+        if os.path.exists(full_path): os.remove(full_path)
+
+    doc.delete()
+    return JsonResponse({"status": "success"})
 
 
 def portal_subir_pdf(request):
@@ -323,37 +345,85 @@ def portal_subir_pdf(request):
 def subir_pdf_usuario(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return JsonResponse({"error": "No autenticado"}, status=403)
-
     if request.method == 'POST':
         pdf_file = request.FILES.get('pdf_file')
         if not pdf_file: return JsonResponse({"error": "No se seleccionó ningún archivo PDF."}, status=400)
 
         dominio = owner_email.split('@')[1] if '@' in owner_email else ''
         carpeta_dom = CarpetaDominio.objects.filter(dominio=dominio).first()
-
-        if not carpeta_dom:
-            return JsonResponse({
-                                    "error": f"Tu dominio (@{dominio}) no tiene asignada una carpeta en Google Drive. Solicita a TI que la configure."},
-                                status=400)
+        if not carpeta_dom: return JsonResponse(
+            {"error": f"Tu dominio (@{dominio}) no tiene asignada una carpeta en Google Drive."}, status=400)
 
         try:
             files = {'data': (pdf_file.name, pdf_file.read(), 'application/pdf')}
-            data_payload = {'folder_id': carpeta_dom.drive_folder_id}
-
-            resp = requests.post(N8N_WEBHOOK_SUBIR_PDF_USUARIO, data=data_payload, files=files, timeout=30).json()
+            pdf_file.seek(0)
+            resp = requests.post(N8N_WEBHOOK_SUBIR_PDF_USUARIO, data={'folder_id': carpeta_dom.drive_folder_id},
+                                 files=files, timeout=30).json()
 
             if resp.get('status') == 'success':
+                safe_filename = f"{uuid.uuid4()}_{pdf_file.name}"
+                os.makedirs(os.path.join(settings.MEDIA_ROOT, 'pdfs_libres'), exist_ok=True)
+                local_path = os.path.join('pdfs_libres', safe_filename)
+                with open(os.path.join(settings.MEDIA_ROOT, local_path), 'wb+') as f:
+                    for chunk in pdf_file.chunks(): f.write(chunk)
+
                 nuevo_doc = DocumentoPDFUsuario.objects.create(
-                    nombre=pdf_file.name,
-                    drive_file_id=resp.get('file_id'),
-                    owner_email=owner_email
+                    nombre=pdf_file.name, drive_file_id=resp.get('file_id'), owner_email=owner_email,
+                    archivo_local=local_path
                 )
-                # AQUÍ ESTÁ EL FIX: str(nuevo_doc.id) para que MongoDB no explote al mandarlo por JSON
                 return JsonResponse({"status": "success", "nombre": pdf_file.name, "id": str(nuevo_doc.id)})
             else:
-                return JsonResponse({"error": "N8n falló al subir el archivo a Google Drive."})
+                return JsonResponse({"error": "N8n falló al subir a Drive."})
         except Exception as e:
-            return JsonResponse({"error": f"Error de conexión con el webhook de n8n: {e}"})
+            return JsonResponse({"error": f"Error: {e}"})
+
+
+def portal_configurar_pdf(request, pdf_id):
+    owner_email = request.session.get('owner_email')
+    if not owner_email: return redirect('portal_login')
+    doc = get_object_or_404(DocumentoPDFUsuario, id=pdf_id, owner_email=owner_email)
+    pdf_url = f"{settings.MEDIA_URL}{doc.archivo_local}"
+    return render(request, 'motor_firmas/portal_configurar_pdf.html',
+                  {'doc': doc, 'pdf_url': pdf_url, 'owner_email': owner_email})
+
+
+@csrf_exempt
+def iniciar_firma_libre(request):
+    owner_email = request.session.get('owner_email')
+    if not owner_email: return JsonResponse({"error": "No autorizado"}, status=403)
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        doc = get_object_or_404(DocumentoPDFUsuario, id=data['pdf_id'], owner_email=owner_email)
+
+        firmantes = data.get('firmantes', [])
+        for f in firmantes: f['token_firmante'] = str(uuid.uuid4())
+
+        original_path = os.path.join(settings.MEDIA_ROOT, doc.archivo_local)
+
+        ref_id = f"LIBRE-{int(timezone.now().timestamp())}"
+        final_path = os.path.join(settings.MEDIA_ROOT, f"{ref_id}.pdf")
+        shutil.copyfile(original_path, final_path)
+
+        dominio = owner_email.split('@')[1] if '@' in owner_email else ''
+        carpeta_dom = CarpetaDominio.objects.filter(dominio=dominio).first()
+
+        proceso = ProcesoFirma.objects.create(
+            reference_id=ref_id, pdf_path=final_path, firmantes=firmantes, indice_actual=1,
+            view_info="file", owner_email=owner_email, dir_drive=carpeta_dom.drive_folder_id if carpeta_dom else '',
+            exec_mode="libre"
+        )
+
+        primer_firmante = firmantes[0]
+        link_firma = f"https://dsign.raloy.com.mx/firmar/{proceso.token_acceso}/{primer_firmante.get('token_firmante', '')}/"
+        requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
+                      json={"email": primer_firmante['email'], "nombre": primer_firmante['nombre'], "link": link_firma,
+                            "mensaje": f"Raloy solicita tu firma para el documento libre {ref_id}."})
+
+        link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
+        requests.post(N8N_WEBHOOK_NOTIFICAR_OWNER,
+                      json={"email": owner_email, "reference_id": ref_id, "link": link_trazabilidad})
+
+        return JsonResponse({"status": "success"})
 
 
 # ================= VISTAS DE ADMINISTRADOR =================
@@ -482,7 +552,6 @@ def admin_api(request, accion):
             dominio, folder_id = data.get('dominio', '').strip().lower(), data.get('drive_folder_id', '').strip()
             if not dominio or not folder_id: return JsonResponse({"error": "Faltan campos"}, status=400)
 
-            # Castear a string por seguridad en MongoDB
             CarpetaDominio.objects.update_or_create(dominio=dominio, defaults={'drive_folder_id': str(folder_id)})
             return JsonResponse({"status": "success", "msg": "Carpeta asignada."})
         elif accion == 'eliminar_carpeta_dominio':
