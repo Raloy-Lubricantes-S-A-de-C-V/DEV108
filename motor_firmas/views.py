@@ -263,17 +263,33 @@ def procesar_firma(request, token, firmante_token=None):
             else:
                 proceso.status = 'COMPLETED'
                 proceso.save()
-                correos = ",".join([f['email'] for f in proceso.firmantes]) + (
-                    f",{proceso.owner_email}" if proceso.owner_email else "")
+                
+                # Regla de seguridad: Filtrar dominios externos.
+                todos_los_correos = [f['email'] for f in proceso.firmantes]
+                if proceso.owner_email:
+                    todos_los_correos.append(proceso.owner_email)
+                
+                dominio_creador = proceso.owner_email.split('@')[1] if proceso.owner_email and '@' in proceso.owner_email else 'raloy.com.mx'
+                dominios_permitidos = {dominio_creador, 'raloy.com.mx', 'consorcionova.com'}
+                
+                correos_internos = [email for email in set(todos_los_correos) if any(email.endswith(d) for d in dominios_permitidos)]
+                correos = ",".join(correos_internos)
+                
                 with open(proceso.pdf_path, 'rb') as f:
-                    requests.post(N8N_WEBHOOK_FINALIZAR_PROCESO,
+                    resp_n8n = requests.post(N8N_WEBHOOK_FINALIZAR_PROCESO,
                                   data={"reference_id": proceso.reference_id, "status": "COMPLETED",
                                         "correos_destino": correos, "folder_id": proceso.dir_drive}, files={
-                            "pdf_final": (f"{proceso.reference_id}_CERTIFICADO.pdf", f, "application/pdf")})
+                            "pdf_final": (f"{proceso.reference_id}_CERTIFICADO.pdf", f, "application/pdf")}, timeout=30)
+                            
+                    if resp_n8n.status_code != 200:
+                        raise Exception(f"Fallo en la comunicación con el webhook de finalización (N8N): {resp_n8n.text}")
+                
                 return JsonResponse({"status": "success"})
         except Exception as e:
-            print(traceback.format_exc())
-            return JsonResponse({"error": repr(e)}, status=500)
+            import traceback
+            error_details = traceback.format_exc()
+            print(error_details)
+            return JsonResponse({"error": f"Error interno en el sistema al certificar: {str(e)}"}, status=500)
 
 
 def vista_trazabilidad(request, token):
@@ -704,11 +720,15 @@ def admin_api(request, accion):
             try:
                 resp_dir = requests.post(N8N_WEBHOOK_PREPARAR_DIR,
                                          json={"doc_id": data['doc_id'], "parent_folder": data['drive_folder_id']},
-                                         timeout=20).json()
-                if resp_dir.get('status') == 'success': carpeta_firmados = resp_dir.get('firmados_folder_id',
-                                                                                        data['drive_folder_id'])
+                                         timeout=20)
+                if resp_dir.status_code != 200:
+                    return JsonResponse({"error": f"Fallo al preparar directorio en Drive. Código HTTP: {resp_dir.status_code}"}, status=500)
+                    
+                resp_json = resp_dir.json()
+                if resp_json.get('status') == 'success': 
+                    carpeta_firmados = resp_json.get('firmados_folder_id', data['drive_folder_id'])
             except Exception as e:
-                pass
+                return JsonResponse({"error": f"Excepción crítica al preparar la estructura de Drive: {str(e)}"}, status=500)
             PlantillaFormulario.objects.create(
                 nombre=data['nombre'], doc_id=data['doc_id'], owner_email=data['owner_email'],
                 drive_folder_id=data['drive_folder_id'],
