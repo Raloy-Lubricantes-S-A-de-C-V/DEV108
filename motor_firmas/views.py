@@ -143,19 +143,26 @@ def vista_firma_ui(request, token, firmante_token=None):
             plantilla_encontrada = plantillas.first()
             
         if plantilla_encontrada and plantilla_encontrada.variables:
-            # Handle potential JSON string from Djongo/MongoDB
             import json
             vars_list = plantilla_encontrada.variables
-            if isinstance(vars_list, str):
+            
+            # Djongo might stringify or double-stringify the list
+            while isinstance(vars_list, str):
                 try:
-                    vars_list = json.loads(vars_list)
+                    parsed = json.loads(vars_list)
+                    if parsed == vars_list: # Prevent infinite loop if string is not valid JSON array
+                        break
+                    vars_list = parsed
                 except:
-                    vars_list = []
+                    break
+                    
+            if not isinstance(vars_list, list):
+                vars_list = []
                     
             for v in vars_list:
                 if isinstance(v, dict):
                     labels_map[v.get('key')] = v.get('label', v.get('key'))
-                    if v.get('type') == 'option' and 'content-option' in v:
+                    if v.get('type') in ('option', 'seleccionable') and 'content-option' in v:
                         content_option[v['key']] = v['content-option']
                     
     # Fallback por si N8N lo mandó de otra forma en summary_data (Legacy)
@@ -170,7 +177,19 @@ def vista_firma_ui(request, token, firmante_token=None):
 
     campos_a_llenar = []
     if proceso.exec_mode == 'form':
-        for key, em in proceso.document_variables.items():
+        import json
+        doc_vars = proceso.document_variables
+        while isinstance(doc_vars, str):
+            try:
+                parsed = json.loads(doc_vars)
+                if parsed == doc_vars: break
+                doc_vars = parsed
+            except:
+                break
+        if not isinstance(doc_vars, dict):
+            doc_vars = {}
+            
+        for key, em in doc_vars.items():
             if em == firmante_actual['email'] and key not in proceso.valores_capturados:
                 opciones = content_option.get(key)
                 if isinstance(opciones, str):
