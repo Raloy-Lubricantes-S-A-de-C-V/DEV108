@@ -57,6 +57,11 @@ class DirectorioFirmas(models.Model):
     reset_token = models.UUIDField(null=True, blank=True)
     reset_token_expires = models.DateTimeField(null=True, blank=True)
 
+    # Nuevos campos para administración
+    tecnico_asignado = models.EmailField(null=True, blank=True)
+    permisos_portal = models.JSONField(default=list, blank=True)
+    ultima_actividad = models.DateTimeField(null=True, blank=True)
+
     def set_pin(self, raw_pin): self.pin_hash = make_password(raw_pin)
 
     def check_pin(self, raw_pin): return check_password(raw_pin, self.pin_hash)
@@ -83,6 +88,7 @@ class OTPLogin(models.Model):
 class AdministradorPortal(models.Model):
     email = models.EmailField(unique=True)
     configuracion_dashboard = models.JSONField(default=dict, blank=True)
+    es_superadmin = models.BooleanField(default=False)
 
 
 class CarpetaDominio(models.Model):

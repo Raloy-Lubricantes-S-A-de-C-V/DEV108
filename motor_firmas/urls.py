@@ -39,6 +39,9 @@ urlpatterns = [
     path('admin-portal/crear-plantilla/', views.admin_crear_plantilla, name='admin_crear_plantilla'),
     path('admin-portal/editar-plantilla/<str:plantilla_id>/', views.admin_editar_plantilla,
          name='admin_editar_plantilla'),
+    path('admin-portal/usuarios/', views.admin_usuarios, name='admin_usuarios'),
+    path('admin-portal/usuarios/<int:usuario_id>/', views.admin_usuarios_detalle, name='admin_usuarios_detalle'),
+    path('admin-portal/administradores/', views.admin_administradores, name='admin_administradores'),
     path('admin-portal/logout/', views.admin_logout, name='admin_logout'),
     path('api/admin-action/<str:accion>/', views.admin_api, name='admin_api'),
 ]

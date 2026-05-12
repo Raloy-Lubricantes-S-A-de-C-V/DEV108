@@ -142,20 +142,25 @@
             <div id="listCarpetasDominio" style="max-height: 200px; overflow-y: auto;">
                 </div>
         </div>
+<div class="card">
+    <h3>Invitar a Registro de Firma</h3>
+    <p style="font-size: 0.85rem; color:#666;">Envía la liga para generar PIN a un colaborador o proveedor.</p>
+    <input type="email" id="invMail" class="side-input" placeholder="correo@ejemplo.com">
+    <button class="side-btn" onclick="ejecutarAccion('invitar_registro', {email: document.getElementById('invMail').value})">Enviar Invitación</button>
+</div>
 
-        <div class="card">
-            <h3>Invitar a Registro de Firma</h3>
-            <p style="font-size: 0.85rem; color:#666;">Envía la liga para generar PIN a un colaborador o proveedor.</p>
-            <input type="email" id="invMail" class="side-input" placeholder="correo@ejemplo.com">
-            <button class="side-btn" onclick="ejecutarAccion('invitar_registro', {email: document.getElementById('invMail').value})">Enviar Invitación</button>
-        </div>
+<div class="card" style="border-left: 5px solid #10b981;">
+    <h3>Gestión de Accesos</h3>
+    <p style="font-size: 0.85rem; color:#666;">Administra empleados y ajusta sus permisos en el portal.</p>
+    <a href="{% url 'admin_usuarios' %}" class="side-btn-primary" style="background: #10b981;">👥 Usuarios Enrolados</a>
 
-        <div class="card">
-            <h3>Agregar Nuevo Administrador</h3>
-            <p style="font-size: 0.85rem; color:#666;">Cualquier usuario invitado podrá usar su mismo PIN para entrar a este portal.</p>
-            <input type="email" id="addAdminMail" class="side-input" placeholder="nuevo.admin@raloy.com.mx">
-            <button class="side-btn" onclick="ejecutarAccion('agregar_admin', {email: document.getElementById('addAdminMail').value})" style="background: #27ae60;">Otorgar Privilegios</button>
-        </div>
+    {% if es_superadmin %}
+    <a href="{% url 'admin_administradores' %}" class="side-btn-primary" style="background: #f59e0b; margin-top:10px;">🛡️ Superadministradores</a>
+    {% endif %}
+</div>
+</div>
+</div>
+
     </div>
 </div>
 

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Usuarios Enrolados - Raloy</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px; color: #334155; }
+        .container { max-width: 1200px; margin: auto; }
+        .topbar { background: #0f172a; color: white; padding: 15px 30px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .topbar h1 { margin: 0; font-size: 1.3rem; }
+        .topbar .user-info { font-size: 0.9rem; color: #94a3b8; display: flex; align-items: center; gap: 15px;}
+        .btn-nav { background: #3b82f6; color: white; padding: 7px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 0.85rem; }
+        .btn-nav:hover { background: #2563eb; }
+        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+        h2 { margin-top: 0; color: #1e293b; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border-bottom: 1px solid #e2e8f0; padding: 15px; text-align: left; }
+        th { background: #f8fafc; font-weight: 600; color: #475569; font-size: 0.85rem; text-transform: uppercase; }
+        td { font-size: 0.95rem; }
+        .btn-action { background: #10b981; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 0.85rem; }
+        .btn-action:hover { background: #059669; }
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
+        .badge-super { background: #f59e0b; color: white; }
+        .badge-normal { background: #cbd5e1; color: #334155; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="topbar">
+            <h1>Gestión de Usuarios Enrolados</h1>
+            <div class="user-info">
+                <span>Sesión Admin: <strong>{{ admin_email }}</strong></span>
+                <a href="{% url 'admin_dashboard' %}" class="btn-nav">⬅ Volver al Dashboard</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Lista de Empleados</h2>
+            <p style="color: #64748b; font-size: 0.9rem;">
+                {% if es_superadmin %}
+                Al ser <strong>Superadministrador</strong>, puedes ver a todos los empleados de la empresa.
+                {% else %}
+                Solo puedes ver y editar a los empleados que están bajo tu cargo como técnico asignado.
+                {% endif %}
+            </p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Email</th>
+                        <th>Técnico Asignado</th>
+                        <th>Última Actividad</th>
+                        <th>Docs Totales</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in usuarios %}
+                    <tr>
+                        <td><strong>{{ u.nombre }}</strong></td>
+                        <td>{{ u.email }}</td>
+                        <td>
+                            {% if u.tecnico == 'Sin asignar' %}
+                                <span style="color:#e74c3c;">{{ u.tecnico }}</span>
+                            {% else %}
+                                {{ u.tecnico }}
+                            {% endif %}
+                        </td>
+                        <td>{{ u.ultima_act }}</td>
+                        <td>{{ u.tot_docs }} docs</td>
+                        <td>
+                            <a href="{% url 'admin_usuarios_detalle' u.id %}" class="btn-action">Configurar ⚙️</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" style="text-align: center; color: #94a3b8; padding: 30px;">No hay usuarios asignados a tu cuenta.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

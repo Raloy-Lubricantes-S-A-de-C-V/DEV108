@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Detalle de Usuario - Raloy</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px; color: #334155; }
+        .container { max-width: 800px; margin: auto; }
+        .topbar { background: #0f172a; color: white; padding: 15px 30px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .topbar h1 { margin: 0; font-size: 1.3rem; }
+        .btn-nav { background: #64748b; color: white; padding: 7px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 0.85rem; }
+        .btn-nav:hover { background: #475569; }
+        
+        .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; margin-bottom: 20px;}
+        h2 { margin-top: 0; color: #1e293b; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; }
+        
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; color: #475569;}
+        select, input[type="text"] { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 1rem; background: #f8fafc; }
+        
+        .permiso-box { background: #f1f5f9; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;}
+        .permiso-box input[type="checkbox"] { transform: scale(1.5); margin-right: 10px; }
+        
+        .btn-save { background: #10b981; color: white; padding: 15px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 1rem; border: none; cursor: pointer; width: 100%; transition: background 0.2s;}
+        .btn-save:hover { background: #059669; }
+        .btn-delete { background: #ef4444; color: white; padding: 15px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 1rem; border: none; cursor: pointer; width: 100%; transition: background 0.2s;}
+        .btn-delete:hover { background: #dc2626; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="topbar">
+            <h1>Configurar a: {{ usuario.nombre }}</h1>
+            <a href="{% url 'admin_usuarios' %}" class="btn-nav">⬅ Volver a Lista</a>
+        </div>
+
+        <div class="card">
+            <h2>Información General</h2>
+            <p><strong>Email:</strong> {{ usuario.email }}</p>
+            <p><strong>Puesto:</strong> {{ usuario.puesto }}</p>
+            
+            <div class="form-group" style="margin-top:20px;">
+                <label>Técnico Asignado (Administrador responsable)</label>
+                <select id="selTecnico" {% if not es_superadmin %}disabled{% endif %}>
+                    <option value="">-- Sin Asignar --</option>
+                    {% for t in tecnicos %}
+                    <option value="{{ t.email }}" {% if t.email == usuario.tecnico_asignado %}selected{% endif %}>{{ t.email }}</option>
+                    {% endfor %}
+                </select>
+                {% if not es_superadmin %}
+                <small style="color:#94a3b8;">* Solo los superadministradores pueden cambiar el técnico asignado.</small>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Permisos de Herramientas del Portal</h2>
+            <p style="color:#64748b; font-size:0.9rem;">Habilita las herramientas que este usuario podrá ver en su panel principal.</p>
+            
+            <div class="permiso-box">
+                <input type="checkbox" id="chkApi" value="api_tester" {% if 'api_tester' in permisos %}checked{% endif %}>
+                <div>
+                    <strong>PROBAR API (WEBHOOK)</strong><br>
+                    <span style="font-size:0.85rem; color:#64748b;">Permite lanzar peticiones POST interactivas a N8N.</span>
+                </div>
+            </div>
+            
+            <div class="permiso-box">
+                <input type="checkbox" id="chkPlantillas" value="plantillas" {% if 'plantillas' in permisos %}checked{% endif %}>
+                <div>
+                    <strong>USAR PLANTILLAS CREADAS</strong><br>
+                    <span style="font-size:0.85rem; color:#64748b;">Permite al usuario utilizar las plantillas habilitadas para él.</span>
+                </div>
+            </div>
+
+            <button class="btn-save" onclick="guardarCambios()" style="margin-top: 15px;">💾 Guardar Configuración</button>
+        </div>
+
+        {% if es_superadmin %}
+        <div class="card" style="border-top: 4px solid #ef4444;">
+            <h2 style="color:#ef4444;">Zona de Peligro</h2>
+            <p>Eliminar al usuario borrará sus registros de firmas y revokará su acceso por PIN. Los documentos previamente firmados no se alterarán, pero su cuenta desaparecerá del sistema.</p>
+            <button class="btn-delete" onclick="eliminarUsuario()">🗑️ Eliminar Usuario Definitivamente</button>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <script>
+        function guardarCambios() {
+            let permisos = [];
+            if(document.getElementById('chkApi').checked) permisos.push('api_tester');
+            if(document.getElementById('chkPlantillas').checked) permisos.push('plantillas');
+
+            let payload = {
+                id: {{ usuario.id }},
+                permisos: permisos
+            };
+            
+            {% if es_superadmin %}
+            payload.tecnico_asignado = document.getElementById('selTecnico').value;
+            {% endif %}
+
+            fetch('/api/admin-action/actualizar_usuario/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).then(r => r.json()).then(res => {
+                if(res.status === 'success') {
+                    alert("Cambios guardados correctamente.");
+                } else {
+                    alert("Error: " + res.error);
+                }
+            });
+        }
+
+        {% if es_superadmin %}
+        function eliminarUsuario() {
+            if(confirm("¿Estás completamente seguro de que deseas eliminar a este usuario de la base de datos?")) {
+                fetch('/api/admin-action/eliminar_usuario/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: {{ usuario.id }} })
+                }).then(r => r.json()).then(res => {
+                    if(res.status === 'success') {
+                        alert("Usuario eliminado.");
+                        window.location.href = "{% url 'admin_usuarios' %}";
+                    } else {
+                        alert("Error: " + res.error);
+                    }
+                });
+            }
+        }
+        {% endif %}
+    </script>
+</body>
+</html>

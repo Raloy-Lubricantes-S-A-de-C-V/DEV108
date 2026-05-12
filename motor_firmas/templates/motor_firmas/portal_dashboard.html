@@ -130,9 +130,11 @@
             </div>
 
             <div class="tools-container">
+                {% if 'api_tester' in permisos %}
                 <button onclick="openApiTester()" class="tool-btn tool-api">
                     <span>⚡</span> PROBAR API (WEBHOOK)
                 </button>
+                {% endif %}
                 
                 {% if tiene_carpeta_dominio %}
                 <a href="{% url 'portal_pdfs_usuario' %}" class="tool-btn tool-pdf">
@@ -140,9 +142,11 @@
                 </a>
                 {% endif %}
 
+                {% if 'plantillas' in permisos %}
                 <a href="{% url 'portal_plantillas' %}" class="tool-btn tool-template">
                     <span>➕</span> USAR PLANTILLA
                 </a>
+                {% endif %}
             </div>
         </div>
 

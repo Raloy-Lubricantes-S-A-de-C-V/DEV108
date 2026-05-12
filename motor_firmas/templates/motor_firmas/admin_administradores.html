@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Gestión de Administradores - Raloy</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px; color: #334155; }
+        .container { max-width: 1000px; margin: auto; }
+        .topbar { background: #0f172a; color: white; padding: 15px 30px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .topbar h1 { margin: 0; font-size: 1.3rem; }
+        .btn-nav { background: #3b82f6; color: white; padding: 7px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 0.85rem; }
+        .btn-nav:hover { background: #2563eb; }
+        
+        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; margin-bottom: 20px;}
+        h2 { margin-top: 0; color: #1e293b; }
+        
+        .form-group { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; }
+        input[type="email"] { flex: 1; padding: 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.95rem; }
+        .btn-add { background: #10b981; color: white; border: none; padding: 10px 20px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .btn-add:hover { background: #059669; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border-bottom: 1px solid #e2e8f0; padding: 15px; text-align: left; }
+        th { background: #f8fafc; font-weight: 600; color: #475569; font-size: 0.85rem; text-transform: uppercase; }
+        
+        .toggle-switch { position: relative; display: inline-block; width: 50px; height: 24px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #f59e0b; }
+        input:checked + .slider:before { transform: translateX(26px); }
+        
+        .btn-delete { background: none; border: none; color: #ef4444; font-size: 1.2rem; cursor: pointer; }
+        .btn-delete:hover { color: #b91c1c; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="topbar">
+            <h1>Gestión de Administradores (Superadmin)</h1>
+            <a href="{% url 'admin_dashboard' %}" class="btn-nav">⬅ Volver al Dashboard</a>
+        </div>
+
+        <div class="card">
+            <h2>Agregar Nuevo Administrador</h2>
+            <div class="form-group">
+                <input type="email" id="newAdminEmail" placeholder="correo@raloy.com.mx">
+                <button class="btn-add" onclick="agregarAdmin()">➕ Añadir Administrador</button>
+            </div>
+            
+            <table id="adminsTable">
+                <thead>
+                    <tr>
+                        <th>Email del Administrador</th>
+                        <th>¿Es Superadministrador?</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in admins %}
+                    <tr>
+                        <td><strong>{{ a.email }}</strong></td>
+                        <td>
+                            <label class="toggle-switch">
+                                <input type="checkbox" onchange="toggleSuperAdmin({{ a.id }}, this.checked)" {% if a.es_superadmin %}checked{% endif %} {% if a.email == 'pjimenezb@raloy.com.mx' %}disabled{% endif %}>
+                                <span class="slider"></span>
+                            </label>
+                        </td>
+                        <td>
+                            {% if a.email != 'pjimenezb@raloy.com.mx' %}
+                            <button class="btn-delete" onclick="eliminarAdmin({{ a.id }}, '{{ a.email }}')" title="Eliminar Administrador">🗑️</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function agregarAdmin() {
+            const email = document.getElementById('newAdminEmail').value;
+            if(!email) return alert("Ingresa un correo.");
+            fetch('/api/admin-action/agregar_admin/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email })
+            }).then(r => r.json()).then(res => {
+                if(res.status === 'success') location.reload();
+                else alert("Error: " + res.error);
+            });
+        }
+
+        function toggleSuperAdmin(id, isSuper) {
+            fetch('/api/admin-action/actualizar_admin/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id, es_superadmin: isSuper })
+            }).then(r => r.json()).then(res => {
+                if(res.status !== 'success') {
+                    alert("Error: " + res.error);
+                    location.reload();
+                }
+            });
+        }
+
+        function eliminarAdmin(id, email) {
+            if(confirm(`¿Estás seguro de que deseas eliminar al administrador ${email}?`)) {
+                fetch('/api/admin-action/eliminar_admin/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                }).then(r => r.json()).then(res => {
+                    if(res.status === 'success') location.reload();
+                    else alert("Error: " + res.error);
+                });
+            }
+        }
+    </script>
+</body>
+</html>
