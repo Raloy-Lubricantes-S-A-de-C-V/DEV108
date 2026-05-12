@@ -4,31 +4,35 @@ import hashlib
 from datetime import datetime
 
 
+import re
+
 def estampar_variables_en_pdf(pdf_path, variables_dict):
     doc = fitz.open(pdf_path)
     modificado = False
-    for key, value in variables_dict.items():
-        etiqueta_exacta = f"{{{{{key}}}}}"
-        prefijo = f"{{{{{key}:"
-        
-        for page in doc:
-            instancias = page.search_for(etiqueta_exacta)
+    
+    for page in doc:
+        text = page.get_text("text")
+        for key, value in variables_dict.items():
+            pattern = r"\{\{" + re.escape(key) + r"(?::.*?)?\}\}"
+            matches = re.findall(pattern, text, re.DOTALL)
             
-            if not instancias:
-                words = page.get_text("words")
-                for w in words:
-                    texto = w[4]
-                    if texto.startswith(prefijo) and texto.endswith("}}"):
-                        instancias.append(fitz.Rect(w[0], w[1], w[2], w[3]))
-                        
-            for rect in instancias:
-                rect_borrar = fitz.Rect(rect.x0 - 2, rect.y0, rect.x1 + 2, rect.y1)
-                page.add_redact_annot(rect_borrar, fill=(1, 1, 1))
-                page.apply_redactions()
-                y_alineado = rect.y1 - 2.5
-                page.insert_text((rect.x0, y_alineado), str(value).upper(), fontsize=11, fontname="hebo",
-                                 color=(0, 0, 0))
-                modificado = True
+            etiquetas_a_buscar = list(set(matches))
+            if not etiquetas_a_buscar:
+                etiquetas_a_buscar = [f"{{{{{key}}}}}"]
+            
+            for etiqueta in etiquetas_a_buscar:
+                instancias = page.search_for(etiqueta)
+                if instancias:
+                    instancias.sort(key=lambda r: (r.y0, r.x0))
+                    for rect in instancias:
+                        rect_borrar = fitz.Rect(rect.x0 - 2, rect.y0, rect.x1 + 2, rect.y1)
+                        page.add_redact_annot(rect_borrar, fill=(1, 1, 1))
+                    page.apply_redactions()
+                    first_rect = instancias[0]
+                    y_alineado = first_rect.y1 - 2.5
+                    page.insert_text((first_rect.x0, y_alineado), str(value).upper(), fontsize=11, fontname="hebo", color=(0, 0, 0))
+                    modificado = True
+
     if modificado: doc.save(pdf_path, incremental=True, encryption=fitz.PDF_ENCRYPT_KEEP)
     doc.close()
 
