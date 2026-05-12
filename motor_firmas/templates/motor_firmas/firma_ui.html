@@ -95,8 +95,17 @@
                     <div class="form-grid">
                         {% for campo in campos_a_llenar %}
                             <div class="input-group">
-                                <label>{{ campo }}</label>
-                                <input type="text" class="doc-var-input" data-key="{{ campo }}" required placeholder="Ingresar valor...">
+                                <label>{{ campo.key }}</label>
+                                {% if campo.options %}
+                                    <select class="doc-var-input" data-key="{{ campo.key }}" required style="width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; background: white; font-size: 1rem;">
+                                        <option value="">-- Seleccionar --</option>
+                                        {% for opt in campo.options %}
+                                            <option value="{{ opt }}">{{ opt }}</option>
+                                        {% endfor %}
+                                    </select>
+                                {% else %}
+                                    <input type="text" class="doc-var-input" data-key="{{ campo.key }}" required placeholder="Ingresar valor...">
+                                {% endif %}
                             </div>
                         {% endfor %}
                     </div>

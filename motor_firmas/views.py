@@ -123,8 +123,31 @@ def vista_firma_ui(request, token, firmante_token=None):
         firmante_actual = proceso.firmantes[proceso.indice_actual - 1]
 
     colaborador = DirectorioFirmas.objects.filter(email=firmante_actual.get('email')).first()
-    campos_a_llenar = [key for key, em in proceso.document_variables.items() if em == firmante_actual[
-        'email'] and key not in proceso.valores_capturados] if proceso.exec_mode == 'form' else []
+    
+    content_option = {}
+    if proceso.summary_data:
+        co_raw = proceso.summary_data.get('content-option', proceso.summary_data.get('content_option', {}))
+        if isinstance(co_raw, dict):
+            content_option = co_raw
+        elif isinstance(co_raw, list):
+            for item in co_raw:
+                if isinstance(item, dict):
+                    content_option.update(item)
+
+    campos_a_llenar = []
+    if proceso.exec_mode == 'form':
+        for key, em in proceso.document_variables.items():
+            if em == firmante_actual['email'] and key not in proceso.valores_capturados:
+                opciones = content_option.get(key)
+                if isinstance(opciones, str):
+                     opciones = [o.strip() for o in opciones.split(',') if o.strip()]
+                elif not isinstance(opciones, list):
+                     opciones = None
+                
+                campos_a_llenar.append({
+                    'key': key,
+                    'options': opciones
+                })
 
     context = {'token': token, 'firmante_token': firmante_token or '',
                'nombre_firmante': firmante_actual.get('nombre', 'Firmante'),
