@@ -610,9 +610,9 @@ def admin_api(request, accion):
             u_id = data.get('id')
             usr = DirectorioFirmas.objects.filter(id=u_id).first()
             if usr:
-                if not admin_actual.es_superadmin and usr.tecnico_asignado != admin_actual.email:
+                if not admin_actual.es_superadmin and admin_actual.email != 'pjimenezb@raloy.com.mx' and usr.tecnico_asignado != admin_actual.email:
                     return JsonResponse({"error": "No tienes permiso."}, status=403)
-                if admin_actual.es_superadmin and 'tecnico_asignado' in data:
+                if (admin_actual.es_superadmin or admin_actual.email == 'pjimenezb@raloy.com.mx') and 'tecnico_asignado' in data:
                     usr.tecnico_asignado = data.get('tecnico_asignado')
                 usr.permisos_portal = data.get('permisos', [])
                 usr.save()
@@ -728,7 +728,7 @@ def admin_usuarios(request):
     
     admin_obj = get_object_or_404(AdministradorPortal, email=admin_email)
     
-    if admin_obj.es_superadmin:
+    if admin_obj.es_superadmin or admin_email == 'pjimenezb@raloy.com.mx':
         usuarios = DirectorioFirmas.objects.all().order_by('-fecha_registro')
     else:
         usuarios = DirectorioFirmas.objects.filter(tecnico_asignado=admin_email).order_by('-fecha_registro')
@@ -749,7 +749,7 @@ def admin_usuarios(request):
         
     return render(request, 'motor_firmas/admin_usuarios.html', {
         'admin_email': admin_email,
-        'es_superadmin': admin_obj.es_superadmin,
+        'es_superadmin': admin_obj.es_superadmin or admin_email == 'pjimenezb@raloy.com.mx',
         'usuarios': lista_usrs
     })
 
@@ -760,7 +760,7 @@ def admin_usuarios_detalle(request, usuario_id):
     admin_obj = get_object_or_404(AdministradorPortal, email=admin_email)
     usuario = get_object_or_404(DirectorioFirmas, id=usuario_id)
     
-    if not admin_obj.es_superadmin and usuario.tecnico_asignado != admin_email:
+    if not admin_obj.es_superadmin and admin_email != 'pjimenezb@raloy.com.mx' and usuario.tecnico_asignado != admin_email:
         return HttpResponse("<h1>No tienes permisos para ver a este usuario.</h1>", status=403)
         
     tecnicos = AdministradorPortal.objects.all()
@@ -774,7 +774,7 @@ def admin_usuarios_detalle(request, usuario_id):
 
     return render(request, 'motor_firmas/admin_usuarios_detalle.html', {
         'admin_email': admin_email,
-        'es_superadmin': admin_obj.es_superadmin,
+        'es_superadmin': admin_obj.es_superadmin or admin_email == 'pjimenezb@raloy.com.mx',
         'usuario': usuario,
         'tecnicos': tecnicos,
         'permisos': permisos
