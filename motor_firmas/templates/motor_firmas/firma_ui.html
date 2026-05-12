@@ -196,11 +196,16 @@
         let variables = {};
         let valid = true;
         document.querySelectorAll('.doc-var-input').forEach(input => {
-            if(!input.value) valid = false;
-            variables[input.dataset.key] = input.value;
+            if(!input.value || input.value.trim() === '') {
+                valid = false;
+                input.style.border = '2px solid #e74c3c';
+            } else {
+                input.style.border = '1px solid #cbd5e1';
+            }
+            variables[input.dataset.key] = input.value.trim();
         });
 
-        if(!valid) return alert("Por favor, completa todos los campos del Paso 1 antes de continuar.");
+        if(!valid) return alert("Por favor, completa todos los campos marcados en rojo antes de continuar.");
 
         let payload = { variables: variables };
 

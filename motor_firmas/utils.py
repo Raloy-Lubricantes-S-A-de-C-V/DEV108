@@ -13,7 +13,8 @@ def estampar_variables_en_pdf(pdf_path, variables_dict):
     for page in doc:
         text = page.get_text("text")
         for key, value in variables_dict.items():
-            pattern = r"\{\{" + re.escape(key) + r"(?::.*?)?\}\}"
+            flex_key = r"\s*".join(re.escape(char) for char in key)
+            pattern = r"\{\{" + flex_key + r"(?::.*?)?\}\}"
             matches = re.findall(pattern, text, re.DOTALL)
             
             etiquetas_a_buscar = list(set(matches))
