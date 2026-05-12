@@ -125,7 +125,29 @@ def vista_firma_ui(request, token, firmante_token=None):
     colaborador = DirectorioFirmas.objects.filter(email=firmante_actual.get('email')).first()
     
     content_option = {}
-    if proceso.summary_data:
+    
+    # Extraer opciones directo de la Plantilla original cruzando con dir_drive
+    if proceso.exec_mode == 'form' and proceso.dir_drive:
+        plantillas = PlantillaFormulario.objects.filter(drive_folder_id=proceso.dir_drive)
+        if not plantillas.exists():
+            plantillas = PlantillaFormulario.objects.filter(carpeta_firmados_id=proceso.dir_drive)
+            
+        plantilla_encontrada = None
+        for p in plantillas:
+            prefix = p.formato_folio.split('-0')[0] if p.formato_folio else ''
+            if prefix and proceso.reference_id.startswith(prefix):
+                plantilla_encontrada = p
+                break
+        if not plantilla_encontrada and plantillas.exists():
+            plantilla_encontrada = plantillas.first()
+            
+        if plantilla_encontrada and plantilla_encontrada.variables:
+            for v in plantilla_encontrada.variables:
+                if v.get('type') == 'option' and 'content-option' in v:
+                    content_option[v['key']] = v['content-option']
+                    
+    # Fallback por si N8N lo mandó de otra forma en summary_data (Legacy)
+    if not content_option and proceso.summary_data:
         co_raw = proceso.summary_data.get('content-option', proceso.summary_data.get('content_option', {}))
         if isinstance(co_raw, dict):
             content_option = co_raw
