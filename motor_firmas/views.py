@@ -162,8 +162,11 @@ def vista_firma_ui(request, token, firmante_token=None):
             for v in vars_list:
                 if isinstance(v, dict):
                     labels_map[v.get('key')] = v.get('label', v.get('key'))
-                    if v.get('type') in ('option', 'seleccionable') and 'content-option' in v:
-                        content_option[v['key']] = v['content-option']
+                    if v.get('type') in ('option', 'seleccionable'):
+                        if 'content-option' in v:
+                            content_option[v['key']] = v['content-option']
+                        elif 'content_options' in v:
+                            content_option[v['key']] = v['content_options']
                     
     # Fallback por si N8N lo mandó de otra forma en summary_data (Legacy)
     if not content_option and proceso.summary_data:
