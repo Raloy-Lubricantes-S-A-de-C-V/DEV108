@@ -41,10 +41,17 @@
 <body>
 
     <div class="pdf-area">
-        <a href="/portal/mis-pdfs/" style="align-self: flex-start; color: #475569; text-decoration: none; font-weight: bold; margin-bottom: 10px;">⬅ Volver</a>
+        <div style="width: 100%; display: flex; justify-content: space-between; margin-bottom: 15px;">
+            <a href="/portal/mis-pdfs/" style="color: #475569; text-decoration: none; font-weight: bold;">⬅ Volver</a>
+            <div style="display: flex; gap: 10px; align-items: center; background: white; padding: 5px 15px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <button onclick="changePage(-1)" style="border:none; background:none; cursor:pointer; font-weight:bold; color:#3b82f6;">⬅ Anterior</button>
+                <span id="pageInfo" style="font-weight: bold; color: #334155;">Página 1 de 1</span>
+                <button onclick="changePage(1)" style="border:none; background:none; cursor:pointer; font-weight:bold; color:#3b82f6;">Siguiente ➡</button>
+            </div>
+        </div>
         <div id="pdf-wrapper">
             <canvas id="pdf-render"></canvas>
-            </div>
+        </div>
     </div>
 
     <div class="sidebar">
@@ -87,10 +94,19 @@
         const wrapper = document.getElementById('pdf-wrapper');
         let boxes = [];
         let activeBoxId = null;
+        let pdfDocument = null;
+        let currentPage = 1;
+        let totalPages = 1;
 
         // 1. RENDERIZAR EL PDF
         pdfjsLib.getDocument(url).promise.then(pdfDoc => {
-            pdfDoc.getPage(1).then(page => {
+            pdfDocument = pdfDoc;
+            totalPages = pdfDoc.numPages;
+            renderPage(currentPage);
+        });
+
+        function renderPage(num) {
+            pdfDocument.getPage(num).then(page => {
                 const scale = 1.5;
                 const viewport = page.getViewport({ scale: scale });
                 const canvas = document.getElementById('pdf-render');
@@ -102,8 +118,25 @@
                 wrapper.style.height = viewport.height + 'px';
 
                 page.render({ canvasContext: ctx, viewport: viewport });
+                document.getElementById('pageInfo').innerText = `Página ${num} de ${totalPages}`;
+                
+                // Mostrar/Ocultar firmas según la página
+                boxes.forEach(b => {
+                    const el = document.getElementById(b.id);
+                    if(el) {
+                        el.style.display = (b.page === num) ? 'flex' : 'none';
+                    }
+                });
             });
-        });
+        }
+        
+        function changePage(delta) {
+            let newPage = currentPage + delta;
+            if(newPage >= 1 && newPage <= totalPages) {
+                currentPage = newPage;
+                renderPage(currentPage);
+            }
+        }
 
         // 2. LÓGICA DE CAJAS DRAG & DROP
         function agregarFirmante() {
@@ -117,8 +150,8 @@
             box.style.left = '50px';
             box.style.top = '50px';
 
-            // Estructura de datos por firma
-            const boxData = { id: id, orden: ordenNum, nombre: '', email: '', iniciales: '' };
+            // Estructura de datos por firma (guardando la página actual)
+            const boxData = { id: id, orden: ordenNum, nombre: '', email: '', iniciales: '', page: currentPage };
             boxes.push(boxData);
 
             // Eventos de arrastre nativos de Mouse
@@ -212,7 +245,7 @@
                     email: b.email,
                     iniciales: b.iniciales,
                     orden: parseInt(b.orden),
-                    coordenadas: { page: 1, x: xPercent, y: yPercent }
+                    coordenadas: { page: b.page, x: xPercent, y: yPercent }
                 });
             });
 
