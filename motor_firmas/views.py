@@ -102,12 +102,17 @@ def vista_firma_ui(request, token):
     filename = os.path.basename(proceso.pdf_path)
     colaborador = DirectorioFirmas.objects.filter(email=firmante_actual.get('email')).first()
 
+    content_option = None
+    if proceso.summary_data:
+        content_option = proceso.summary_data.get('content-option', proceso.summary_data.get('content_option'))
+
     context = {
         'token': token,
         'nombre_firmante': firmante_actual.get('nombre', 'Firmante'),
         'email_firmante': firmante_actual.get('email', ''),
         'view_info': proceso.view_info,
         'summary_data': proceso.summary_data,
+        'content_option': content_option,
         'pdf_url': f"{settings.MEDIA_URL}{filename}",
         'is_registered': bool(colaborador)
     }

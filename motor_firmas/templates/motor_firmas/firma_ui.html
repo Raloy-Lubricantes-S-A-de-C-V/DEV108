@@ -41,6 +41,51 @@
     {% endif %}
 
     <div style="margin-top: 30px; border-top: 1px solid #ddd; padding-top: 20px;">
+        {% if content_option %}
+        <div style="margin-bottom: 20px; text-align: left;">
+            <h3 style="color: #0056b3;">OPCIONES SELECCIONADAS</h3>
+            <div style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6;">
+                {% if content_option.items %}
+                    <ul style="list-style-type: none; padding-left: 0; margin: 0;">
+                    {% for key, value in content_option.items %}
+                        <li style="margin-bottom: 10px;">
+                            <details style="border: 1px solid #ccc; border-radius: 4px; padding: 10px; background: #fff;">
+                                <summary style="cursor: pointer; font-weight: bold; color: #333;">{{ key }}</summary>
+                                <div style="padding-top: 10px; color: #555;">{{ value }}</div>
+                            </details>
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% elif content_option.0 or content_option.0 == 0 %}
+                    <ul style="list-style-type: none; padding-left: 0; margin: 0;">
+                    {% for item in content_option %}
+                        <li style="margin-bottom: 10px;">
+                            {% if item.items %}
+                                {% for k, v in item.items %}
+                                    <details style="border: 1px solid #ccc; border-radius: 4px; padding: 10px; background: #fff;">
+                                        <summary style="cursor: pointer; font-weight: bold; color: #333;">{{ k }}</summary>
+                                        <div style="padding-top: 10px; color: #555;">{{ v }}</div>
+                                    </details>
+                                {% endfor %}
+                            {% else %}
+                                <details style="border: 1px solid #ccc; border-radius: 4px; padding: 10px; background: #fff;">
+                                    <summary style="cursor: pointer; font-weight: bold; color: #333;">Opción Seleccionada</summary>
+                                    <div style="padding-top: 10px; color: #555;">{{ item }}</div>
+                                </details>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    <details style="border: 1px solid #ccc; border-radius: 4px; padding: 10px; background: #fff;">
+                        <summary style="cursor: pointer; font-weight: bold; color: #333;">Información de Selección</summary>
+                        <div style="padding-top: 10px; color: #555;">{{ content_option }}</div>
+                    </details>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
         {% if view_info == 'file' %}
             <iframe src="{{ pdf_url }}" width="100%" height="600px"></iframe>
         {% elif view_info == 'summary' %}
