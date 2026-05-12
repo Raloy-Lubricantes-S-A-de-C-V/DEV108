@@ -143,10 +143,20 @@ def vista_firma_ui(request, token, firmante_token=None):
             plantilla_encontrada = plantillas.first()
             
         if plantilla_encontrada and plantilla_encontrada.variables:
-            for v in plantilla_encontrada.variables:
-                labels_map[v.get('key')] = v.get('label', v.get('key'))
-                if v.get('type') == 'option' and 'content-option' in v:
-                    content_option[v['key']] = v['content-option']
+            # Handle potential JSON string from Djongo/MongoDB
+            import json
+            vars_list = plantilla_encontrada.variables
+            if isinstance(vars_list, str):
+                try:
+                    vars_list = json.loads(vars_list)
+                except:
+                    vars_list = []
+                    
+            for v in vars_list:
+                if isinstance(v, dict):
+                    labels_map[v.get('key')] = v.get('label', v.get('key'))
+                    if v.get('type') == 'option' and 'content-option' in v:
+                        content_option[v['key']] = v['content-option']
                     
     # Fallback por si N8N lo mandó de otra forma en summary_data (Legacy)
     if not content_option and proceso.summary_data:
