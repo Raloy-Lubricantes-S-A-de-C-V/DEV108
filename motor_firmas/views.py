@@ -556,8 +556,8 @@ def admin_api(request, accion):
                 drive_folder_id=data['drive_folder_id'],
                 carpeta_firmados_id=carpeta_firmados, view_info=data['view_info'],
                 formato_folio=data.get('formato_folio', ''),
-                contexto=data['contexto'], intencion=data['intencion'], variables=data['variables'],
-                firmantes_config=data['firmantes_config'], usuarios_permitidos=data['usuarios_permitidos']
+                contexto=data.get('contexto', ''), intencion=data.get('intencion', ''), variables=data.get('variables', []),
+                firmantes_config=data.get('firmantes_config', []), usuarios_permitidos=data.get('usuarios_permitidos', [])
             )
             return JsonResponse({"status": "success", "msg": "Plantilla preparada exitosamente."})
         elif accion == 'actualizar_plantilla':
