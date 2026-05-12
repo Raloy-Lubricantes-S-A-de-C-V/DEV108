@@ -566,13 +566,22 @@ def admin_dashboard(request):
     admin_email = request.session.get('admin_email')
     if not admin_email: return redirect('admin_login')
     admin_obj = AdministradorPortal.objects.get(email=admin_email)
-    todos_docs = ProcesoFirma.objects.all().order_by('-created_at')
+    
+    if admin_obj.es_superadmin or admin_email == 'pjimenezb@raloy.com.mx':
+        todos_docs = ProcesoFirma.objects.all().order_by('-created_at')
+    else:
+        from django.db.models import Q
+        emails_asignados = list(DirectorioFirmas.objects.filter(tecnico_asignado=admin_email).values_list('email', flat=True))
+        todos_docs = ProcesoFirma.objects.filter(Q(owner_email=admin_email) | Q(owner_email__in=emails_asignados)).order_by('-created_at')
     docs_json = [{'reference_id': d.reference_id, 'token': str(d.token_acceso), 'owner_email': d.owner_email or 'N/A',
                   'dominio': d.owner_email.split('@')[1] if d.owner_email and '@' in d.owner_email else 'N/A',
                   'status': d.status, 'fecha': d.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                   'progreso': f"{sum(1 for f in d.firmantes if f.get('fecha_firma'))}/{len(d.firmantes)}"} for d in
                  todos_docs]
-    plantillas = PlantillaFormulario.objects.all().order_by('-created_at')
+    if admin_obj.es_superadmin or admin_email == 'pjimenezb@raloy.com.mx':
+        plantillas = PlantillaFormulario.objects.all().order_by('-created_at')
+    else:
+        plantillas = PlantillaFormulario.objects.filter(Q(owner_email=admin_email) | Q(owner_email__in=emails_asignados)).order_by('-created_at')
     carpetas_dominio = list(CarpetaDominio.objects.values('id', 'dominio', 'drive_folder_id'))
     return render(request, 'motor_firmas/admin_dashboard.html',
                   {'admin_email': admin_email, 'docs_json': json.dumps(docs_json),
