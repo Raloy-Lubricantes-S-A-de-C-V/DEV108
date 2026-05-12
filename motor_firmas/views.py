@@ -125,6 +125,7 @@ def vista_firma_ui(request, token, firmante_token=None):
     colaborador = DirectorioFirmas.objects.filter(email=firmante_actual.get('email')).first()
     
     content_option = {}
+    labels_map = {}
     
     # Extraer opciones directo de la Plantilla original cruzando con dir_drive
     if proceso.exec_mode == 'form' and proceso.dir_drive:
@@ -143,6 +144,7 @@ def vista_firma_ui(request, token, firmante_token=None):
             
         if plantilla_encontrada and plantilla_encontrada.variables:
             for v in plantilla_encontrada.variables:
+                labels_map[v.get('key')] = v.get('label', v.get('key'))
                 if v.get('type') == 'option' and 'content-option' in v:
                     content_option[v['key']] = v['content-option']
                     
@@ -168,6 +170,7 @@ def vista_firma_ui(request, token, firmante_token=None):
                 
                 campos_a_llenar.append({
                     'key': key,
+                    'label': labels_map.get(key, key),
                     'options': opciones
                 })
 
