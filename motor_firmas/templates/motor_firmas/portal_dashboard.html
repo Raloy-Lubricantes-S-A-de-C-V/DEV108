@@ -35,13 +35,31 @@
 
         .container { max-width: 1200px; margin: auto; }
 
-        /* Barra de Acciones */
-        .actions-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; background: white; padding: 20px 25px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); border: 1px solid #e2e8f0; flex-wrap: wrap; gap: 15px;}
-        .actions-info h2 { margin: 0 0 5px 0; color: #1e293b; font-size: 1.2rem;}
-        .actions-info p { margin: 0; color: #64748b; font-size: 0.9rem;}
+        /* Barra de Acciones y Herramientas */
+        .actions-bar { display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 25px; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; gap: 20px;}
+        .actions-info h2 { margin: 0 0 8px 0; color: #1e293b; font-size: 1.3rem;}
+        .actions-info p { margin: 0; color: #475569; font-size: 0.95rem; line-height: 1.5;}
 
-        .btn-crear { background-color: #10b981; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; transition: background 0.2s; display: inline-flex; align-items: center; gap: 8px;}
-        .btn-crear:hover { background-color: #059669; }
+        /* Contenedor de Botones de Herramientas */
+        .tools-container { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; width: 100%; }
+        .tool-btn { 
+            display: inline-flex; align-items: center; gap: 8px; 
+            padding: 12px 24px; text-decoration: none; border-radius: 6px; 
+            font-weight: 700; font-size: 0.95rem; color: white; border: none; cursor: pointer; 
+            transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); 
+            text-transform: uppercase;
+        }
+        .tool-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15); }
+        .tool-btn:active { transform: translateY(0); }
+        
+        .tool-api { background-color: #f59e0b; }
+        .tool-api:hover { background-color: #d97706; }
+        
+        .tool-pdf { background-color: #9b59b6; }
+        .tool-pdf:hover { background-color: #8e44ad; }
+        
+        .tool-template { background-color: #2ecc71; }
+        .tool-template:hover { background-color: #27ae60; }
 
         /* Contenedor de Filtros */
         .filters-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); border: 1px solid #e2e8f0; margin-bottom: 25px; display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; }
@@ -111,17 +129,18 @@
                 <p style="color: #ef4444; font-size: 0.8rem; margin-top: 5px;">* Si necesitas cancelar un documento en proceso, acércate a TI o RH.</p>
             </div>
 
-            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                <button onclick="openApiTester()" class="btn-crear" style="background-color: #f39c12; border: none; cursor: pointer; color: white;">
+            <div class="tools-container">
+                <button onclick="openApiTester()" class="tool-btn tool-api">
                     <span>⚡</span> PROBAR API (WEBHOOK)
                 </button>
+                
                 {% if tiene_carpeta_dominio %}
-                <a href="{% url 'portal_pdfs_usuario' %}" class="btn-crear" style="background-color: #8e44ad;">
+                <a href="{% url 'portal_pdfs_usuario' %}" class="tool-btn tool-pdf">
                     <span>📄</span> TRABAJAR PDF PARA FIRMA
                 </a>
                 {% endif %}
 
-                <a href="{% url 'portal_plantillas' %}" class="btn-crear">
+                <a href="{% url 'portal_plantillas' %}" class="tool-btn tool-template">
                     <span>➕</span> USAR PLANTILLA
                 </a>
             </div>
