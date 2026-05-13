@@ -33,13 +33,16 @@ new_procesar = '''                proceso.status = 'COMPLETED'
                 correos_destino = ",".join(correos_internos)
                 
                 with open(proceso.pdf_path, 'rb') as f:
-                    resp_n8n = requests.post(N8N_WEBHOOK_FINALIZAR_PROCESO,
-                                  data={"reference_id": proceso.reference_id, "status": "COMPLETED",
-                                        "correos_destino": correos_destino, "folder_id": proceso.dir_drive}, files={
-                            "pdf_final": (f"{proceso.reference_id}_CERTIFICADO.pdf", f, "application/pdf")}, timeout=30)
-                    
-                    if resp_n8n.status_code != 200:
-                        raise Exception("Fallo en la comunicación con el webhook de finalización (N8N).")
+                    try:
+                        resp_n8n = requests.post(N8N_WEBHOOK_FINALIZAR_PROCESO,
+                                      data={"reference_id": proceso.reference_id, "status": "COMPLETED",
+                                            "correos_destino": correos_destino, "folder_id": proceso.dir_drive}, files={
+                                "pdf_final": (f"{proceso.reference_id}_CERTIFICADO.pdf", f, "application/pdf")}, timeout=30)
+                        
+                        if resp_n8n.status_code != 200:
+                            print(f"Fallo en la comunicación con el webhook de finalización (N8N): {resp_n8n.text}")
+                    except Exception as e:
+                        print(f"Error en N8N_WEBHOOK_FINALIZAR_PROCESO: {e}")
                         
                 return JsonResponse({"status": "success", "msg": "Documento finalizado y enviado internamente."})
                 
