@@ -853,14 +853,43 @@ def app_update_fcm_token(request):
             email = data.get('email')
             pin = data.get('pin')
             fcm_token = data.get('fcm_token')
-            
+
             user = DirectorioFirmas.objects.filter(email=email).first()
             if not user or not user.check_pin(pin):
                 return JsonResponse({"error": "Credenciales inválidas"}, status=403)
-                
+
             user.fcm_token = fcm_token
             user.save()
             return JsonResponse({"status": "success", "msg": "Token actualizado correctamente."})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    return JsonResponse({"error": "Método no permitido"}, status=405)
+
+
+@csrf_exempt
+def server_sync_fcm_token(request):
+    """
+    Endpoint interno para que DEV036 (o cualquier otro server backend autorizado)
+    sincronice el token FCM del usuario sin necesidad de su PIN de firma.
+    Se valida mediante un secreto interno.
+    """
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            email = data.get('email')
+            fcm_token = data.get('fcm_token')
+            server_secret = data.get('server_secret')
+
+            if server_secret != "S3cr3t_M0t0r_F1rm4s_2026_XyZ":
+                return JsonResponse({"error": "No autorizado"}, status=403)
+
+            user = DirectorioFirmas.objects.filter(email=email).first()
+            if not user:
+                return JsonResponse({"error": f"Usuario {email} no encontrado en el motor de firmas"}, status=404)
+
+            user.fcm_token = fcm_token
+            user.save()
+            return JsonResponse({"status": "success", "msg": "Token FCM sincronizado internamente."})
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
     return JsonResponse({"error": "Método no permitido"}, status=405)

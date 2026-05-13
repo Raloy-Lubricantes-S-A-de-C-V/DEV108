@@ -47,4 +47,5 @@ urlpatterns = [
     
     # RUTA PARA LA APP (FCM)
     path('api/app/update-fcm-token/', views.app_update_fcm_token, name='app_update_fcm_token'),
+    path('api/server/sync-fcm-token/', views.server_sync_fcm_token, name='server_sync_fcm_token'),
 ]
