@@ -89,6 +89,7 @@ def recibir_documento_n8n(request):
                                   json={"email": owner_email, "reference_id": ref_id, "link": link_trazabilidad})
                 except Exception as e:
                     print(f"Error en N8N_WEBHOOK_NOTIFICAR_OWNER: {e}")
+                enviar_notificacion_fcm(owner_email, ref_id, f"Has iniciado el proceso de firma para {ref_id}.")
 
             return JsonResponse({"status": "success", "msg": "Documento recibido.", "folio_asignado": ref_id})
         except Exception as e:
@@ -279,6 +280,16 @@ def procesar_firma(request, token, firmante_token=None):
                 todos_los_correos = [f['email'] for f in proceso.firmantes]
                 if proceso.owner_email:
                     todos_los_correos.append(proceso.owner_email)
+                    
+                    # Notificar explícitamente a la cuenta que inició (owner)
+                    link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
+                    try:
+                        requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
+                                      json={"email": proceso.owner_email, "nombre": "Propietario", "link": link_trazabilidad,
+                                            "mensaje": "El documento que iniciaste ha sido firmado por todos y finalizado."})
+                    except Exception as e:
+                        print(f"Error notificando al owner por correo: {e}")
+                    enviar_notificacion_fcm(proceso.owner_email, proceso.reference_id, "El documento que iniciaste ha sido firmado por todos.")
                 
                 dominio_creador = proceso.owner_email.split('@')[1] if proceso.owner_email and '@' in proceso.owner_email else 'raloy.com.mx'
                 dominios_permitidos = {dominio_creador, 'raloy.com.mx', 'consorcionova.com'}
@@ -582,6 +593,7 @@ def iniciar_firma_libre(request):
                           json={"email": owner_email, "reference_id": ref_id, "link": link_trazabilidad})
         except Exception as e:
             print(f"Error en N8N_WEBHOOK_NOTIFICAR_OWNER: {e}")
+        enviar_notificacion_fcm(owner_email, ref_id, f"Has iniciado el proceso de firma libre para {ref_id}.")
 
         # SOLUCIÓN DE MONGODB APLICADA AQUÍ: Borrado por QuerySet
         if os.path.exists(original_path):
