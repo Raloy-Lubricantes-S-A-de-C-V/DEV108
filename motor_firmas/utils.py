@@ -114,3 +114,42 @@ def estampar_firma_en_pdf(pdf_path, signature_b64, signer_index, email_user, nom
 
     doc.save(pdf_path, incremental=True, encryption=fitz.PDF_ENCRYPT_KEEP)
     doc.close()
+import firebase_admin
+from firebase_admin import credentials, messaging
+from django.conf import settings
+import os
+import traceback
+
+def enviar_notificacion_fcm(user_email, reference_id, message_body):
+    from .models import DirectorioFirmas
+    try:
+        user = DirectorioFirmas.objects.filter(email=user_email).first()
+        if not user or not user.notificar_celular or not user.fcm_token:
+            return False
+
+        if not firebase_admin._apps:
+            cred_path = os.path.join(settings.BASE_DIR, 'firebase_credentials.json')
+            if os.path.exists(cred_path):
+                cred = credentials.Certificate(cred_path)
+                firebase_admin.initialize_app(cred)
+            else:
+                print("No se encontraron credenciales de Firebase en", cred_path)
+                return False
+
+        message = messaging.Message(
+            token=user.fcm_token,
+            data={
+                'refresh': 'true',
+                'reference_id': str(reference_id)
+            },
+            notification=messaging.Notification(
+                title='Firma Digital Raloy',
+                body=message_body
+            )
+        )
+        response = messaging.send(message)
+        print("Notificación FCM enviada:", response)
+        return True
+    except Exception as e:
+        print("Error enviando FCM:", e)
+        return False

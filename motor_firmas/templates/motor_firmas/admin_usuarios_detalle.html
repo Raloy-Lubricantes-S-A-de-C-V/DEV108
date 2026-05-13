@@ -72,6 +72,27 @@
                     <span style="font-size:0.85rem; color:#64748b;">Permite al usuario utilizar las plantillas habilitadas para él.</span>
                 </div>
             </div>
+        </div>
+
+        <div class="card">
+            <h2>Preferencias de Notificación</h2>
+            <p style="color:#64748b; font-size:0.9rem;">Configura los canales de alerta para solicitudes de firma.</p>
+            
+            <div class="permiso-box">
+                <input type="checkbox" checked disabled>
+                <div>
+                    <strong>Notificación por Correo Electrónico</strong><br>
+                    <span style="font-size:0.85rem; color:#64748b;">Canal de comunicación principal (siempre activo).</span>
+                </div>
+            </div>
+            
+            <div class="permiso-box">
+                <input type="checkbox" id="chkNotificarCelular" {% if usuario.notificar_celular %}checked{% endif %}>
+                <div>
+                    <strong>Notificación por Aplicación Móvil (App)</strong><br>
+                    <span style="font-size:0.85rem; color:#64748b;">Envía una alerta FCM en tiempo real al celular del usuario.</span>
+                </div>
+            </div>
 
             <button class="btn-save" onclick="guardarCambios()" style="margin-top: 15px;">💾 Guardar Configuración</button>
         </div>
@@ -94,7 +115,8 @@
 
             let payload = {
                 id: {{ usuario.id }},
-                permisos: permisos
+                permisos: permisos,
+                notificar_celular: document.getElementById('chkNotificarCelular').checked
             };
             
             {% if es_superadmin %}

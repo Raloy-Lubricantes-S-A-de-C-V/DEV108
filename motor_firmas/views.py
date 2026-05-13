@@ -13,7 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from .models import ProcesoFirma, DirectorioFirmas, OTPLogin, AdministradorPortal, PlantillaFormulario, CarpetaDominio, \
     DocumentoPDFUsuario
-from .utils import estampar_firma_en_pdf, estampar_variables_en_pdf
+from .utils import estampar_firma_en_pdf, estampar_variables_en_pdf, enviar_notificacion_fcm
 
 # WEBHOOKS DE N8N
 N8N_WEBHOOK_NOTIFICAR_CORREO = "https://n8n.raloy.com.mx/webhook/enviar-correo-firma"
@@ -77,6 +77,7 @@ def recibir_documento_n8n(request):
                           json={"email": primer_firmante['email'], "nombre": primer_firmante['nombre'],
                                 "link": link_firma,
                                 "mensaje": f"Raloy solicita tu firma electrónica para el documento {ref_id}."})
+            enviar_notificacion_fcm(primer_firmante['email'], ref_id, f"Raloy solicita tu firma electrónica para el documento {ref_id}.")
 
             if owner_email:
                 link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
@@ -259,6 +260,7 @@ def procesar_firma(request, token, firmante_token=None):
                 requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
                               json={"email": siguiente['email'], "nombre": siguiente['nombre'], "link": link_firma,
                                     "mensaje": "Es tu turno de firmar."})
+                enviar_notificacion_fcm(siguiente['email'], proceso.reference_id, "Es tu turno de firmar.")
                 return JsonResponse({"status": "success", "msg": "Firma guardada."})
             else:
                 proceso.status = 'COMPLETED'
@@ -551,6 +553,7 @@ def iniciar_firma_libre(request):
         requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
                       json={"email": primer_firmante['email'], "nombre": primer_firmante['nombre'], "link": link_firma,
                             "mensaje": f"Raloy solicita tu firma para el documento libre {ref_id}."})
+        enviar_notificacion_fcm(primer_firmante['email'], ref_id, f"Raloy solicita tu firma para el documento libre {ref_id}.")
 
         link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
         requests.post(N8N_WEBHOOK_NOTIFICAR_OWNER,
@@ -656,6 +659,8 @@ def admin_api(request, accion):
                 if (admin_actual.es_superadmin or admin_actual.email == 'pjimenezb@raloy.com.mx') and 'tecnico_asignado' in data:
                     usr.tecnico_asignado = data.get('tecnico_asignado')
                 usr.permisos_portal = data.get('permisos', [])
+                if 'notificar_celular' in data:
+                    usr.notificar_celular = data.get('notificar_celular')
                 usr.save()
                 return JsonResponse({"status": "success", "msg": "Usuario actualizado."})
             return JsonResponse({"error": "Usuario no encontrado."}, status=404)
@@ -839,3 +844,23 @@ def admin_administradores(request):
         'admins': admins
     })
 
+
+@csrf_exempt
+def app_update_fcm_token(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            email = data.get('email')
+            pin = data.get('pin')
+            fcm_token = data.get('fcm_token')
+            
+            user = DirectorioFirmas.objects.filter(email=email).first()
+            if not user or not user.check_pin(pin):
+                return JsonResponse({"error": "Credenciales inválidas"}, status=403)
+                
+            user.fcm_token = fcm_token
+            user.save()
+            return JsonResponse({"status": "success", "msg": "Token actualizado correctamente."})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    return JsonResponse({"error": "Método no permitido"}, status=405)

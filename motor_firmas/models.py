@@ -61,6 +61,10 @@ class DirectorioFirmas(models.Model):
     tecnico_asignado = models.EmailField(null=True, blank=True)
     permisos_portal = models.JSONField(default=list, blank=True)
     ultima_actividad = models.DateTimeField(null=True, blank=True)
+    
+    # Notificaciones y App
+    notificar_celular = models.BooleanField(default=False)
+    fcm_token = models.CharField(max_length=255, blank=True, null=True)
 
     def set_pin(self, raw_pin): self.pin_hash = make_password(raw_pin)
 

@@ -44,4 +44,7 @@ urlpatterns = [
     path('admin-portal/administradores/', views.admin_administradores, name='admin_administradores'),
     path('admin-portal/logout/', views.admin_logout, name='admin_logout'),
     path('api/admin-action/<str:accion>/', views.admin_api, name='admin_api'),
+    
+    # RUTA PARA LA APP (FCM)
+    path('api/app/update-fcm-token/', views.app_update_fcm_token, name='app_update_fcm_token'),
 ]
