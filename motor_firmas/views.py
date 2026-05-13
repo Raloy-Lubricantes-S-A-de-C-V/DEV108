@@ -51,12 +51,12 @@ def recibir_documento_n8n(request):
             if match:
                 base_name, num_str = match.group(1), match.group(2)
                 num_len, current_num = len(num_str), int(num_str)
-                while ProcesoFirma.objects.filter(reference_id=ref_id).exists():
+                while ProcesoFirma.objects.filter(reference_id=ref_id).first() is not None:
                     current_num += 1
                     ref_id = f"{base_name}{str(current_num).zfill(num_len)}"
             else:
                 counter = 1
-                while ProcesoFirma.objects.filter(reference_id=ref_id).exists():
+                while ProcesoFirma.objects.filter(reference_id=ref_id).first() is not None:
                     ref_id = f"{original_ref_id}-{counter}"
                     counter += 1
 
@@ -131,7 +131,7 @@ def vista_firma_ui(request, token, firmante_token=None):
     # Extraer opciones directo de la Plantilla original cruzando con dir_drive
     if proceso.exec_mode == 'form' and proceso.dir_drive:
         plantillas = PlantillaFormulario.objects.filter(drive_folder_id=proceso.dir_drive)
-        if not plantillas.exists():
+        if plantillas.first() is None:
             plantillas = PlantillaFormulario.objects.filter(carpeta_firmados_id=proceso.dir_drive)
             
         plantilla_encontrada = None
@@ -140,7 +140,7 @@ def vista_firma_ui(request, token, firmante_token=None):
             if prefix and proceso.reference_id.startswith(prefix):
                 plantilla_encontrada = p
                 break
-        if not plantilla_encontrada and plantillas.exists():
+        if not plantilla_encontrada and plantillas.first() is not None:
             plantilla_encontrada = plantillas.first()
             
         if plantilla_encontrada and plantilla_encontrada.variables:
@@ -304,7 +304,7 @@ def vista_trazabilidad(request, token):
 def registro_firmas(request):
     if request.method == 'POST':
         email = request.POST.get('email')
-        if DirectorioFirmas.objects.filter(email=email).exists(): return render(request,
+        if DirectorioFirmas.objects.filter(email=email).first() is not None: return render(request,
                                                                                 'motor_firmas/registro_firmas.html',
                                                                                 {"error": "Correo registrado."})
         colaborador = DirectorioFirmas(nombre=request.POST.get('nombre'), email=email,
@@ -382,7 +382,7 @@ def portal_dashboard(request):
                            'porcentaje': int((hechas / tot) * 100) if tot > 0 else 0})
 
     dominio = owner_email.split('@')[1] if '@' in owner_email else ''
-    tiene_carpeta_dominio = CarpetaDominio.objects.filter(dominio=dominio).exists()
+    tiene_carpeta_dominio = CarpetaDominio.objects.filter(dominio=dominio).first() is not None
 
     colaborador = DirectorioFirmas.objects.filter(email=owner_email).first()
     permisos = colaborador.permisos_portal if colaborador and colaborador.permisos_portal else []
@@ -447,13 +447,13 @@ def eliminar_pdf_usuario(request, pdf_id):
     except ValueError:
         pass
 
-    if not qs.exists():
+    if qs.first() is None:
         try:
             qs = DocumentoPDFUsuario.objects.filter(id=pdf_id, owner_email=owner_email)
         except Exception:
             pass
 
-    if qs.exists():
+    if qs.first() is not None:
         doc = qs.first()
         if doc.archivo_local:
             full_path = os.path.join(settings.MEDIA_ROOT, doc.archivo_local)
@@ -570,7 +570,7 @@ def iniciar_firma_libre(request):
 # ================= VISTAS DE ADMINISTRADOR =================
 @csrf_exempt
 def admin_login(request):
-    if not AdministradorPortal.objects.exists(): AdministradorPortal.objects.create(email="pjimenezb@raloy.com.mx", es_superadmin=True)
+    if AdministradorPortal.objects.first() is None: AdministradorPortal.objects.create(email="pjimenezb@raloy.com.mx", es_superadmin=True)
     else:
         # Asegurar que pjimenezb sea superadmin siempre
         pj = AdministradorPortal.objects.filter(email="pjimenezb@raloy.com.mx").first()
@@ -581,7 +581,7 @@ def admin_login(request):
     if request.method == 'POST':
         data = json.loads(request.body)
         email, pin_ingresado = data.get('email'), data.get('pin')
-        if not AdministradorPortal.objects.filter(email=email).exists(): return JsonResponse(
+        if AdministradorPortal.objects.filter(email=email).first() is None: return JsonResponse(
             {"error": "No eres admin."}, status=403)
         colaborador = DirectorioFirmas.objects.filter(email=email).first()
         otp_record = OTPLogin.objects.filter(email=email).first()
@@ -697,7 +697,7 @@ def admin_api(request, accion):
 
 
         if accion == 'agregar_admin':
-            if AdministradorPortal.objects.filter(email=data.get('email')).exists(): return JsonResponse(
+            if AdministradorPortal.objects.filter(email=data.get('email')).first() is not None: return JsonResponse(
                 {"error": "Ya es admin."})
             AdministradorPortal.objects.create(email=data.get('email'))
             return JsonResponse({"status": "success", "msg": "Admin agregado."})
