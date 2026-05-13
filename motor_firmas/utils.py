@@ -34,8 +34,14 @@ def estampar_variables_en_pdf(pdf_path, variables_dict):
                     page.insert_text((first_rect.x0, y_alineado), str(value).upper(), fontsize=11, fontname="hebo", color=(0, 0, 0))
                     modificado = True
 
-    if modificado: doc.save(pdf_path, incremental=True, encryption=fitz.PDF_ENCRYPT_KEEP)
-    doc.close()
+    if modificado: 
+        import shutil
+        temp_vars_path = pdf_path.replace(".pdf", "_temp_vars.pdf")
+        doc.save(temp_vars_path)
+        doc.close()
+        shutil.move(temp_vars_path, pdf_path)
+    else:
+        doc.close()
 
 
 def estampar_firma_en_pdf(pdf_path, signature_b64, signer_index, email_user, nombre_user, ip_user, coordenadas=None):
@@ -112,8 +118,11 @@ def estampar_firma_en_pdf(pdf_path, signature_b64, signer_index, email_user, nom
     audit_page.insert_text((50, y_inicio + 60), f"Sello de Tiempo (UTC): {timestamp}", fontsize=10, fontname="helv")
     audit_page.insert_text((50, y_inicio + 80), f"SHA-256 Checksum: {document_hash}", fontsize=8, fontname="helv")
 
-    doc.save(pdf_path, incremental=True, encryption=fitz.PDF_ENCRYPT_KEEP)
+    import shutil
+    final_temp_path = pdf_path.replace(".pdf", "_final_temp.pdf")
+    doc.save(final_temp_path)
     doc.close()
+    shutil.move(final_temp_path, pdf_path)
 import firebase_admin
 from firebase_admin import credentials, messaging
 from django.conf import settings
