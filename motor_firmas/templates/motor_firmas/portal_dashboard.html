@@ -136,11 +136,9 @@
                 </button>
                 {% endif %}
                 
-                {% if tiene_carpeta_dominio %}
                 <a href="{% url 'portal_pdfs_usuario' %}" class="tool-btn tool-pdf">
                     <span>📄</span> TRABAJAR PDF PARA FIRMA
                 </a>
-                {% endif %}
 
                 {% if 'plantillas' in permisos %}
                 <a href="{% url 'portal_plantillas' %}" class="tool-btn tool-template">
