@@ -175,6 +175,8 @@ def vista_firma_ui(request, token, firmante_token=None):
                             content_option[v['key']] = v['content-option']
                         elif 'content_options' in v:
                             content_option[v['key']] = v['content_options']
+                        elif 'content_option' in v:
+                            content_option[v['key']] = v['content_option']
                     
     # Fallback por si N8N lo mandó de otra forma en summary_data (Legacy)
     if not content_option and proceso.summary_data:
