@@ -770,12 +770,16 @@ def admin_api(request, accion):
                                          timeout=20)
                 if resp_dir.status_code != 200:
                     return JsonResponse({"error": f"Fallo al preparar directorio en Drive. Código HTTP: {resp_dir.status_code}"}, status=500)
-                    
-                resp_json = resp_dir.json()
-                if resp_json.get('status') == 'success': 
-                    carpeta_firmados = resp_json.get('firmados_folder_id', data['drive_folder_id'])
+
+                try:
+                    resp_json = resp_dir.json()
+                    if isinstance(resp_json, dict) and resp_json.get('status') == 'success':
+                        carpeta_firmados = resp_json.get('firmados_folder_id', data['drive_folder_id'])
+                except ValueError:
+                    print(f"Advertencia: Respuesta de N8N_WEBHOOK_PREPARAR_DIR no es JSON válido. Body: {resp_dir.text}")
             except Exception as e:
                 return JsonResponse({"error": f"Excepción crítica al preparar la estructura de Drive: {str(e)}"}, status=500)
+            
             PlantillaFormulario.objects.create(
                 nombre=data['nombre'], doc_id=data['doc_id'], owner_email=data['owner_email'],
                 drive_folder_id=data['drive_folder_id'],
