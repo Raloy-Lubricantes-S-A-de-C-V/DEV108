@@ -46,5 +46,6 @@ urlpatterns = [
     path('api/admin-action/<str:accion>/', views.admin_api, name='admin_api'),
     
     # RUTAS DE NOTIFICACIONES (POLLING)
+    path('api/internal/dev036/check-alerts', views.dev036_check_alerts, name='dev036_check_alerts'),
     path('api/v1/check-notifications', views.check_notifications, name='check_notifications'),
 ]

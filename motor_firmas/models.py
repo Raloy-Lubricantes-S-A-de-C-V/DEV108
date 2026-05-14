@@ -119,3 +119,15 @@ class SignatureNotification(models.Model):
 
     class Meta:
         db_table = 'signature_notifications'
+
+
+class SignaturesMaster(models.Model):
+    reference_id = models.CharField(max_length=255, unique=True)
+    user_email = models.EmailField()
+    status = models.CharField(max_length=50)
+    notification_enabled = models.BooleanField(default=False)
+    notified_to_mobile = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'signatures_master'

@@ -128,7 +128,7 @@ import traceback
 from django.conf import settings
 
 def crear_notificacion_firma(user_email, reference_id, message_body=""):
-    from .models import DirectorioFirmas, SignatureNotification
+    from .models import DirectorioFirmas, SignatureNotification, SignaturesMaster
     try:
         user = DirectorioFirmas.objects.filter(email=user_email).first()
         if not user or not user.notificar_celular:
@@ -140,6 +140,18 @@ def crear_notificacion_firma(user_email, reference_id, message_body=""):
             status='pending',
             processed=False
         )
+        
+        # Integración DEV108/DEV036: Registro maestro
+        SignaturesMaster.objects.update_or_create(
+            reference_id=str(reference_id),
+            defaults={
+                'user_email': user_email,
+                'status': 'pending',
+                'notification_enabled': True,
+                'notified_to_mobile': False,
+            }
+        )
+        
         print(f"Notificación MongoDB registrada para {user_email} (Ref: {reference_id})")
         return True
     except Exception as e:

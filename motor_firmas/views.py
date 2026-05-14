@@ -888,7 +888,44 @@ def admin_administradores(request):
 
 
 @csrf_exempt
+def dev036_check_alerts(request):
+    """
+    DEV036 (El Apéndice): Motor de escucha y procesador de alertas pendientes.
+    Consulta la colección gestionada por DEV108 (signatures_master).
+    """
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            email = data.get('email')
+            if not email:
+                return JsonResponse({"has_new_signature": False, "error": "Email is required"}, status=400)
+            
+            from .models import SignaturesMaster
+            nuevas = SignaturesMaster.objects.filter(
+                user_email=email,
+                notification_enabled=True,
+                notified_to_mobile=False
+            )
+            primer_registro = nuevas.first()
+            if primer_registro:
+                ref_id = primer_registro.reference_id
+                # Acción Atómica: actualizar estado
+                nuevas.update(notified_to_mobile=True)
+                return JsonResponse({"has_new_signature": True, "reference_id": ref_id})
+            else:
+                return JsonResponse({"has_new_signature": False})
+        except Exception as e:
+            return JsonResponse({"has_new_signature": False, "error": str(e)}, status=500)
+    return JsonResponse({"error": "Método no permitido"}, status=405)
+
+
+@csrf_exempt
 def check_notifications(request):
+    """
+    DEV108 (Cerebro): Endpoint Público Proxy Síncrono hacia DEV036.
+    """
+    import requests
+    import os
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -896,15 +933,26 @@ def check_notifications(request):
             if not email:
                 return JsonResponse({"error": "Email is required"}, status=400)
                 
-            from .models import SignatureNotification
-            nuevas = SignatureNotification.objects.filter(user_email=email, processed=False)
-            count = nuevas.count()
+            # Proxy Síncrono a DEV036
+            dev036_url = os.environ.get('DEV036_URL')
             
-            if count > 0:
-                nuevas.update(processed=True)
-                return JsonResponse({"has_new_signature": True, "count": count})
-            else:
-                return JsonResponse({"has_new_signature": False, "count": 0})
+            if not dev036_url:
+                # Anti-fallos: Si no está definida la URL del microservicio externo DEV036,
+                # utilizamos la función interna de respaldo de manera síncrona.
+                return dev036_check_alerts(request)
+            
+            # Timeout de no más de 5 segundos según protocolo
+            response = requests.post(
+                dev036_url,
+                json={"email": email},
+                timeout=5
+            )
+            response.raise_for_status()
+            return JsonResponse(response.json())
+            
+        except requests.exceptions.Timeout:
+            return JsonResponse({"has_new_signature": False, "error": "Timeout DEV036"}, status=504)
         except Exception as e:
-            return JsonResponse({"error": str(e)}, status=400)
+            return JsonResponse({"has_new_signature": False, "error": str(e)}, status=500)
+            
     return JsonResponse({"error": "Método no permitido"}, status=405)
