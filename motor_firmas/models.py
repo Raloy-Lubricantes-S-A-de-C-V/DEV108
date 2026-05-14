@@ -64,7 +64,6 @@ class DirectorioFirmas(models.Model):
     
     # Notificaciones y App
     notificar_celular = models.BooleanField(default=False)
-    fcm_token = models.CharField(max_length=255, blank=True, null=True)
 
     def set_pin(self, raw_pin): self.pin_hash = make_password(raw_pin)
 
@@ -109,3 +108,14 @@ class DocumentoPDFUsuario(models.Model):
     archivo_local = models.CharField(max_length=500, blank=True, null=True)
     enviado_a_firma = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
+
+
+class SignatureNotification(models.Model):
+    user_email = models.EmailField()
+    reference_id = models.CharField(max_length=255)
+    status = models.CharField(max_length=50, default='pending')
+    created_at = models.DateTimeField(default=timezone.now)
+    processed = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'signature_notifications'

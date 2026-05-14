@@ -13,7 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from .models import ProcesoFirma, DirectorioFirmas, OTPLogin, AdministradorPortal, PlantillaFormulario, CarpetaDominio, \
     DocumentoPDFUsuario
-from .utils import estampar_firma_en_pdf, estampar_variables_en_pdf, enviar_notificacion_fcm
+from .utils import estampar_firma_en_pdf, estampar_variables_en_pdf, crear_notificacion_firma
 
 # WEBHOOKS DE N8N
 N8N_WEBHOOK_NOTIFICAR_CORREO = "https://n8n.raloy.com.mx/webhook/enviar-correo-firma"
@@ -80,7 +80,7 @@ def recibir_documento_n8n(request):
                                     "mensaje": f"Raloy solicita tu firma electrónica para el documento {ref_id}."})
             except Exception as e:
                 print(f"Error en N8N_WEBHOOK_NOTIFICAR_CORREO: {e}")
-            enviar_notificacion_fcm(primer_firmante['email'], ref_id, f"Raloy solicita tu firma electrónica para el documento {ref_id}.")
+            crear_notificacion_firma(primer_firmante['email'], ref_id, f"Raloy solicita tu firma electrónica para el documento {ref_id}.")
 
             if owner_email:
                 link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
@@ -89,7 +89,7 @@ def recibir_documento_n8n(request):
                                   json={"email": owner_email, "reference_id": ref_id, "link": link_trazabilidad})
                 except Exception as e:
                     print(f"Error en N8N_WEBHOOK_NOTIFICAR_OWNER: {e}")
-                enviar_notificacion_fcm(owner_email, ref_id, f"Has iniciado el proceso de firma para {ref_id}.")
+                crear_notificacion_firma(owner_email, ref_id, f"Has iniciado el proceso de firma para {ref_id}.")
 
             return JsonResponse({"status": "success", "msg": "Documento recibido.", "folio_asignado": ref_id})
         except Exception as e:
@@ -270,7 +270,7 @@ def procesar_firma(request, token, firmante_token=None):
                                         "mensaje": "Es tu turno de firmar."})
                 except Exception as e:
                     print(f"Error en N8N_WEBHOOK_NOTIFICAR_CORREO: {e}")
-                enviar_notificacion_fcm(siguiente['email'], proceso.reference_id, "Es tu turno de firmar.")
+                crear_notificacion_firma(siguiente['email'], proceso.reference_id, "Es tu turno de firmar.")
                 return JsonResponse({"status": "success", "msg": "Firma guardada."})
             else:
                 proceso.status = 'COMPLETED'
@@ -289,7 +289,7 @@ def procesar_firma(request, token, firmante_token=None):
                                             "mensaje": "El documento que iniciaste ha sido firmado por todos y finalizado."})
                     except Exception as e:
                         print(f"Error notificando al owner por correo: {e}")
-                    enviar_notificacion_fcm(proceso.owner_email, proceso.reference_id, "El documento que iniciaste ha sido firmado por todos.")
+                    crear_notificacion_firma(proceso.owner_email, proceso.reference_id, "El documento que iniciaste ha sido firmado por todos.")
                 
                 dominio_creador = proceso.owner_email.split('@')[1] if proceso.owner_email and '@' in proceso.owner_email else 'raloy.com.mx'
                 dominios_permitidos = {dominio_creador, 'raloy.com.mx', 'consorcionova.com'}
@@ -585,7 +585,7 @@ def iniciar_firma_libre(request):
                                 "mensaje": f"Raloy solicita tu firma para el documento libre {ref_id}."})
         except Exception as e:
             print(f"Error en N8N_WEBHOOK_NOTIFICAR_CORREO: {e}")
-        enviar_notificacion_fcm(primer_firmante['email'], ref_id, f"Raloy solicita tu firma para el documento libre {ref_id}.")
+        crear_notificacion_firma(primer_firmante['email'], ref_id, f"Raloy solicita tu firma para el documento libre {ref_id}.")
 
         link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
         try:
@@ -593,7 +593,7 @@ def iniciar_firma_libre(request):
                           json={"email": owner_email, "reference_id": ref_id, "link": link_trazabilidad})
         except Exception as e:
             print(f"Error en N8N_WEBHOOK_NOTIFICAR_OWNER: {e}")
-        enviar_notificacion_fcm(owner_email, ref_id, f"Has iniciado el proceso de firma libre para {ref_id}.")
+        crear_notificacion_firma(owner_email, ref_id, f"Has iniciado el proceso de firma libre para {ref_id}.")
 
         # SOLUCIÓN DE MONGODB APLICADA AQUÍ: Borrado por QuerySet
         if os.path.exists(original_path):
@@ -888,50 +888,23 @@ def admin_administradores(request):
 
 
 @csrf_exempt
-def app_update_fcm_token(request):
+def check_notifications(request):
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
             email = data.get('email')
-            pin = data.get('pin')
-            fcm_token = data.get('fcm_token')
-
-            user = DirectorioFirmas.objects.filter(email=email).first()
-            if not user or not user.check_pin(pin):
-                return JsonResponse({"error": "Credenciales inválidas"}, status=403)
-
-            user.fcm_token = fcm_token
-            user.save()
-            return JsonResponse({"status": "success", "msg": "Token actualizado correctamente."})
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=400)
-    return JsonResponse({"error": "Método no permitido"}, status=405)
-
-
-@csrf_exempt
-def server_sync_fcm_token(request):
-    """
-    Endpoint interno para que DEV036 (o cualquier otro server backend autorizado)
-    sincronice el token FCM del usuario sin necesidad de su PIN de firma.
-    Se valida mediante un secreto interno.
-    """
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            email = data.get('email')
-            fcm_token = data.get('fcm_token')
-            server_secret = data.get('server_secret')
-
-            if server_secret != "S3cr3t_M0t0r_F1rm4s_2026_XyZ":
-                return JsonResponse({"error": "No autorizado"}, status=403)
-
-            user = DirectorioFirmas.objects.filter(email=email).first()
-            if not user:
-                return JsonResponse({"error": f"Usuario {email} no encontrado en el motor de firmas"}, status=404)
-
-            user.fcm_token = fcm_token
-            user.save()
-            return JsonResponse({"status": "success", "msg": "Token FCM sincronizado internamente."})
+            if not email:
+                return JsonResponse({"error": "Email is required"}, status=400)
+                
+            from .models import SignatureNotification
+            nuevas = SignatureNotification.objects.filter(user_email=email, processed=False)
+            count = nuevas.count()
+            
+            if count > 0:
+                nuevas.update(processed=True)
+                return JsonResponse({"has_new_signature": True, "count": count})
+            else:
+                return JsonResponse({"has_new_signature": False, "count": 0})
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
     return JsonResponse({"error": "Método no permitido"}, status=405)

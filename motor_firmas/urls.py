@@ -45,7 +45,6 @@ urlpatterns = [
     path('admin-portal/logout/', views.admin_logout, name='admin_logout'),
     path('api/admin-action/<str:accion>/', views.admin_api, name='admin_api'),
     
-    # RUTA PARA LA APP (FCM)
-    path('api/app/update-fcm-token/', views.app_update_fcm_token, name='app_update_fcm_token'),
-    path('api/server/sync-fcm-token/', views.server_sync_fcm_token, name='server_sync_fcm_token'),
+    # RUTAS DE NOTIFICACIONES (POLLING)
+    path('api/v1/check-notifications', views.check_notifications, name='check_notifications'),
 ]
