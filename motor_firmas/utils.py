@@ -11,6 +11,7 @@ def estampar_variables_en_pdf(pdf_path, variables_dict):
     modificado = False
     
     for page in doc:
+        page.clean_contents()
         text = page.get_text("text")
         for key, value in variables_dict.items():
             flex_key = r"\s*".join(re.escape(char) for char in key)
@@ -60,6 +61,7 @@ def estampar_firma_en_pdf(pdf_path, signature_b64, signer_index, email_user, nom
         page_num = int(coordenadas.get('page', 1)) - 1
         if page_num < len(doc):
             page = doc[page_num]
+            page.clean_contents()
             # Convertimos el porcentaje visual a puntos reales del PDF
             x = float(coordenadas.get('x')) * page.rect.width
             y = float(coordenadas.get('y')) * page.rect.height
@@ -74,6 +76,7 @@ def estampar_firma_en_pdf(pdf_path, signature_b64, signer_index, email_user, nom
     if not firma_estampada:
         etiqueta_busqueda = f"{{{{FIRMA_{signer_index}}}}}"
         for page in doc:
+            page.clean_contents()
             instancias = page.search_for(etiqueta_busqueda)
             if instancias:
                 rect = instancias[0]
@@ -90,6 +93,7 @@ def estampar_firma_en_pdf(pdf_path, signature_b64, signer_index, email_user, nom
     # MODO RESPALDO (Si no hay nada, al final)
     if not firma_estampada:
         ultima_pagina = doc[-1]
+        ultima_pagina.clean_contents()
         rect_firma = fitz.Rect(100, 600 - (signer_index * 60), 220, 650 - (signer_index * 60))
         ultima_pagina.insert_image(rect_firma, stream=img_data)
 
