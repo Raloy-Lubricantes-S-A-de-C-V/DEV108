@@ -216,12 +216,15 @@ def vista_firma_ui(request, token, firmante_token=None):
                     'options': opciones
                 })
 
+    cant_firmas = sum(1 for f in proceso.firmantes if f.get('email') == firmante_actual.get('email') and not f.get('fecha_firma'))
+
     context = {'token': token, 'firmante_token': firmante_token or '',
                'nombre_firmante': firmante_actual.get('nombre', 'Firmante'),
                'email_firmante': firmante_actual.get('email', ''), 'view_info': proceso.view_info,
                'summary_data': proceso.summary_data,
                'pdf_url': f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}",
-               'is_registered': bool(colaborador), 'campos_a_llenar': campos_a_llenar, 'is_message_view': False}
+               'is_registered': bool(colaborador), 'campos_a_llenar': campos_a_llenar, 'is_message_view': False,
+               'cant_firmas': cant_firmas}
     return render(request, 'motor_firmas/firma_ui.html', context)
 
 
@@ -253,16 +256,25 @@ def procesar_firma(request, token, firmante_token=None):
                 estampar_variables_en_pdf(proceso.pdf_path, data.get('variables'))
                 proceso.save()
 
-            coordenadas = firmante_esperado.get('coordenadas')
-            estampar_firma_en_pdf(proceso.pdf_path, firma_b64, proceso.indice_actual, firmante_esperado['email'],
-                                  firmante_esperado['nombre'], ip_user, coordenadas)
-
+            email_firmante = firmante_esperado['email']
             firmantes_lista = list(proceso.firmantes)
-            firmantes_lista[proceso.indice_actual - 1]['fecha_firma'] = timezone.now().strftime("%d/%m/%Y %H:%M:%S")
+            
+            # Firmar todos los espacios correspondientes a este correo que no estén firmados aún
+            for idx, f in enumerate(firmantes_lista):
+                if f.get('email') == email_firmante and not f.get('fecha_firma'):
+                    coords = f.get('coordenadas')
+                    estampar_firma_en_pdf(proceso.pdf_path, firma_b64, idx + 1, email_firmante,
+                                          f['nombre'], ip_user, coords)
+                    f['fecha_firma'] = timezone.now().strftime("%d/%m/%Y %H:%M:%S")
+            
             proceso.firmantes = firmantes_lista
 
-            if proceso.indice_actual < len(proceso.firmantes):
+            # Avanzar el índice actual al siguiente firmante pendiente (que no haya firmado)
+            proceso.indice_actual += 1
+            while proceso.indice_actual <= len(proceso.firmantes) and proceso.firmantes[proceso.indice_actual - 1].get('fecha_firma'):
                 proceso.indice_actual += 1
+            
+            if proceso.indice_actual <= len(proceso.firmantes):
                 proceso.save()
                 siguiente = proceso.firmantes[proceso.indice_actual - 1]
                 link_firma = f"https://dsign.raloy.com.mx/firmar/{proceso.token_acceso}/{siguiente.get('token_firmante', '')}/"
