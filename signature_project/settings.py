@@ -124,3 +124,16 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# --- MONKEY PATCH PARA DJONGO + PYMONGO 4+ / PYTHON 3.12 ---
+# Corrige el error: NotImplementedError: Database objects do not implement truth value testing or bool()
+# Esto ocurre cuando Django intenta cerrar conexiones obsoletas.
+try:
+    from djongo.base import DatabaseWrapper
+    def patched_close(self):
+        if self.connection is not None:
+            with self.wrap_database_errors:
+                self.connection.client.close()
+    DatabaseWrapper._close = patched_close
+except Exception:
+    pass
