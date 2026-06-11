@@ -127,9 +127,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- MONKEY PATCH PARA DJONGO + PYMONGO 4+ / PYTHON 3.12 ---
 # Corrige el error: NotImplementedError: Database objects do not implement truth value testing or bool()
-# Esto ocurre cuando Django intenta cerrar conexiones obsoletas.
 try:
+    # 1. Parche global para PyMongo (evita que cualquier "if db:" falle)
+    from pymongo.database import Database
+    Database.__bool__ = lambda x: True
+    
+    # 2. Parche específico para Djongo DatabaseWrapper
     from djongo.base import DatabaseWrapper
+    original_close = DatabaseWrapper._close
     def patched_close(self):
         if self.connection is not None:
             with self.wrap_database_errors:
