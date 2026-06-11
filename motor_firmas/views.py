@@ -419,6 +419,18 @@ def portal_dashboard(request):
     documentos = ProcesoFirma.objects.filter(owner_email=owner_email).order_by('-created_at')
     lista_docs = []
     for doc in documentos:
+        # Aseguramos que token_acceso sea un string (por temas de Binary en MongoDB)
+        if doc.token_acceso:
+            try:
+                if not isinstance(doc.token_acceso, (uuid.UUID, str)):
+                    val = doc.token_acceso
+                    if hasattr(val, 'bytes'): val = val.bytes
+                    doc.token_acceso = str(uuid.UUID(bytes=val))
+                else:
+                    doc.token_acceso = str(doc.token_acceso)
+            except:
+                doc.token_acceso = str(doc.token_acceso)
+
         tot = len(doc.firmantes)
         hechas = sum(1 for f in doc.firmantes if f.get('fecha_firma'))
         lista_docs.append({'proceso': doc, 'total_firmas': tot, 'firmas_hechas': hechas,
@@ -473,7 +485,24 @@ def portal_usar_plantilla(request, plantilla_id):
 def portal_pdfs_usuario(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
-    pdfs = DocumentoPDFUsuario.objects.filter(owner_email=owner_email).order_by('-created_at')
+    pdfs_qs = DocumentoPDFUsuario.objects.filter(owner_email=owner_email).order_by('-created_at')
+
+    pdfs = []
+    for p in pdfs_qs:
+        if p.id_documento:
+            try:
+                # Si es un objeto Binary de Djongo/MongoDB, intentamos convertirlo a UUID string
+                if not isinstance(p.id_documento, (uuid.UUID, str)):
+                    # Algunos drivers de MongoDB devuelven el UUID como bytes directamente o como objeto Binary
+                    val = p.id_documento
+                    if hasattr(val, 'bytes'): val = val.bytes
+                    p.id_documento = str(uuid.UUID(bytes=val))
+                else:
+                    p.id_documento = str(p.id_documento)
+            except Exception:
+                p.id_documento = str(p.id_documento)
+        pdfs.append(p)
+
     return render(request, 'motor_firmas/portal_pdfs_usuario.html', {'pdfs': pdfs, 'owner_email': owner_email})
 
 
