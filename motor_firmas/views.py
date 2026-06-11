@@ -12,6 +12,7 @@ from django.http import JsonResponse, HttpResponse, Http404
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
+from django.contrib.auth.hashers import check_password
 from .models import ProcesoFirma, DirectorioFirmas, OTPLogin, AdministradorPortal, PlantillaFormulario, CarpetaDominio, \
     DocumentoPDFUsuario
 from .utils import estampar_firma_en_pdf, estampar_variables_en_pdf, crear_notificacion_firma
@@ -163,6 +164,19 @@ def _mongo_to_namespace(document):
     for field in ('token_acceso', 'id_documento', 'reset_token'):
         if field in data:
             data[field] = _uuid_text(data[field])
+    for field, default in {
+        'firmantes': [],
+        'summary_data': {},
+        'document_variables': {},
+        'valores_capturados': {},
+        'variables': [],
+        'firmantes_config': [],
+        'usuarios_permitidos': [],
+        'permisos_portal': [],
+        'configuracion_dashboard': {},
+    }.items():
+        if field in data:
+            data[field] = _json_or_default(data[field], default)
     return SimpleNamespace(**data)
 
 
@@ -194,6 +208,28 @@ def _mongo_find_one_by_id_text(model, id_value, query=None):
     return None
 
 
+def _mongo_find_proceso_by_token(token):
+    try:
+        token_uuid = token if isinstance(token, uuid.UUID) else uuid.UUID(str(token))
+    except (TypeError, ValueError):
+        token_uuid = None
+
+    document = None
+    if token_uuid is not None:
+        document = _mongo_collection(ProcesoFirma).find_one({'token_acceso': token_uuid})
+
+    if document:
+        return _mongo_to_namespace(document)
+    return _mongo_find_one_by_uuid_field(ProcesoFirma, 'token_acceso', token)
+
+
+def _get_proceso_por_token_or_404(token):
+    proceso = _mongo_find_proceso_by_token(token)
+    if not proceso:
+        raise Http404("Proceso de firma no encontrado")
+    return proceso
+
+
 def _mongo_next_int_id(model):
     document = _mongo_collection(model).find_one(
         {'id': {'$exists': True}},
@@ -209,6 +245,25 @@ def _mongo_next_int_id(model):
 def _mongo_json_field(value, default):
     value = _json_or_default(value, default)
     return json.dumps(value, ensure_ascii=False)
+
+
+def _actualizar_proceso_firma_mongo(proceso, **fields):
+    json_defaults = {
+        'firmantes': [],
+        'summary_data': {},
+        'document_variables': {},
+        'valores_capturados': {},
+    }
+    update_doc = {}
+    for key, value in fields.items():
+        if key in json_defaults:
+            update_doc[key] = _mongo_json_field(value, json_defaults[key])
+        else:
+            update_doc[key] = value
+        setattr(proceso, key, value)
+
+    if update_doc:
+        _mongo_collection(ProcesoFirma).update_one({'_id': proceso._id}, {'$set': update_doc})
 
 
 def _crear_proceso_firma_mongo(
@@ -317,7 +372,7 @@ def recibir_documento_n8n(request):
 
 
 def vista_firma_ui(request, token, firmante_token=None):
-    proceso = get_object_or_404(ProcesoFirma, token_acceso=token)
+    proceso = _get_proceso_por_token_or_404(token)
     firmantes = _normalizar_firmantes(proceso.firmantes)
     summary_data = _json_or_default(proceso.summary_data, {})
     valores_capturados = _json_or_default(proceso.valores_capturados, {})
@@ -361,28 +416,30 @@ def vista_firma_ui(request, token, firmante_token=None):
     else:
         firmante_actual = firmantes[indice_turno]
 
-    colaborador = DirectorioFirmas.objects.filter(email=firmante_actual.get('email')).first()
+    colaborador = _mongo_find_one(DirectorioFirmas, {'email': firmante_actual.get('email')})
     
     content_option = {}
     labels_map = {}
     
     # Extraer opciones directo de la Plantilla original cruzando con dir_drive
     if proceso.exec_mode == 'form' and proceso.dir_drive:
-        plantillas = PlantillaFormulario.objects.filter(drive_folder_id=proceso.dir_drive)
-        if plantillas.first() is None:
-            plantillas = PlantillaFormulario.objects.filter(carpeta_firmados_id=proceso.dir_drive)
+        plantillas = _mongo_find(PlantillaFormulario, {'drive_folder_id': proceso.dir_drive})
+        if not plantillas:
+            plantillas = _mongo_find(PlantillaFormulario, {'carpeta_firmados_id': proceso.dir_drive})
             
         plantilla_encontrada = None
         for p in plantillas:
-            prefix = p.formato_folio.split('-0')[0] if p.formato_folio else ''
+            formato_folio = getattr(p, 'formato_folio', '')
+            prefix = formato_folio.split('-0')[0] if formato_folio else ''
             if prefix and proceso.reference_id.startswith(prefix):
                 plantilla_encontrada = p
                 break
-        if not plantilla_encontrada and plantillas.first() is not None:
-            plantilla_encontrada = plantillas.first()
+        if not plantilla_encontrada and plantillas:
+            plantilla_encontrada = plantillas[0]
             
-        if plantilla_encontrada and plantilla_encontrada.variables:
-            vars_list = _json_or_default(plantilla_encontrada.variables, [])
+        plantilla_variables = getattr(plantilla_encontrada, 'variables', []) if plantilla_encontrada else []
+        if plantilla_variables:
+            vars_list = _json_or_default(plantilla_variables, [])
                     
             for v in vars_list:
                 if isinstance(v, dict):
@@ -449,17 +506,19 @@ def procesar_firma(request, token, firmante_token=None):
         return JsonResponse({"error": "JSON inválido."}, status=400)
 
     ip_user = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR'))
-    proceso = get_object_or_404(ProcesoFirma, token_acceso=token)
+    proceso = _get_proceso_por_token_or_404(token)
     if proceso.status == 'CANCELLED':
         return JsonResponse({"error": "Documento cancelado."}, status=403)
 
     firmantes_lista = _normalizar_firmantes(proceso.firmantes)
     indice_turno = _indice_pendiente_actual(proceso, firmantes_lista)
     if not firmantes_lista or indice_turno is None:
-        proceso.firmantes = firmantes_lista
-        proceso.indice_actual = len(firmantes_lista) + 1
-        proceso.status = 'COMPLETED'
-        proceso.save()
+        _actualizar_proceso_firma_mongo(
+            proceso,
+            firmantes=firmantes_lista,
+            indice_actual=len(firmantes_lista) + 1,
+            status='COMPLETED',
+        )
         return JsonResponse({"status": "success", "msg": "El proceso ya estaba completo."})
 
     indices_turno = _indices_firmas_en_turno(firmantes_lista, indice_turno)
@@ -477,8 +536,8 @@ def procesar_firma(request, token, firmante_token=None):
     try:
         pin_ingresado = data.get('pin')
         if pin_ingresado:
-            colaborador = DirectorioFirmas.objects.filter(email=email_firmante).first()
-            if not colaborador or not colaborador.check_pin(pin_ingresado):
+            colaborador = _mongo_find_one(DirectorioFirmas, {'email': email_firmante})
+            if not colaborador or not check_password(pin_ingresado, getattr(colaborador, 'pin_hash', '')):
                 return JsonResponse({"error": "PIN incorrecto."}, status=403)
             firma_b64 = colaborador.firma_base64
         else:
@@ -507,12 +566,16 @@ def procesar_firma(request, token, firmante_token=None):
                                   nombre, ip_user, coords)
             firmante['fecha_firma'] = fecha_firma
 
-        proceso.firmantes = firmantes_lista
         siguiente_idx = _primer_indice_pendiente(firmantes_lista, 0)
-        proceso.indice_actual = siguiente_idx + 1 if siguiente_idx is not None else len(firmantes_lista) + 1
+        indice_actual = siguiente_idx + 1 if siguiente_idx is not None else len(firmantes_lista) + 1
 
         if siguiente_idx is not None:
-            proceso.save()
+            _actualizar_proceso_firma_mongo(
+                proceso,
+                firmantes=firmantes_lista,
+                valores_capturados=_json_or_default(proceso.valores_capturados, {}),
+                indice_actual=indice_actual,
+            )
             siguiente = firmantes_lista[siguiente_idx]
             link_firma = f"https://dsign.raloy.com.mx/firmar/{proceso.token_acceso}/{siguiente.get('token_firmante', '')}/"
             try:
@@ -524,8 +587,13 @@ def procesar_firma(request, token, firmante_token=None):
             crear_notificacion_firma(siguiente.get('email'), proceso.reference_id, "Es tu turno de firmar.")
             return JsonResponse({"status": "success", "msg": "Firma guardada."})
 
-        proceso.status = 'COMPLETED'
-        proceso.save()
+        _actualizar_proceso_firma_mongo(
+            proceso,
+            firmantes=firmantes_lista,
+            valores_capturados=_json_or_default(proceso.valores_capturados, {}),
+            indice_actual=indice_actual,
+            status='COMPLETED',
+        )
 
         todos_los_correos = [f.get('email') for f in firmantes_lista if f.get('email')]
         if proceso.owner_email:
@@ -577,7 +645,7 @@ def procesar_firma(request, token, firmante_token=None):
 
 
 def vista_trazabilidad(request, token):
-    proceso = get_object_or_404(ProcesoFirma, token_acceso=token)
+    proceso = _get_proceso_por_token_or_404(token)
     return render(request, 'motor_firmas/trazabilidad.html',
                   {'proceso': proceso, 'pdf_url': f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}"})
 
@@ -1039,10 +1107,9 @@ def admin_api(request, accion):
             AdministradorPortal.objects.create(email=data.get('email'))
             return JsonResponse({"status": "success", "msg": "Admin agregado."})
         elif accion == 'cancelar_doc':
-            doc = ProcesoFirma.objects.filter(token_acceso=data.get('token')).first()
+            doc = _mongo_find_proceso_by_token(data.get('token'))
             if doc:
-                doc.status = 'CANCELLED'
-                doc.save()
+                _actualizar_proceso_firma_mongo(doc, status='CANCELLED')
                 return JsonResponse({"status": "success"})
             return JsonResponse({"error": "No encontrado."}, status=404)
         elif accion == 'invitar_registro':
