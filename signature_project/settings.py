@@ -125,6 +125,13 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Djongo 1.3.6 falla en producción al traducir algunas consultas de
+# django_session. El portal solo guarda correos en sesión, así que usar cookies
+# firmadas evita depender de MongoDB para login/admin y PDFs.
+SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+
 # --- MONKEY PATCH PARA DJONGO + PYMONGO 4+ / PYTHON 3.12 ---
 # Corrige errores de compatibilidad y revela el error original en DatabaseError
 try:
