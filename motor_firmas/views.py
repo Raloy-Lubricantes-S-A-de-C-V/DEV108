@@ -6,8 +6,9 @@ import re
 import uuid
 import shutil
 from datetime import datetime
+from types import SimpleNamespace
 from django.conf import settings
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, Http404
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
@@ -25,6 +26,8 @@ N8N_WEBHOOK_INVITAR_REGISTRO = "https://n8n.raloy.com.mx/webhook/invitar-registr
 N8N_WEBHOOK_ANALIZAR_PLANTILLA = "https://n8n.raloy.com.mx/webhook/analizar-plantilla"
 N8N_WEBHOOK_PREPARAR_DIR = "https://n8n.raloy.com.mx/webhook/preparar-directorio"
 N8N_WEBHOOK_SUBIR_PDF_USUARIO = "https://n8n.raloy.com.mx/webhook/subir-pdf-usuario"
+
+_MONGO_CLIENT = None
 
 
 def _default_json_value(default):
@@ -112,6 +115,78 @@ def _indice_por_token(firmantes, firmante_token):
     for idx, firmante in enumerate(firmantes):
         if str(firmante.get('token_firmante', '')) == str(firmante_token):
             return idx
+    return None
+
+
+def _uuid_text(value):
+    if value in (None, ''):
+        return ''
+    if isinstance(value, uuid.UUID):
+        return str(value)
+    if isinstance(value, str):
+        return value
+
+    raw = None
+    if hasattr(value, 'bytes'):
+        raw = value.bytes
+    elif isinstance(value, (bytes, bytearray)):
+        raw = bytes(value)
+
+    if raw and len(raw) == 16:
+        try:
+            return str(uuid.UUID(bytes=raw))
+        except (TypeError, ValueError):
+            pass
+    return str(value)
+
+
+def _mongo_database():
+    global _MONGO_CLIENT
+    db_conf = settings.DATABASES['default']
+    if _MONGO_CLIENT is None:
+        from pymongo import MongoClient
+        _MONGO_CLIENT = MongoClient(db_conf['CLIENT']['host'], serverSelectionTimeoutMS=5000)
+    return _MONGO_CLIENT[db_conf['NAME']]
+
+
+def _mongo_collection(model):
+    return _mongo_database()[model._meta.db_table]
+
+
+def _mongo_to_namespace(document):
+    data = dict(document)
+    data['id'] = data.get('id', data.get('_id'))
+    for field in ('token_acceso', 'id_documento', 'reset_token'):
+        if field in data:
+            data[field] = _uuid_text(data[field])
+    return SimpleNamespace(**data)
+
+
+def _mongo_find(model, query=None, sort=None):
+    cursor = _mongo_collection(model).find(query or {})
+    if sort:
+        cursor = cursor.sort(sort)
+    return [_mongo_to_namespace(doc) for doc in cursor]
+
+
+def _mongo_find_one(model, query=None):
+    document = _mongo_collection(model).find_one(query or {})
+    return _mongo_to_namespace(document) if document else None
+
+
+def _mongo_find_one_by_uuid_field(model, uuid_field, uuid_value, query=None):
+    expected = str(uuid_value)
+    for document in _mongo_find(model, query or {}):
+        if str(getattr(document, uuid_field, '')) == expected:
+            return document
+    return None
+
+
+def _mongo_find_one_by_id_text(model, id_value, query=None):
+    expected = str(id_value)
+    for document in _mongo_find(model, query or {}):
+        if str(getattr(document, 'id', '')) == expected:
+            return document
     return None
 
 
@@ -551,32 +626,20 @@ def solicitar_otp(request):
 def portal_dashboard(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
-    documentos = ProcesoFirma.objects.filter(owner_email=owner_email).order_by('-created_at')
+    documentos = _mongo_find(ProcesoFirma, {'owner_email': owner_email}, [('created_at', -1)])
     lista_docs = []
     for doc in documentos:
-        # Aseguramos que token_acceso sea un string (por temas de Binary en MongoDB)
-        if doc.token_acceso:
-            try:
-                if not isinstance(doc.token_acceso, (uuid.UUID, str)):
-                    val = doc.token_acceso
-                    if hasattr(val, 'bytes'): val = val.bytes
-                    doc.token_acceso = str(uuid.UUID(bytes=val))
-                else:
-                    doc.token_acceso = str(doc.token_acceso)
-            except:
-                doc.token_acceso = str(doc.token_acceso)
-
-        firmantes = _normalizar_firmantes(doc.firmantes)
+        firmantes = _normalizar_firmantes(getattr(doc, 'firmantes', []))
         tot = len(firmantes)
         hechas = sum(1 for f in firmantes if f.get('fecha_firma'))
         lista_docs.append({'proceso': doc, 'total_firmas': tot, 'firmas_hechas': hechas,
                            'porcentaje': int((hechas / tot) * 100) if tot > 0 else 0})
 
     dominio = owner_email.split('@')[1] if '@' in owner_email else ''
-    tiene_carpeta_dominio = CarpetaDominio.objects.filter(dominio=dominio).first() is not None
+    tiene_carpeta_dominio = _mongo_find_one(CarpetaDominio, {'dominio': dominio}) is not None
 
-    colaborador = DirectorioFirmas.objects.filter(email=owner_email).first()
-    permisos = colaborador.permisos_portal if colaborador and colaborador.permisos_portal else []
+    colaborador = _mongo_find_one(DirectorioFirmas, {'email': owner_email})
+    permisos = getattr(colaborador, 'permisos_portal', []) if colaborador else []
     permisos = _json_or_default(permisos, [])
 
     return render(request, 'motor_firmas/portal_dashboard.html', {
@@ -623,23 +686,7 @@ def portal_usar_plantilla(request, plantilla_id):
 def portal_pdfs_usuario(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
-    pdfs_qs = DocumentoPDFUsuario.objects.filter(owner_email=owner_email).order_by('-created_at')
-
-    pdfs = []
-    for p in pdfs_qs:
-        if p.id_documento:
-            try:
-                # Si es un objeto Binary de Djongo/MongoDB, intentamos convertirlo a UUID string
-                if not isinstance(p.id_documento, (uuid.UUID, str)):
-                    # Algunos drivers de MongoDB devuelven el UUID como bytes directamente o como objeto Binary
-                    val = p.id_documento
-                    if hasattr(val, 'bytes'): val = val.bytes
-                    p.id_documento = str(uuid.UUID(bytes=val))
-                else:
-                    p.id_documento = str(p.id_documento)
-            except Exception:
-                p.id_documento = str(p.id_documento)
-        pdfs.append(p)
+    pdfs = _mongo_find(DocumentoPDFUsuario, {'owner_email': owner_email}, [('created_at', -1)])
 
     return render(request, 'motor_firmas/portal_pdfs_usuario.html', {'pdfs': pdfs, 'owner_email': owner_email})
 
@@ -649,32 +696,21 @@ def eliminar_pdf_usuario(request, pdf_id):
     owner_email = request.session.get('owner_email')
     if not owner_email: return JsonResponse({"error": "No autorizado"}, status=403)
 
-    qs = DocumentoPDFUsuario.objects.none()
+    doc = _mongo_find_one_by_uuid_field(DocumentoPDFUsuario, 'id_documento', pdf_id, {'owner_email': owner_email})
+    if doc is None:
+        doc = _mongo_find_one_by_id_text(DocumentoPDFUsuario, pdf_id, {'owner_email': owner_email})
 
-    try:
-        uid = uuid.UUID(pdf_id)
-        qs = DocumentoPDFUsuario.objects.filter(id_documento=uid, owner_email=owner_email)
-    except ValueError:
-        pass
-
-    if qs.first() is None:
-        try:
-            qs = DocumentoPDFUsuario.objects.filter(id=pdf_id, owner_email=owner_email)
-        except Exception:
-            pass
-
-    if qs.first() is not None:
-        doc = qs.first()
-        if doc.archivo_local:
-            full_path = os.path.join(settings.MEDIA_ROOT, doc.archivo_local)
+    if doc is not None:
+        archivo_local = getattr(doc, 'archivo_local', None)
+        if archivo_local:
+            full_path = os.path.join(settings.MEDIA_ROOT, archivo_local)
             if os.path.exists(full_path):
                 try:
                     os.remove(full_path)
                 except:
                     pass
 
-        # SOLUCIÓN DE MONGODB APLICADA AQUÍ: Borrado por QuerySet en lugar de Instancia
-        qs.delete()
+        _mongo_collection(DocumentoPDFUsuario).delete_one({'_id': doc.id})
         return JsonResponse({"status": "success"})
 
     return JsonResponse({"error": "Documento no encontrado"}, status=404)
@@ -697,7 +733,7 @@ def subir_pdf_usuario(request):
     if not pdf_file: return JsonResponse({"error": "No se seleccionó ningún archivo PDF."}, status=400)
 
     dominio = owner_email.split('@')[1] if '@' in owner_email else ''
-    carpeta_dom = CarpetaDominio.objects.filter(dominio=dominio).first()
+    carpeta_dom = _mongo_find_one(CarpetaDominio, {'dominio': dominio})
     if not carpeta_dom: return JsonResponse(
         {"error": f"Tu dominio (@{dominio}) no tiene asignada una carpeta en Google Drive."}, status=400)
 
@@ -728,8 +764,10 @@ def subir_pdf_usuario(request):
 def portal_configurar_pdf(request, pdf_id):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
-    doc = get_object_or_404(DocumentoPDFUsuario, id_documento=pdf_id, owner_email=owner_email)
-    pdf_url = f"{settings.MEDIA_URL}{doc.archivo_local}"
+    doc = _mongo_find_one_by_uuid_field(DocumentoPDFUsuario, 'id_documento', pdf_id, {'owner_email': owner_email})
+    if not doc:
+        raise Http404("Documento PDF no encontrado")
+    pdf_url = f"{settings.MEDIA_URL}{getattr(doc, 'archivo_local', '')}"
     return render(request, 'motor_firmas/portal_configurar_pdf.html',
                   {'doc': doc, 'pdf_url': pdf_url, 'owner_email': owner_email})
 
@@ -745,14 +783,16 @@ def iniciar_firma_libre(request):
     except ValueError:
         return JsonResponse({"error": "JSON inválido."}, status=400)
 
-    doc = get_object_or_404(DocumentoPDFUsuario, id_documento=data.get('pdf_id'), owner_email=owner_email)
+    doc = _mongo_find_one_by_uuid_field(DocumentoPDFUsuario, 'id_documento', data.get('pdf_id'), {'owner_email': owner_email})
+    if not doc:
+        return JsonResponse({"error": "Documento no encontrado."}, status=404)
 
     firmantes = _normalizar_firmantes(data.get('firmantes', []))
     if not firmantes:
         return JsonResponse({"error": "Añade al menos un firmante."}, status=400)
     for f in firmantes: f['token_firmante'] = str(uuid.uuid4())
 
-    original_path = os.path.join(settings.MEDIA_ROOT, doc.archivo_local)
+    original_path = os.path.join(settings.MEDIA_ROOT, getattr(doc, 'archivo_local', ''))
     if not os.path.exists(original_path):
         return JsonResponse({"error": "El PDF original no existe en el servidor."}, status=400)
 
@@ -761,7 +801,7 @@ def iniciar_firma_libre(request):
     shutil.copyfile(original_path, final_path)
 
     dominio = owner_email.split('@')[1] if '@' in owner_email else ''
-    carpeta_dom = CarpetaDominio.objects.filter(dominio=dominio).first()
+    carpeta_dom = _mongo_find_one(CarpetaDominio, {'dominio': dominio})
 
     proceso = ProcesoFirma.objects.create(
         reference_id=ref_id, pdf_path=final_path, firmantes=firmantes, indice_actual=1,
@@ -790,7 +830,7 @@ def iniciar_firma_libre(request):
     # SOLUCIÓN DE MONGODB APLICADA AQUÍ: Borrado por QuerySet
     if os.path.exists(original_path):
         os.remove(original_path)
-    DocumentoPDFUsuario.objects.filter(id_documento=doc.id_documento).delete()
+    _mongo_collection(DocumentoPDFUsuario).delete_one({'_id': doc.id})
 
     return JsonResponse({"status": "success"})
 
