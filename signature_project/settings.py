@@ -126,19 +126,71 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- MONKEY PATCH PARA DJONGO + PYMONGO 4+ / PYTHON 3.12 ---
-# Corrige el error: NotImplementedError: Database objects do not implement truth value testing or bool()
+# Corrige errores de compatibilidad y revela el error original en DatabaseError
 try:
+    import logging
+    import traceback
+    import collections
+    
+    # 0. Parche para collections (Python 3.10+)
+    if not hasattr(collections, 'Iterable'):
+        import collections.abc
+        collections.Iterable = collections.abc.Iterable
+        collections.Mapping = collections.abc.Mapping
+        collections.MutableMapping = collections.abc.MutableMapping
+        collections.Sequence = collections.abc.Sequence
+        collections.Callable = collections.abc.Callable
+
+    from djongo.database import DatabaseError as DjongoDatabaseError
+    
     # 1. Parche global para PyMongo (evita que cualquier "if db:" falle)
     from pymongo.database import Database
     Database.__bool__ = lambda x: True
     
     # 2. Parche específico para Djongo DatabaseWrapper
     from djongo.base import DatabaseWrapper
-    original_close = DatabaseWrapper._close
-    def patched_close(self):
-        if self.connection is not None:
-            with self.wrap_database_errors:
-                self.connection.client.close()
-    DatabaseWrapper._close = patched_close
-except Exception:
-    pass
+    if not hasattr(DatabaseWrapper, '_patched'):
+        original_close = DatabaseWrapper._close
+        def patched_close(self):
+            if self.connection is not None:
+                with self.wrap_database_errors:
+                    self.connection.client.close()
+        DatabaseWrapper._close = patched_close
+        DatabaseWrapper._patched = True
+
+    # 3. Parche para Cursor: Revelar la causa real del DatabaseError y Logear a archivo
+    from djongo.cursor import Cursor
+    if not hasattr(Cursor, '_patched'):
+        def make_patched_method(original_method_name):
+            original_method = getattr(Cursor, original_method_name)
+            def patched(self, *args, **kwargs):
+                try:
+                    return original_method(self, *args, **kwargs)
+                except Exception as e:
+                    # Capturamos TODO el error para verlo en un archivo
+                    try:
+                        with open('/tmp/djongo_error.log', 'a') as f:
+                            f.write(f"\n--- ERROR EN {original_method_name.upper()} ---\n")
+                            f.write(f"Exception: {type(e).__name__}: {str(e)}\n")
+                            if hasattr(e, '__cause__') and e.__cause__:
+                                f.write(f"Cause: {type(e.__cause__).__name__}: {str(e.__cause__)}\n")
+                            f.write(traceback.format_exc())
+                            f.write("-" * 30 + "\n")
+                    except:
+                        pass
+                    
+                    # Si es un DatabaseError sin mensaje, intentamos lanzar la causa original
+                    if isinstance(e, DjongoDatabaseError) and not str(e):
+                        if hasattr(e, '__cause__') and e.__cause__:
+                            raise e.__cause__
+                    raise e
+            return patched
+
+        Cursor.execute = make_patched_method('execute')
+        Cursor.fetchone = make_patched_method('fetchone')
+        Cursor.fetchmany = make_patched_method('fetchmany')
+        Cursor.fetchall = make_patched_method('fetchall')
+        Cursor._patched = True
+        
+except Exception as e:
+    print(f"Error aplicando parches de Djongo: {e}")
