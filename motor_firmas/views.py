@@ -27,21 +27,117 @@ N8N_WEBHOOK_PREPARAR_DIR = "https://n8n.raloy.com.mx/webhook/preparar-directorio
 N8N_WEBHOOK_SUBIR_PDF_USUARIO = "https://n8n.raloy.com.mx/webhook/subir-pdf-usuario"
 
 
+def _default_json_value(default):
+    if isinstance(default, dict):
+        return {}
+    if isinstance(default, list):
+        return []
+    return default
+
+
+def _json_or_default(value, default):
+    parsed = value
+    if parsed in (None, ''):
+        return _default_json_value(default)
+
+    while isinstance(parsed, str):
+        try:
+            next_value = json.loads(parsed)
+        except (TypeError, ValueError):
+            return _default_json_value(default)
+        if next_value == parsed:
+            break
+        parsed = next_value
+
+    if isinstance(default, dict):
+        return parsed if isinstance(parsed, dict) else {}
+    if isinstance(default, list):
+        return parsed if isinstance(parsed, list) else []
+    return parsed
+
+
+def _normalizar_firmantes(firmantes):
+    firmantes = _json_or_default(firmantes, [])
+    return [f for f in firmantes if isinstance(f, dict)]
+
+
+def _normalizar_email(email):
+    return str(email or '').strip().lower()
+
+
+def _indice_actual_cero(proceso):
+    try:
+        return max(int(proceso.indice_actual or 1) - 1, 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _primer_indice_pendiente(firmantes, start_index=0):
+    for idx in range(max(start_index, 0), len(firmantes)):
+        if not firmantes[idx].get('fecha_firma'):
+            return idx
+    return None
+
+
+def _indice_pendiente_actual(proceso, firmantes):
+    start_index = _indice_actual_cero(proceso)
+    pending = _primer_indice_pendiente(firmantes, start_index)
+    if pending is not None:
+        return pending
+    return _primer_indice_pendiente(firmantes, 0)
+
+
+def _indices_firmas_en_turno(firmantes, start_index):
+    if start_index is None or start_index < 0 or start_index >= len(firmantes):
+        return []
+
+    correo_turno = _normalizar_email(firmantes[start_index].get('email'))
+    if not correo_turno:
+        return [start_index] if not firmantes[start_index].get('fecha_firma') else []
+
+    indices = []
+    for idx in range(start_index, len(firmantes)):
+        firmante = firmantes[idx]
+        if firmante.get('fecha_firma'):
+            continue
+        if _normalizar_email(firmante.get('email')) != correo_turno:
+            break
+        indices.append(idx)
+    return indices
+
+
+def _indice_por_token(firmantes, firmante_token):
+    if not firmante_token:
+        return None
+    for idx, firmante in enumerate(firmantes):
+        if str(firmante.get('token_firmante', '')) == str(firmante_token):
+            return idx
+    return None
+
+
 @csrf_exempt
 def recibir_documento_n8n(request):
+    if request.method != 'POST':
+        return JsonResponse({"error": "Método no permitido."}, status=405)
+
+    pdf_file = request.FILES.get('pdf_file')
+    if not pdf_file:
+        return JsonResponse({"error": "Archivo PDF requerido."}, status=400)
+
     if request.method == 'POST':
         try:
-            pdf_file = request.FILES.get('pdf_file')
-            data = json.loads(request.POST.get('data'))
+            data = json.loads(request.POST.get('data') or '{}')
             ref_id = data['reference_id']
-            firmantes = data['firmantes']
+            firmantes = _normalizar_firmantes(data.get('firmantes'))
+            if not firmantes:
+                return JsonResponse({"error": "Se requiere al menos un firmante."}, status=400)
             view_info = data.get('view_info', 'file')
-            summary_data = data.get('summary_data', {})
+            summary_data = _json_or_default(data.get('summary_data', {}), {})
             owner_email = data.get('owner', '')
             dir_drive = data.get('dir', '')
             exec_mode = data.get('exec', 'normal')
 
-            document_variables = data.get('variables_asignadas', data.get('document_variables', {}))
+            document_variables = _json_or_default(data.get('variables_asignadas', data.get('document_variables', {})), {})
 
             for f in firmantes:
                 if 'token_firmante' not in f: f['token_firmante'] = str(uuid.uuid4())
@@ -75,12 +171,12 @@ def recibir_documento_n8n(request):
             link_firma = f"https://dsign.raloy.com.mx/firmar/{proceso.token_acceso}/{primer_firmante.get('token_firmante', '')}/"
             try:
                 requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
-                              json={"email": primer_firmante['email'], "nombre": primer_firmante['nombre'],
+                              json={"email": primer_firmante.get('email'), "nombre": primer_firmante.get('nombre'),
                                     "link": link_firma,
                                     "mensaje": f"Raloy solicita tu firma electrónica para el documento {ref_id}."})
             except Exception as e:
                 print(f"Error en N8N_WEBHOOK_NOTIFICAR_CORREO: {e}")
-            crear_notificacion_firma(primer_firmante['email'], ref_id, f"Raloy solicita tu firma electrónica para el documento {ref_id}.")
+            crear_notificacion_firma(primer_firmante.get('email'), ref_id, f"Raloy solicita tu firma electrónica para el documento {ref_id}.")
 
             if owner_email:
                 link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
@@ -99,7 +195,12 @@ def recibir_documento_n8n(request):
 
 def vista_firma_ui(request, token, firmante_token=None):
     proceso = get_object_or_404(ProcesoFirma, token_acceso=token)
-    message_context = {'token': token, 'view_info': proceso.view_info, 'summary_data': proceso.summary_data,
+    firmantes = _normalizar_firmantes(proceso.firmantes)
+    summary_data = _json_or_default(proceso.summary_data, {})
+    valores_capturados = _json_or_default(proceso.valores_capturados, {})
+    indice_turno = _indice_pendiente_actual(proceso, firmantes)
+
+    message_context = {'token': token, 'view_info': proceso.view_info, 'summary_data': summary_data,
                        'pdf_url': f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}", 'is_message_view': True}
 
     if proceso.status == 'CANCELLED':
@@ -113,22 +214,29 @@ def vista_firma_ui(request, token, firmante_token=None):
                                 'message_body': 'Documento firmado en su totalidad.'})
         return render(request, 'motor_firmas/firma_ui.html', message_context)
 
+    if not firmantes or indice_turno is None:
+        message_context.update({'message_icon': '✅', 'message_color': '#10b981', 'message_title': 'Proceso Completado',
+                                'message_body': 'No hay firmas pendientes para este documento.'})
+        return render(request, 'motor_firmas/firma_ui.html', message_context)
+
+    indices_turno = _indices_firmas_en_turno(firmantes, indice_turno)
+
     if firmante_token:
-        firmante_actual = next((f for f in proceso.firmantes if f.get('token_firmante') == firmante_token), None)
-        if not firmante_actual: return HttpResponse("<h1>Enlace inválido.</h1>")
+        indice_token = _indice_por_token(firmantes, firmante_token)
+        if indice_token is None: return HttpResponse("<h1>Enlace inválido.</h1>")
+        firmante_actual = firmantes[indice_token]
         if firmante_actual.get('fecha_firma'):
             message_context.update({'message_icon': '✓', 'message_color': '#10b981', 'message_title': 'Ya has firmado',
                                     'message_body': 'Tu firma ya ha sido capturada.'})
             return render(request, 'motor_firmas/firma_ui.html', message_context)
 
-        firmante_esperado = proceso.firmantes[proceso.indice_actual - 1]
-        if firmante_actual.get('token_firmante') != firmante_esperado.get('token_firmante'):
+        if indice_token not in indices_turno:
             message_context.update(
                 {'message_icon': '⏳', 'message_color': '#f39c12', 'message_title': 'Aún no es tu turno',
                  'message_body': 'Te notificaremos cuando sea tu turno.'})
             return render(request, 'motor_firmas/firma_ui.html', message_context)
     else:
-        firmante_actual = proceso.firmantes[proceso.indice_actual - 1]
+        firmante_actual = firmantes[indice_turno]
 
     colaborador = DirectorioFirmas.objects.filter(email=firmante_actual.get('email')).first()
     
@@ -151,36 +259,25 @@ def vista_firma_ui(request, token, firmante_token=None):
             plantilla_encontrada = plantillas.first()
             
         if plantilla_encontrada and plantilla_encontrada.variables:
-            import json
-            vars_list = plantilla_encontrada.variables
-            
-            # Djongo might stringify or double-stringify the list
-            while isinstance(vars_list, str):
-                try:
-                    parsed = json.loads(vars_list)
-                    if parsed == vars_list: # Prevent infinite loop if string is not valid JSON array
-                        break
-                    vars_list = parsed
-                except:
-                    break
-                    
-            if not isinstance(vars_list, list):
-                vars_list = []
+            vars_list = _json_or_default(plantilla_encontrada.variables, [])
                     
             for v in vars_list:
                 if isinstance(v, dict):
-                    labels_map[v.get('key')] = v.get('label', v.get('key'))
+                    key = v.get('key')
+                    if not key:
+                        continue
+                    labels_map[key] = v.get('label', key)
                     if v.get('type') in ('option', 'seleccionable'):
                         if 'content-option' in v:
-                            content_option[v['key']] = v['content-option']
+                            content_option[key] = v['content-option']
                         elif 'content_options' in v:
-                            content_option[v['key']] = v['content_options']
+                            content_option[key] = v['content_options']
                         elif 'content_option' in v:
-                            content_option[v['key']] = v['content_option']
+                            content_option[key] = v['content_option']
                     
     # Fallback por si N8N lo mandó de otra forma en summary_data (Legacy)
-    if not content_option and proceso.summary_data:
-        co_raw = proceso.summary_data.get('content-option', proceso.summary_data.get('content_option', {}))
+    if not content_option and summary_data:
+        co_raw = summary_data.get('content-option', summary_data.get('content_option', {}))
         if isinstance(co_raw, dict):
             content_option = co_raw
         elif isinstance(co_raw, list):
@@ -190,20 +287,10 @@ def vista_firma_ui(request, token, firmante_token=None):
 
     campos_a_llenar = []
     if proceso.exec_mode == 'form':
-        import json
-        doc_vars = proceso.document_variables
-        while isinstance(doc_vars, str):
-            try:
-                parsed = json.loads(doc_vars)
-                if parsed == doc_vars: break
-                doc_vars = parsed
-            except:
-                break
-        if not isinstance(doc_vars, dict):
-            doc_vars = {}
+        doc_vars = _json_or_default(proceso.document_variables, {})
             
         for key, em in doc_vars.items():
-            if em == firmante_actual['email'] and key not in proceso.valores_capturados:
+            if _normalizar_email(em) == _normalizar_email(firmante_actual.get('email')) and key not in valores_capturados:
                 opciones = content_option.get(key)
                 if isinstance(opciones, str):
                      opciones = [o.strip() for o in opciones.split(',') if o.strip()]
@@ -216,12 +303,12 @@ def vista_firma_ui(request, token, firmante_token=None):
                     'options': opciones
                 })
 
-    cant_firmas = sum(1 for f in proceso.firmantes if f.get('email') == firmante_actual.get('email') and not f.get('fecha_firma'))
+    cant_firmas = len(indices_turno)
 
     context = {'token': token, 'firmante_token': firmante_token or '',
                'nombre_firmante': firmante_actual.get('nombre', 'Firmante'),
                'email_firmante': firmante_actual.get('email', ''), 'view_info': proceso.view_info,
-               'summary_data': proceso.summary_data,
+               'summary_data': summary_data,
                'pdf_url': f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}",
                'is_registered': bool(colaborador), 'campos_a_llenar': campos_a_llenar, 'is_message_view': False,
                'cant_firmas': cant_firmas}
@@ -230,105 +317,140 @@ def vista_firma_ui(request, token, firmante_token=None):
 
 @csrf_exempt
 def procesar_firma(request, token, firmante_token=None):
-    if request.method == 'POST':
-        data = json.loads(request.body)
-        ip_user = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR'))
-        proceso = get_object_or_404(ProcesoFirma, token_acceso=token)
-        if proceso.status == 'CANCELLED': return JsonResponse({"error": "Documento cancelado."}, status=403)
+    if request.method != 'POST':
+        return JsonResponse({"error": "Método no permitido."}, status=405)
 
-        firmante_esperado = proceso.firmantes[proceso.indice_actual - 1]
-        if firmante_token and firmante_token != firmante_esperado.get('token_firmante'): return JsonResponse(
-            {"error": "No es tu turno."}, status=403)
+    try:
+        data = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({"error": "JSON inválido."}, status=400)
 
-        try:
-            pin_ingresado = data.get('pin')
-            if pin_ingresado:
-                colaborador = DirectorioFirmas.objects.filter(email=firmante_esperado['email']).first()
-                if not colaborador or not colaborador.check_pin(pin_ingresado): return JsonResponse(
-                    {"error": "PIN incorrecto."}, status=403)
-                firma_b64 = colaborador.firma_base64
-            else:
-                firma_b64 = data.get('firma_base64')
-                if not firma_b64: return JsonResponse({"error": "Firma o PIN requerido."}, status=400)
+    ip_user = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR'))
+    proceso = get_object_or_404(ProcesoFirma, token_acceso=token)
+    if proceso.status == 'CANCELLED':
+        return JsonResponse({"error": "Documento cancelado."}, status=403)
 
-            if data.get('variables'):
-                proceso.valores_capturados.update(data.get('variables'))
-                estampar_variables_en_pdf(proceso.pdf_path, data.get('variables'))
-                proceso.save()
+    firmantes_lista = _normalizar_firmantes(proceso.firmantes)
+    indice_turno = _indice_pendiente_actual(proceso, firmantes_lista)
+    if not firmantes_lista or indice_turno is None:
+        proceso.firmantes = firmantes_lista
+        proceso.indice_actual = len(firmantes_lista) + 1
+        proceso.status = 'COMPLETED'
+        proceso.save()
+        return JsonResponse({"status": "success", "msg": "El proceso ya estaba completo."})
 
-            email_firmante = firmante_esperado['email']
-            firmantes_lista = list(proceso.firmantes)
-            
-            # Firmar todos los espacios correspondientes a este correo que no estén firmados aún
-            for idx, f in enumerate(firmantes_lista):
-                if f.get('email') == email_firmante and not f.get('fecha_firma'):
-                    coords = f.get('coordenadas')
-                    estampar_firma_en_pdf(proceso.pdf_path, firma_b64, idx + 1, email_firmante,
-                                          f['nombre'], ip_user, coords)
-                    f['fecha_firma'] = timezone.now().strftime("%d/%m/%Y %H:%M:%S")
-            
-            proceso.firmantes = firmantes_lista
+    indices_turno = _indices_firmas_en_turno(firmantes_lista, indice_turno)
+    if firmante_token:
+        indice_token = _indice_por_token(firmantes_lista, firmante_token)
+        if indice_token not in indices_turno:
+            return JsonResponse({"error": "No es tu turno."}, status=403)
 
-            # Avanzar el índice actual al siguiente firmante pendiente (que no haya firmado)
-            proceso.indice_actual += 1
-            while proceso.indice_actual <= len(proceso.firmantes) and proceso.firmantes[proceso.indice_actual - 1].get('fecha_firma'):
-                proceso.indice_actual += 1
-            
-            if proceso.indice_actual <= len(proceso.firmantes):
-                proceso.save()
-                siguiente = proceso.firmantes[proceso.indice_actual - 1]
-                link_firma = f"https://dsign.raloy.com.mx/firmar/{proceso.token_acceso}/{siguiente.get('token_firmante', '')}/"
-                try:
-                    requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
-                                  json={"email": siguiente['email'], "nombre": siguiente['nombre'], "link": link_firma,
-                                        "mensaje": "Es tu turno de firmar."})
-                except Exception as e:
-                    print(f"Error en N8N_WEBHOOK_NOTIFICAR_CORREO: {e}")
-                crear_notificacion_firma(siguiente['email'], proceso.reference_id, "Es tu turno de firmar.")
-                return JsonResponse({"status": "success", "msg": "Firma guardada."})
-            else:
-                proceso.status = 'COMPLETED'
-                proceso.save()
-                
-                # Regla de seguridad: Filtrar dominios externos.
-                todos_los_correos = [f['email'] for f in proceso.firmantes]
-                if proceso.owner_email:
-                    todos_los_correos.append(proceso.owner_email)
-                    
-                    # Notificar explícitamente a la cuenta que inició (owner)
-                    link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
-                    try:
-                        requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
-                                      json={"email": proceso.owner_email, "nombre": "Propietario", "link": link_trazabilidad,
-                                            "mensaje": "El documento que iniciaste ha sido firmado por todos y finalizado."})
-                    except Exception as e:
-                        print(f"Error notificando al owner por correo: {e}")
-                    crear_notificacion_firma(proceso.owner_email, proceso.reference_id, "El documento que iniciaste ha sido firmado por todos.")
-                
-                dominio_creador = proceso.owner_email.split('@')[1] if proceso.owner_email and '@' in proceso.owner_email else 'raloy.com.mx'
-                dominios_permitidos = {dominio_creador, 'raloy.com.mx', 'consorcionova.com'}
-                
-                correos_internos = [email for email in set(todos_los_correos) if any(email.endswith(d) for d in dominios_permitidos)]
-                correos = ",".join(correos_internos)
-                
-                with open(proceso.pdf_path, 'rb') as f:
-                    try:
-                        resp_n8n = requests.post(N8N_WEBHOOK_FINALIZAR_PROCESO,
-                                      data={"reference_id": proceso.reference_id, "status": "COMPLETED",
-                                            "correos_destino": correos, "folder_id": proceso.dir_drive}, files={
-                                "pdf_final": (f"{proceso.reference_id}_CERTIFICADO.pdf", f, "application/pdf")}, timeout=30)
-                                
-                        if resp_n8n.status_code != 200:
-                            print(f"Fallo en la comunicación con el webhook de finalización (N8N): {resp_n8n.text}")
-                    except Exception as e:
-                        print(f"Error en N8N_WEBHOOK_FINALIZAR_PROCESO: {e}")
-                
-                return JsonResponse({"status": "success"})
-        except Exception as e:
-            import traceback
-            error_details = traceback.format_exc()
-            print(error_details)
-            return JsonResponse({"error": f"Error interno en el sistema al certificar: {str(e)}"}, status=500)
+    firmante_esperado = firmantes_lista[indice_turno]
+    email_firmante = firmante_esperado.get('email')
+    if not email_firmante:
+        return JsonResponse({"error": "El firmante actual no tiene correo configurado."}, status=400)
+
+    backup_path = None
+    try:
+        pin_ingresado = data.get('pin')
+        if pin_ingresado:
+            colaborador = DirectorioFirmas.objects.filter(email=email_firmante).first()
+            if not colaborador or not colaborador.check_pin(pin_ingresado):
+                return JsonResponse({"error": "PIN incorrecto."}, status=403)
+            firma_b64 = colaborador.firma_base64
+        else:
+            firma_b64 = data.get('firma_base64')
+            if not firma_b64:
+                return JsonResponse({"error": "Firma o PIN requerido."}, status=400)
+
+        if not os.path.exists(proceso.pdf_path):
+            return JsonResponse({"error": "El PDF del proceso no existe en el servidor."}, status=400)
+        backup_path = f"{proceso.pdf_path}.{uuid.uuid4().hex}.bak"
+        shutil.copyfile(proceso.pdf_path, backup_path)
+
+        variables = _json_or_default(data.get('variables', {}), {})
+        if variables:
+            valores_capturados = _json_or_default(proceso.valores_capturados, {})
+            valores_capturados.update(variables)
+            proceso.valores_capturados = valores_capturados
+            estampar_variables_en_pdf(proceso.pdf_path, variables)
+
+        fecha_firma = timezone.now().strftime("%d/%m/%Y %H:%M:%S")
+        for idx in indices_turno:
+            firmante = firmantes_lista[idx]
+            coords = firmante.get('coordenadas')
+            nombre = firmante.get('nombre') or firmante_esperado.get('nombre') or 'Firmante'
+            estampar_firma_en_pdf(proceso.pdf_path, firma_b64, idx + 1, email_firmante,
+                                  nombre, ip_user, coords)
+            firmante['fecha_firma'] = fecha_firma
+
+        proceso.firmantes = firmantes_lista
+        siguiente_idx = _primer_indice_pendiente(firmantes_lista, 0)
+        proceso.indice_actual = siguiente_idx + 1 if siguiente_idx is not None else len(firmantes_lista) + 1
+
+        if siguiente_idx is not None:
+            proceso.save()
+            siguiente = firmantes_lista[siguiente_idx]
+            link_firma = f"https://dsign.raloy.com.mx/firmar/{proceso.token_acceso}/{siguiente.get('token_firmante', '')}/"
+            try:
+                requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
+                              json={"email": siguiente.get('email'), "nombre": siguiente.get('nombre'), "link": link_firma,
+                                    "mensaje": "Es tu turno de firmar."})
+            except Exception as e:
+                print(f"Error en N8N_WEBHOOK_NOTIFICAR_CORREO: {e}")
+            crear_notificacion_firma(siguiente.get('email'), proceso.reference_id, "Es tu turno de firmar.")
+            return JsonResponse({"status": "success", "msg": "Firma guardada."})
+
+        proceso.status = 'COMPLETED'
+        proceso.save()
+
+        todos_los_correos = [f.get('email') for f in firmantes_lista if f.get('email')]
+        if proceso.owner_email:
+            todos_los_correos.append(proceso.owner_email)
+
+            link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
+            try:
+                requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
+                              json={"email": proceso.owner_email, "nombre": "Propietario", "link": link_trazabilidad,
+                                    "mensaje": "El documento que iniciaste ha sido firmado por todos y finalizado."})
+            except Exception as e:
+                print(f"Error notificando al owner por correo: {e}")
+            crear_notificacion_firma(proceso.owner_email, proceso.reference_id, "El documento que iniciaste ha sido firmado por todos.")
+
+        dominio_creador = proceso.owner_email.split('@')[1] if proceso.owner_email and '@' in proceso.owner_email else 'raloy.com.mx'
+        dominios_permitidos = {dominio_creador, 'raloy.com.mx', 'consorcionova.com'}
+
+        correos_internos = [email for email in set(todos_los_correos) if any(email.endswith(d) for d in dominios_permitidos)]
+        correos = ",".join(correos_internos)
+
+        with open(proceso.pdf_path, 'rb') as f:
+            try:
+                resp_n8n = requests.post(N8N_WEBHOOK_FINALIZAR_PROCESO,
+                              data={"reference_id": proceso.reference_id, "status": "COMPLETED",
+                                    "correos_destino": correos, "folder_id": proceso.dir_drive}, files={
+                        "pdf_final": (f"{proceso.reference_id}_CERTIFICADO.pdf", f, "application/pdf")}, timeout=30)
+
+                if resp_n8n.status_code != 200:
+                    print(f"Fallo en la comunicación con el webhook de finalización (N8N): {resp_n8n.text}")
+            except Exception as e:
+                print(f"Error en N8N_WEBHOOK_FINALIZAR_PROCESO: {e}")
+
+        return JsonResponse({"status": "success"})
+    except Exception as e:
+        if backup_path and os.path.exists(backup_path):
+            try:
+                shutil.copyfile(backup_path, proceso.pdf_path)
+            except Exception as restore_error:
+                print(f"Error restaurando PDF tras fallo de firma: {restore_error}")
+        error_details = traceback.format_exc()
+        print(error_details)
+        return JsonResponse({"error": f"Error interno en el sistema al certificar: {str(e)}"}, status=500)
+    finally:
+        if backup_path and os.path.exists(backup_path):
+            try:
+                os.remove(backup_path)
+            except Exception:
+                pass
 
 
 def vista_trazabilidad(request, token):
@@ -355,16 +477,21 @@ def registro_firmas(request):
 
 @csrf_exempt
 def solicitar_recuperacion(request):
-    if request.method == 'POST':
-        colaborador = DirectorioFirmas.objects.filter(email=json.loads(request.body).get('email')).first()
-        if colaborador:
-            colaborador.generar_token_recuperacion()
-            try:
-                requests.post(N8N_WEBHOOK_RECUPERAR_PIN, json={"email": colaborador.email, "nombre": colaborador.nombre,
-                                                               "link": f"https://dsign.raloy.com.mx/recuperar-pin/{colaborador.reset_token}/"})
-            except Exception as e:
-                print(f"Error en N8N_WEBHOOK_RECUPERAR_PIN: {e}")
-        return JsonResponse({"status": "success"})
+    if request.method != 'POST':
+        return JsonResponse({"error": "Método no permitido."}, status=405)
+    try:
+        data = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({"error": "JSON inválido."}, status=400)
+    colaborador = DirectorioFirmas.objects.filter(email=data.get('email')).first()
+    if colaborador:
+        colaborador.generar_token_recuperacion()
+        try:
+            requests.post(N8N_WEBHOOK_RECUPERAR_PIN, json={"email": colaborador.email, "nombre": colaborador.nombre,
+                                                           "link": f"https://dsign.raloy.com.mx/recuperar-pin/{colaborador.reset_token}/"})
+        except Exception as e:
+            print(f"Error en N8N_WEBHOOK_RECUPERAR_PIN: {e}")
+    return JsonResponse({"status": "success"})
 
 
 @csrf_exempt
@@ -382,7 +509,10 @@ def resetear_pin(request, token):
 @csrf_exempt
 def portal_login(request):
     if request.method == 'POST':
-        data = json.loads(request.body)
+        try:
+            data = json.loads(request.body or '{}')
+        except ValueError:
+            return JsonResponse({"error": "JSON inválido."}, status=400)
         email, pin_ingresado = data.get('email'), data.get('pin')
         colaborador = DirectorioFirmas.objects.filter(email=email).first()
         otp_record = OTPLogin.objects.filter(email=email).first()
@@ -400,17 +530,22 @@ def portal_login(request):
 
 @csrf_exempt
 def solicitar_otp(request):
-    if request.method == 'POST':
-        email = json.loads(request.body).get('email')
-        if not email: return JsonResponse({"error": "Correo requerido"}, status=400)
-        otp_record, _ = OTPLogin.objects.get_or_create(email=email,
-                                                       defaults={'otp_code': '000', 'expires_at': timezone.now()})
-        otp_record.generar_otp()
-        try:
-            requests.post(N8N_WEBHOOK_ENVIAR_OTP, json={"email": email, "otp": otp_record.otp_code})
-        except Exception as e:
-            print(f"Error en N8N_WEBHOOK_ENVIAR_OTP: {e}")
-        return JsonResponse({"status": "success", "msg": "PIN temporal enviado."})
+    if request.method != 'POST':
+        return JsonResponse({"error": "Método no permitido."}, status=405)
+    try:
+        data = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({"error": "JSON inválido."}, status=400)
+    email = data.get('email')
+    if not email: return JsonResponse({"error": "Correo requerido"}, status=400)
+    otp_record, _ = OTPLogin.objects.get_or_create(email=email,
+                                                   defaults={'otp_code': '000', 'expires_at': timezone.now()})
+    otp_record.generar_otp()
+    try:
+        requests.post(N8N_WEBHOOK_ENVIAR_OTP, json={"email": email, "otp": otp_record.otp_code})
+    except Exception as e:
+        print(f"Error en N8N_WEBHOOK_ENVIAR_OTP: {e}")
+    return JsonResponse({"status": "success", "msg": "PIN temporal enviado."})
 
 
 def portal_dashboard(request):
@@ -431,8 +566,9 @@ def portal_dashboard(request):
             except:
                 doc.token_acceso = str(doc.token_acceso)
 
-        tot = len(doc.firmantes)
-        hechas = sum(1 for f in doc.firmantes if f.get('fecha_firma'))
+        firmantes = _normalizar_firmantes(doc.firmantes)
+        tot = len(firmantes)
+        hechas = sum(1 for f in firmantes if f.get('fecha_firma'))
         lista_docs.append({'proceso': doc, 'total_firmas': tot, 'firmas_hechas': hechas,
                            'porcentaje': int((hechas / tot) * 100) if tot > 0 else 0})
 
@@ -441,15 +577,7 @@ def portal_dashboard(request):
 
     colaborador = DirectorioFirmas.objects.filter(email=owner_email).first()
     permisos = colaborador.permisos_portal if colaborador and colaborador.permisos_portal else []
-    import json
-    while isinstance(permisos, str):
-        try:
-            parsed = json.loads(permisos)
-            if parsed == permisos: break
-            permisos = parsed
-        except:
-            break
-    if not isinstance(permisos, list): permisos = []
+    permisos = _json_or_default(permisos, [])
 
     return render(request, 'motor_firmas/portal_dashboard.html', {
         'owner_email': owner_email, 
@@ -468,7 +596,14 @@ def portal_plantillas(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
     todas = PlantillaFormulario.objects.all().order_by('-created_at')
-    permitidas = [p for p in todas if owner_email in p.usuarios_permitidos or p.owner_email == owner_email]
+    permitidas = []
+    for p in todas:
+        usuarios_permitidos = _json_or_default(p.usuarios_permitidos, [])
+        if owner_email in usuarios_permitidos or p.owner_email == owner_email:
+            p.usuarios_permitidos = usuarios_permitidos
+            p.variables = _json_or_default(p.variables, [])
+            p.firmantes_config = _json_or_default(p.firmantes_config, [])
+            permitidas.append(p)
     return render(request, 'motor_firmas/portal_plantillas.html',
                   {'plantillas': permitidas, 'owner_email': owner_email})
 
@@ -477,6 +612,9 @@ def portal_usar_plantilla(request, plantilla_id):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
     plantilla = get_object_or_404(PlantillaFormulario, id=plantilla_id)
+    plantilla.variables = _json_or_default(plantilla.variables, [])
+    plantilla.firmantes_config = _json_or_default(plantilla.firmantes_config, [])
+    plantilla.usuarios_permitidos = _json_or_default(plantilla.usuarios_permitidos, [])
     return render(request, 'motor_firmas/portal_usar_plantilla.html',
                   {'plantilla': plantilla, 'owner_email': owner_email})
 
@@ -552,37 +690,39 @@ def portal_subir_pdf(request):
 def subir_pdf_usuario(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return JsonResponse({"error": "No autenticado"}, status=403)
-    if request.method == 'POST':
-        pdf_file = request.FILES.get('pdf_file')
-        if not pdf_file: return JsonResponse({"error": "No se seleccionó ningún archivo PDF."}, status=400)
+    if request.method != 'POST':
+        return JsonResponse({"error": "Método no permitido."}, status=405)
 
-        dominio = owner_email.split('@')[1] if '@' in owner_email else ''
-        carpeta_dom = CarpetaDominio.objects.filter(dominio=dominio).first()
-        if not carpeta_dom: return JsonResponse(
-            {"error": f"Tu dominio (@{dominio}) no tiene asignada una carpeta en Google Drive."}, status=400)
+    pdf_file = request.FILES.get('pdf_file')
+    if not pdf_file: return JsonResponse({"error": "No se seleccionó ningún archivo PDF."}, status=400)
 
-        try:
-            files = {'data': (pdf_file.name, pdf_file.read(), 'application/pdf')}
-            pdf_file.seek(0)
-            resp = requests.post(N8N_WEBHOOK_SUBIR_PDF_USUARIO, data={'folder_id': carpeta_dom.drive_folder_id},
-                                 files=files, timeout=30).json()
+    dominio = owner_email.split('@')[1] if '@' in owner_email else ''
+    carpeta_dom = CarpetaDominio.objects.filter(dominio=dominio).first()
+    if not carpeta_dom: return JsonResponse(
+        {"error": f"Tu dominio (@{dominio}) no tiene asignada una carpeta en Google Drive."}, status=400)
 
-            if resp.get('status') == 'success':
-                safe_filename = f"{uuid.uuid4()}_{pdf_file.name}"
-                os.makedirs(os.path.join(settings.MEDIA_ROOT, 'pdfs_libres'), exist_ok=True)
-                local_path = os.path.join('pdfs_libres', safe_filename)
-                with open(os.path.join(settings.MEDIA_ROOT, local_path), 'wb+') as f:
-                    for chunk in pdf_file.chunks(): f.write(chunk)
+    try:
+        files = {'data': (pdf_file.name, pdf_file.read(), 'application/pdf')}
+        pdf_file.seek(0)
+        resp = requests.post(N8N_WEBHOOK_SUBIR_PDF_USUARIO, data={'folder_id': carpeta_dom.drive_folder_id},
+                             files=files, timeout=30).json()
 
-                nuevo_doc = DocumentoPDFUsuario.objects.create(
-                    nombre=pdf_file.name, drive_file_id=resp.get('file_id'), owner_email=owner_email,
-                    archivo_local=local_path
-                )
-                return JsonResponse({"status": "success", "nombre": pdf_file.name, "id": str(nuevo_doc.id_documento)})
-            else:
-                return JsonResponse({"error": "N8n falló al subir a Drive."})
-        except Exception as e:
-            return JsonResponse({"error": f"Error: {e}"})
+        if resp.get('status') == 'success':
+            safe_filename = f"{uuid.uuid4()}_{pdf_file.name}"
+            os.makedirs(os.path.join(settings.MEDIA_ROOT, 'pdfs_libres'), exist_ok=True)
+            local_path = os.path.join('pdfs_libres', safe_filename)
+            with open(os.path.join(settings.MEDIA_ROOT, local_path), 'wb+') as f:
+                for chunk in pdf_file.chunks(): f.write(chunk)
+
+            nuevo_doc = DocumentoPDFUsuario.objects.create(
+                nombre=pdf_file.name, drive_file_id=resp.get('file_id'), owner_email=owner_email,
+                archivo_local=local_path
+            )
+            return JsonResponse({"status": "success", "nombre": pdf_file.name, "id": str(nuevo_doc.id_documento)})
+        else:
+            return JsonResponse({"error": "N8n falló al subir a Drive."})
+    except Exception as e:
+        return JsonResponse({"error": f"Error: {e}"})
 
 
 def portal_configurar_pdf(request, pdf_id):
@@ -598,52 +738,61 @@ def portal_configurar_pdf(request, pdf_id):
 def iniciar_firma_libre(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return JsonResponse({"error": "No autorizado"}, status=403)
-    if request.method == 'POST':
-        data = json.loads(request.body)
-        doc = get_object_or_404(DocumentoPDFUsuario, id_documento=data['pdf_id'], owner_email=owner_email)
+    if request.method != 'POST':
+        return JsonResponse({"error": "Método no permitido."}, status=405)
+    try:
+        data = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({"error": "JSON inválido."}, status=400)
 
-        firmantes = data.get('firmantes', [])
-        for f in firmantes: f['token_firmante'] = str(uuid.uuid4())
+    doc = get_object_or_404(DocumentoPDFUsuario, id_documento=data.get('pdf_id'), owner_email=owner_email)
 
-        original_path = os.path.join(settings.MEDIA_ROOT, doc.archivo_local)
+    firmantes = _normalizar_firmantes(data.get('firmantes', []))
+    if not firmantes:
+        return JsonResponse({"error": "Añade al menos un firmante."}, status=400)
+    for f in firmantes: f['token_firmante'] = str(uuid.uuid4())
 
-        ref_id = f"LIBRE-{int(timezone.now().timestamp())}"
-        final_path = os.path.join(settings.MEDIA_ROOT, f"{ref_id}.pdf")
-        shutil.copyfile(original_path, final_path)
+    original_path = os.path.join(settings.MEDIA_ROOT, doc.archivo_local)
+    if not os.path.exists(original_path):
+        return JsonResponse({"error": "El PDF original no existe en el servidor."}, status=400)
 
-        dominio = owner_email.split('@')[1] if '@' in owner_email else ''
-        carpeta_dom = CarpetaDominio.objects.filter(dominio=dominio).first()
+    ref_id = f"LIBRE-{int(timezone.now().timestamp())}"
+    final_path = os.path.join(settings.MEDIA_ROOT, f"{ref_id}.pdf")
+    shutil.copyfile(original_path, final_path)
 
-        proceso = ProcesoFirma.objects.create(
-            reference_id=ref_id, pdf_path=final_path, firmantes=firmantes, indice_actual=1,
-            view_info="file", owner_email=owner_email, dir_drive=carpeta_dom.drive_folder_id if carpeta_dom else '',
-            exec_mode="libre"
-        )
+    dominio = owner_email.split('@')[1] if '@' in owner_email else ''
+    carpeta_dom = CarpetaDominio.objects.filter(dominio=dominio).first()
 
-        primer_firmante = firmantes[0]
-        link_firma = f"https://dsign.raloy.com.mx/firmar/{proceso.token_acceso}/{primer_firmante.get('token_firmante', '')}/"
-        try:
-            requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
-                          json={"email": primer_firmante['email'], "nombre": primer_firmante['nombre'], "link": link_firma,
-                                "mensaje": f"Raloy solicita tu firma para el documento libre {ref_id}."})
-        except Exception as e:
-            print(f"Error en N8N_WEBHOOK_NOTIFICAR_CORREO: {e}")
-        crear_notificacion_firma(primer_firmante['email'], ref_id, f"Raloy solicita tu firma para el documento libre {ref_id}.")
+    proceso = ProcesoFirma.objects.create(
+        reference_id=ref_id, pdf_path=final_path, firmantes=firmantes, indice_actual=1,
+        view_info="file", owner_email=owner_email, dir_drive=carpeta_dom.drive_folder_id if carpeta_dom else '',
+        exec_mode="libre"
+    )
 
-        link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
-        try:
-            requests.post(N8N_WEBHOOK_NOTIFICAR_OWNER,
-                          json={"email": owner_email, "reference_id": ref_id, "link": link_trazabilidad})
-        except Exception as e:
-            print(f"Error en N8N_WEBHOOK_NOTIFICAR_OWNER: {e}")
-        crear_notificacion_firma(owner_email, ref_id, f"Has iniciado el proceso de firma libre para {ref_id}.")
+    primer_firmante = firmantes[0]
+    link_firma = f"https://dsign.raloy.com.mx/firmar/{proceso.token_acceso}/{primer_firmante.get('token_firmante', '')}/"
+    try:
+        requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
+                      json={"email": primer_firmante.get('email'), "nombre": primer_firmante.get('nombre'), "link": link_firma,
+                            "mensaje": f"Raloy solicita tu firma para el documento libre {ref_id}."})
+    except Exception as e:
+        print(f"Error en N8N_WEBHOOK_NOTIFICAR_CORREO: {e}")
+    crear_notificacion_firma(primer_firmante.get('email'), ref_id, f"Raloy solicita tu firma para el documento libre {ref_id}.")
 
-        # SOLUCIÓN DE MONGODB APLICADA AQUÍ: Borrado por QuerySet
-        if os.path.exists(original_path):
-            os.remove(original_path)
-        DocumentoPDFUsuario.objects.filter(id_documento=doc.id_documento).delete()
+    link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
+    try:
+        requests.post(N8N_WEBHOOK_NOTIFICAR_OWNER,
+                      json={"email": owner_email, "reference_id": ref_id, "link": link_trazabilidad})
+    except Exception as e:
+        print(f"Error en N8N_WEBHOOK_NOTIFICAR_OWNER: {e}")
+    crear_notificacion_firma(owner_email, ref_id, f"Has iniciado el proceso de firma libre para {ref_id}.")
 
-        return JsonResponse({"status": "success"})
+    # SOLUCIÓN DE MONGODB APLICADA AQUÍ: Borrado por QuerySet
+    if os.path.exists(original_path):
+        os.remove(original_path)
+    DocumentoPDFUsuario.objects.filter(id_documento=doc.id_documento).delete()
+
+    return JsonResponse({"status": "success"})
 
 
 # ================= VISTAS DE ADMINISTRADOR =================
@@ -658,7 +807,10 @@ def admin_login(request):
             pj.save()
             
     if request.method == 'POST':
-        data = json.loads(request.body)
+        try:
+            data = json.loads(request.body or '{}')
+        except ValueError:
+            return JsonResponse({"error": "JSON inválido."}, status=400)
         email, pin_ingresado = data.get('email'), data.get('pin')
         if AdministradorPortal.objects.filter(email=email).first() is None: return JsonResponse(
             {"error": "No eres admin."}, status=403)
@@ -687,11 +839,13 @@ def admin_dashboard(request):
         from django.db.models import Q
         emails_asignados = list(DirectorioFirmas.objects.filter(tecnico_asignado=admin_email).values_list('email', flat=True))
         todos_docs = ProcesoFirma.objects.filter(Q(owner_email=admin_email) | Q(owner_email__in=emails_asignados)).order_by('-created_at')
-    docs_json = [{'reference_id': d.reference_id, 'token': str(d.token_acceso), 'owner_email': d.owner_email or 'N/A',
-                  'dominio': d.owner_email.split('@')[1] if d.owner_email and '@' in d.owner_email else 'N/A',
-                  'status': d.status, 'fecha': d.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-                  'progreso': f"{sum(1 for f in d.firmantes if f.get('fecha_firma'))}/{len(d.firmantes)}"} for d in
-                 todos_docs]
+    docs_json = []
+    for d in todos_docs:
+        firmantes = _normalizar_firmantes(d.firmantes)
+        docs_json.append({'reference_id': d.reference_id, 'token': str(d.token_acceso), 'owner_email': d.owner_email or 'N/A',
+                          'dominio': d.owner_email.split('@')[1] if d.owner_email and '@' in d.owner_email else 'N/A',
+                          'status': d.status, 'fecha': d.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                          'progreso': f"{sum(1 for f in firmantes if f.get('fecha_firma'))}/{len(firmantes)}"})
     if admin_obj.es_superadmin or admin_email == 'pjimenezb@raloy.com.mx':
         plantillas = PlantillaFormulario.objects.all().order_by('-created_at')
     else:
@@ -717,6 +871,9 @@ def admin_crear_plantilla(request):
 def admin_editar_plantilla(request, plantilla_id):
     if not request.session.get('admin_email'): return redirect('admin_login')
     plantilla = get_object_or_404(PlantillaFormulario, id=plantilla_id)
+    plantilla.variables = _json_or_default(plantilla.variables, [])
+    plantilla.firmantes_config = _json_or_default(plantilla.firmantes_config, [])
+    plantilla.usuarios_permitidos = _json_or_default(plantilla.usuarios_permitidos, [])
     return render(request, 'motor_firmas/admin_editar_plantilla.html',
                   {'admin_email': request.session.get('admin_email'), 'plantilla': plantilla})
 
@@ -727,7 +884,10 @@ def admin_api(request, accion):
     admin_actual = AdministradorPortal.objects.filter(email=request.session.get('admin_email')).first()
     
     if request.method == 'POST':
-        data = json.loads(request.body)
+        try:
+            data = json.loads(request.body or '{}')
+        except ValueError:
+            return JsonResponse({"error": "JSON inválido."}, status=400)
         
         if accion == 'actualizar_usuario':
             u_id = data.get('id')
@@ -904,12 +1064,7 @@ def admin_usuarios_detalle(request, usuario_id):
         
     tecnicos = AdministradorPortal.objects.all()
     
-    permisos = usuario.permisos_portal
-    import json
-    if isinstance(permisos, str):
-        try: permisos = json.loads(permisos)
-        except: permisos = []
-    if not isinstance(permisos, list): permisos = []
+    permisos = _json_or_default(usuario.permisos_portal, [])
 
     return render(request, 'motor_firmas/admin_usuarios_detalle.html', {
         'admin_email': admin_email,
@@ -940,30 +1095,34 @@ def dev036_check_alerts(request):
     DEV036 (El Apéndice): Motor de escucha y procesador de alertas pendientes.
     Consulta la colección gestionada por DEV108 (signatures_master).
     """
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            email = data.get('email')
-            if not email:
-                return JsonResponse({"has_new_signature": False, "error": "Email is required"}, status=400)
-            
-            from .models import SignaturesMaster
-            nuevas = SignaturesMaster.objects.filter(
-                user_email=email,
-                notification_enabled=True,
-                notified_to_mobile=False
-            )
-            primer_registro = nuevas.first()
-            if primer_registro:
-                ref_id = primer_registro.reference_id
-                # Acción Atómica: actualizar estado
-                nuevas.update(notified_to_mobile=True)
-                return JsonResponse({"has_new_signature": True, "reference_id": ref_id})
-            else:
-                return JsonResponse({"has_new_signature": False})
-        except Exception as e:
-            return JsonResponse({"has_new_signature": False, "error": str(e)}, status=500)
-    return JsonResponse({"error": "Método no permitido"}, status=405)
+    if request.method != 'POST':
+        return JsonResponse({"error": "Método no permitido"}, status=405)
+    try:
+        data = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({"has_new_signature": False, "error": "JSON inválido."}, status=400)
+
+    try:
+        email = data.get('email')
+        if not email:
+            return JsonResponse({"has_new_signature": False, "error": "Email is required"}, status=400)
+
+        from .models import SignaturesMaster
+        nuevas = SignaturesMaster.objects.filter(
+            user_email=email,
+            notification_enabled=True,
+            notified_to_mobile=False
+        )
+        primer_registro = nuevas.first()
+        if primer_registro:
+            ref_id = primer_registro.reference_id
+            # Acción Atómica: actualizar estado
+            nuevas.update(notified_to_mobile=True)
+            return JsonResponse({"has_new_signature": True, "reference_id": ref_id})
+        else:
+            return JsonResponse({"has_new_signature": False})
+    except Exception as e:
+        return JsonResponse({"has_new_signature": False, "error": str(e)}, status=500)
 
 
 @csrf_exempt
@@ -973,33 +1132,36 @@ def check_notifications(request):
     """
     import requests
     import os
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            email = data.get('email')
-            if not email:
-                return JsonResponse({"error": "Email is required"}, status=400)
-                
-            # Proxy Síncrono a DEV036
-            dev036_url = os.environ.get('DEV036_URL')
-            
-            if not dev036_url:
-                # Anti-fallos: Si no está definida la URL del microservicio externo DEV036,
-                # utilizamos la función interna de respaldo de manera síncrona.
-                return dev036_check_alerts(request)
-            
-            # Timeout de no más de 5 segundos según protocolo
-            response = requests.post(
-                dev036_url,
-                json={"email": email},
-                timeout=5
-            )
-            response.raise_for_status()
-            return JsonResponse(response.json())
-            
-        except requests.exceptions.Timeout:
-            return JsonResponse({"has_new_signature": False, "error": "Timeout DEV036"}, status=504)
-        except Exception as e:
-            return JsonResponse({"has_new_signature": False, "error": str(e)}, status=500)
-            
-    return JsonResponse({"error": "Método no permitido"}, status=405)
+    if request.method != 'POST':
+        return JsonResponse({"error": "Método no permitido"}, status=405)
+    try:
+        data = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({"has_new_signature": False, "error": "JSON inválido."}, status=400)
+
+    try:
+        email = data.get('email')
+        if not email:
+            return JsonResponse({"error": "Email is required"}, status=400)
+
+        # Proxy Síncrono a DEV036
+        dev036_url = os.environ.get('DEV036_URL')
+
+        if not dev036_url:
+            # Anti-fallos: Si no está definida la URL del microservicio externo DEV036,
+            # utilizamos la función interna de respaldo de manera síncrona.
+            return dev036_check_alerts(request)
+
+        # Timeout de no más de 5 segundos según protocolo
+        response = requests.post(
+            dev036_url,
+            json={"email": email},
+            timeout=5
+        )
+        response.raise_for_status()
+        return JsonResponse(response.json())
+
+    except requests.exceptions.Timeout:
+        return JsonResponse({"has_new_signature": False, "error": "Timeout DEV036"}, status=504)
+    except Exception as e:
+        return JsonResponse({"has_new_signature": False, "error": str(e)}, status=500)
