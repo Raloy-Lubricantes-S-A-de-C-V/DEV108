@@ -744,17 +744,23 @@ def subir_pdf_usuario(request):
                              files=files, timeout=30).json()
 
         if resp.get('status') == 'success':
+            id_documento = str(uuid.uuid4())
             safe_filename = f"{uuid.uuid4()}_{pdf_file.name}"
             os.makedirs(os.path.join(settings.MEDIA_ROOT, 'pdfs_libres'), exist_ok=True)
             local_path = os.path.join('pdfs_libres', safe_filename)
             with open(os.path.join(settings.MEDIA_ROOT, local_path), 'wb+') as f:
                 for chunk in pdf_file.chunks(): f.write(chunk)
 
-            nuevo_doc = DocumentoPDFUsuario.objects.create(
-                nombre=pdf_file.name, drive_file_id=resp.get('file_id'), owner_email=owner_email,
-                archivo_local=local_path
-            )
-            return JsonResponse({"status": "success", "nombre": pdf_file.name, "id": str(nuevo_doc.id_documento)})
+            _mongo_collection(DocumentoPDFUsuario).insert_one({
+                'id_documento': id_documento,
+                'nombre': pdf_file.name,
+                'drive_file_id': resp.get('file_id'),
+                'owner_email': owner_email,
+                'archivo_local': local_path,
+                'enviado_a_firma': False,
+                'created_at': timezone.now().replace(tzinfo=None),
+            })
+            return JsonResponse({"status": "success", "nombre": pdf_file.name, "id": id_documento})
         else:
             return JsonResponse({"error": "N8n falló al subir a Drive."})
     except Exception as e:
