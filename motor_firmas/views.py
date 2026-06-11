@@ -145,7 +145,11 @@ def _mongo_database():
     db_conf = settings.DATABASES['default']
     if _MONGO_CLIENT is None:
         from pymongo import MongoClient
-        _MONGO_CLIENT = MongoClient(db_conf['CLIENT']['host'], serverSelectionTimeoutMS=5000)
+        _MONGO_CLIENT = MongoClient(
+            db_conf['CLIENT']['host'],
+            serverSelectionTimeoutMS=5000,
+            uuidRepresentation='pythonLegacy',
+        )
     return _MONGO_CLIENT[db_conf['NAME']]
 
 
@@ -190,6 +194,49 @@ def _mongo_find_one_by_id_text(model, id_value, query=None):
     return None
 
 
+def _mongo_next_int_id(model):
+    document = _mongo_collection(model).find_one(
+        {'id': {'$exists': True}},
+        sort=[('id', -1)],
+        projection={'id': True},
+    )
+    try:
+        return int(document.get('id', 0)) + 1 if document else 1
+    except (TypeError, ValueError):
+        return 1
+
+
+def _mongo_json_field(value, default):
+    value = _json_or_default(value, default)
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _crear_proceso_firma_mongo(
+        reference_id, pdf_path, firmantes, indice_actual=1, status='PROCESSING',
+        view_info='file', summary_data=None, dir_drive='', exec_mode='normal',
+        document_variables=None, valores_capturados=None, owner_email=''):
+    token_acceso = uuid.uuid4()
+    document = {
+        'id': _mongo_next_int_id(ProcesoFirma),
+        'reference_id': reference_id,
+        'token_acceso': token_acceso,
+        'pdf_path': pdf_path,
+        'firmantes': _mongo_json_field(firmantes, []),
+        'indice_actual': indice_actual,
+        'status': status,
+        'view_info': view_info,
+        'summary_data': _mongo_json_field(summary_data, {}),
+        'dir_drive': dir_drive,
+        'exec_mode': exec_mode,
+        'document_variables': _mongo_json_field(document_variables, {}),
+        'valores_capturados': _mongo_json_field(valores_capturados, {}),
+        'owner_email': owner_email,
+        'created_at': timezone.now().replace(tzinfo=None),
+    }
+    _mongo_collection(ProcesoFirma).insert_one(document)
+    return _mongo_to_namespace(document)
+
+
 @csrf_exempt
 def recibir_documento_n8n(request):
     if request.method != 'POST':
@@ -222,12 +269,12 @@ def recibir_documento_n8n(request):
             if match:
                 base_name, num_str = match.group(1), match.group(2)
                 num_len, current_num = len(num_str), int(num_str)
-                while ProcesoFirma.objects.filter(reference_id=ref_id).first() is not None:
+                while _mongo_find_one(ProcesoFirma, {'reference_id': ref_id}) is not None:
                     current_num += 1
                     ref_id = f"{base_name}{str(current_num).zfill(num_len)}"
             else:
                 counter = 1
-                while ProcesoFirma.objects.filter(reference_id=ref_id).first() is not None:
+                while _mongo_find_one(ProcesoFirma, {'reference_id': ref_id}) is not None:
                     ref_id = f"{original_ref_id}-{counter}"
                     counter += 1
 
@@ -236,10 +283,11 @@ def recibir_documento_n8n(request):
             with open(file_path, 'wb+') as destination:
                 for chunk in pdf_file.chunks(): destination.write(chunk)
 
-            proceso = ProcesoFirma.objects.create(
-                reference_id=ref_id, pdf_path=file_path, firmantes=firmantes, indice_actual=1,
-                view_info=view_info, summary_data=summary_data, owner_email=owner_email,
-                dir_drive=dir_drive, exec_mode=exec_mode, document_variables=document_variables
+            proceso = _crear_proceso_firma_mongo(
+                reference_id=ref_id, pdf_path=file_path, firmantes=firmantes,
+                indice_actual=1, view_info=view_info, summary_data=summary_data,
+                owner_email=owner_email, dir_drive=dir_drive, exec_mode=exec_mode,
+                document_variables=document_variables
             )
 
             primer_firmante = firmantes[0]
@@ -803,16 +851,20 @@ def iniciar_firma_libre(request):
         return JsonResponse({"error": "El PDF original no existe en el servidor."}, status=400)
 
     ref_id = f"LIBRE-{int(timezone.now().timestamp())}"
+    counter = 1
+    while _mongo_find_one(ProcesoFirma, {'reference_id': ref_id}) is not None:
+        ref_id = f"LIBRE-{int(timezone.now().timestamp())}-{counter}"
+        counter += 1
     final_path = os.path.join(settings.MEDIA_ROOT, f"{ref_id}.pdf")
     shutil.copyfile(original_path, final_path)
 
     dominio = owner_email.split('@')[1] if '@' in owner_email else ''
     carpeta_dom = _mongo_find_one(CarpetaDominio, {'dominio': dominio})
 
-    proceso = ProcesoFirma.objects.create(
-        reference_id=ref_id, pdf_path=final_path, firmantes=firmantes, indice_actual=1,
-        view_info="file", owner_email=owner_email, dir_drive=carpeta_dom.drive_folder_id if carpeta_dom else '',
-        exec_mode="libre"
+    proceso = _crear_proceso_firma_mongo(
+        reference_id=ref_id, pdf_path=final_path, firmantes=firmantes,
+        indice_actual=1, view_info="file", owner_email=owner_email,
+        dir_drive=carpeta_dom.drive_folder_id if carpeta_dom else '', exec_mode="libre"
     )
 
     primer_firmante = firmantes[0]
