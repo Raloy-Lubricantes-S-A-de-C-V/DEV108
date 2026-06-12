@@ -45,7 +45,9 @@ def estampar_variables_en_pdf(pdf_path, variables_dict):
         doc.close()
 
 
-def estampar_firma_en_pdf(pdf_path, signature_b64, signer_index, email_user, nombre_user, ip_user, coordenadas=None):
+def estampar_firma_en_pdf(
+        pdf_path, signature_b64, signer_index, email_user, nombre_user, ip_user,
+        coordenadas=None, registro=None, fecha_firma=None, hash_documento=None):
     """
     Soporta dos modos:
     1. Por Coordenadas (Drag & Drop): Si se pasa el dict 'coordenadas' con 'x', 'y' y 'page' (en porcentajes).
@@ -101,7 +103,7 @@ def estampar_firma_en_pdf(pdf_path, signature_b64, signer_index, email_user, nom
     temp_path = pdf_path.replace(".pdf", "_temp.pdf")
     doc.save(temp_path)
     with open(temp_path, "rb") as f:
-        document_hash = hashlib.sha256(f.read()).hexdigest()
+        document_hash = hash_documento or hashlib.sha256(f.read()).hexdigest()
 
     if signer_index == 1:
         audit_page = doc.new_page()
@@ -111,7 +113,7 @@ def estampar_firma_en_pdf(pdf_path, signature_b64, signer_index, email_user, nom
         audit_page = doc[-1]
 
     y_inicio = 80 + ((signer_index - 1) * 120)
-    timestamp = datetime.utcnow().isoformat() + "Z"
+    timestamp = fecha_firma or (datetime.utcnow().isoformat() + "Z")
 
     if signer_index > 1: audit_page.draw_line(fitz.Point(50, y_inicio - 15), fitz.Point(550, y_inicio - 15),
                                               color=(0.8, 0.8, 0.8), width=1)
@@ -121,42 +123,68 @@ def estampar_firma_en_pdf(pdf_path, signature_b64, signer_index, email_user, nom
     audit_page.insert_text((50, y_inicio + 40), f"Dirección IP Origen: {ip_user}", fontsize=10, fontname="helv")
     audit_page.insert_text((50, y_inicio + 60), f"Sello de Tiempo (UTC): {timestamp}", fontsize=10, fontname="helv")
     audit_page.insert_text((50, y_inicio + 80), f"SHA-256 Checksum: {document_hash}", fontsize=8, fontname="helv")
+    if registro:
+        audit_page.insert_text((50, y_inicio + 100), f"Registro/Folio: {registro}", fontsize=8, fontname="helv")
 
     import shutil
     final_temp_path = pdf_path.replace(".pdf", "_final_temp.pdf")
     doc.save(final_temp_path)
     doc.close()
     shutil.move(final_temp_path, pdf_path)
+    return document_hash
 import os
 import traceback
 from django.conf import settings
+from django.utils import timezone
+
+
+def _normalizar_email(email):
+    return str(email or '').strip().lower()
+
 
 def crear_notificacion_firma(user_email, reference_id, message_body=""):
     from .models import DirectorioFirmas, SignatureNotification, SignaturesMaster
     try:
-        user = DirectorioFirmas.objects.filter(email=user_email).first()
+        email_norm = _normalizar_email(user_email)
+        if not email_norm:
+            return False
+
+        user = DirectorioFirmas.objects.filter(email=email_norm).first()
         if not user or not user.notificar_celular:
             return False
 
-        SignatureNotification.objects.create(
-            user_email=user_email,
+        pending = SignatureNotification.objects.filter(
+            user_email=email_norm,
             reference_id=str(reference_id),
             status='pending',
             processed=False
-        )
+        ).first()
+
+        if pending:
+            pending.created_at = timezone.now()
+            pending.save()
+        else:
+            SignatureNotification.objects.create(
+                user_email=email_norm,
+                reference_id=str(reference_id),
+                status='pending',
+                processed=False
+            )
         
         # Integración DEV108/DEV036: Registro maestro
-        SignaturesMaster.objects.update_or_create(
-            reference_id=str(reference_id),
-            defaults={
-                'user_email': user_email,
-                'status': 'pending',
-                'notification_enabled': True,
-                'notified_to_mobile': False,
-            }
-        )
+        master = SignaturesMaster.objects.filter(reference_id=str(reference_id)).first()
+        if not master or _normalizar_email(master.user_email) == email_norm:
+            SignaturesMaster.objects.update_or_create(
+                reference_id=str(reference_id),
+                defaults={
+                    'user_email': email_norm,
+                    'status': 'pending',
+                    'notification_enabled': True,
+                    'notified_to_mobile': False,
+                }
+            )
         
-        print(f"Notificación MongoDB registrada para {user_email} (Ref: {reference_id})")
+        print(f"Notificación MongoDB registrada para {email_norm} (Ref: {reference_id})")
         return True
     except Exception as e:
         print("Error creando notificación MongoDB:", e)

@@ -100,12 +100,11 @@ def _indices_firmas_en_turno(firmantes, start_index):
         return [start_index] if not firmantes[start_index].get('fecha_firma') else []
 
     indices = []
-    for idx in range(start_index, len(firmantes)):
-        firmante = firmantes[idx]
+    for idx, firmante in enumerate(firmantes):
         if firmante.get('fecha_firma'):
             continue
         if _normalizar_email(firmante.get('email')) != correo_turno:
-            break
+            continue
         indices.append(idx)
     return indices
 
@@ -117,6 +116,41 @@ def _indice_por_token(firmantes, firmante_token):
         if str(firmante.get('token_firmante', '')) == str(firmante_token):
             return idx
     return None
+
+
+def _copiar_evidencia_firma(firmante, data, fecha_firma, ip_user, document_hash=None):
+    firmante['fecha_firma'] = fecha_firma
+    if ip_user:
+        firmante['ip'] = ip_user
+    if document_hash:
+        firmante['hash'] = data.get('hash') or document_hash
+
+    for field in ('registro', 'firma_digital', 'signature', 'signature_base64', 'device', 'metadata'):
+        value = data.get(field)
+        if value not in (None, ''):
+            firmante[field] = value
+
+
+def _marcar_notificaciones_firma(reference_id, email):
+    email_norm = _normalizar_email(email)
+    if not email_norm:
+        return
+
+    try:
+        from .models import SignatureNotification, SignaturesMaster
+
+        SignatureNotification.objects.filter(
+            reference_id=str(reference_id),
+            user_email=email_norm,
+            status='pending',
+        ).update(status='signed', processed=True)
+
+        SignaturesMaster.objects.filter(
+            reference_id=str(reference_id),
+            user_email=email_norm,
+        ).update(status='signed', notification_enabled=False, notified_to_mobile=True)
+    except Exception as e:
+        print(f"Error marcando notificaciones firmadas para {email_norm} ({reference_id}): {e}")
 
 
 def _uuid_text(value):
@@ -528,7 +562,7 @@ def procesar_firma(request, token, firmante_token=None):
             return JsonResponse({"error": "No es tu turno."}, status=403)
 
     firmante_esperado = firmantes_lista[indice_turno]
-    email_firmante = firmante_esperado.get('email')
+    email_firmante = _normalizar_email(firmante_esperado.get('email'))
     if not email_firmante:
         return JsonResponse({"error": "El firmante actual no tiene correo configurado."}, status=400)
 
@@ -562,9 +596,21 @@ def procesar_firma(request, token, firmante_token=None):
             firmante = firmantes_lista[idx]
             coords = firmante.get('coordenadas')
             nombre = firmante.get('nombre') or firmante_esperado.get('nombre') or 'Firmante'
-            estampar_firma_en_pdf(proceso.pdf_path, firma_b64, idx + 1, email_firmante,
-                                  nombre, ip_user, coords)
-            firmante['fecha_firma'] = fecha_firma
+            document_hash = estampar_firma_en_pdf(
+                proceso.pdf_path,
+                firma_b64,
+                idx + 1,
+                email_firmante,
+                nombre,
+                ip_user,
+                coords,
+                registro=data.get('registro'),
+                fecha_firma=fecha_firma,
+                hash_documento=data.get('hash'),
+            )
+            _copiar_evidencia_firma(firmante, data, fecha_firma, ip_user, document_hash)
+
+        _marcar_notificaciones_firma(proceso.reference_id, email_firmante)
 
         siguiente_idx = _primer_indice_pendiente(firmantes_lista, 0)
         indice_actual = siguiente_idx + 1 if siguiente_idx is not None else len(firmantes_lista) + 1

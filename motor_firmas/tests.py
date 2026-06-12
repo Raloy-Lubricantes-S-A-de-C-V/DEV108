@@ -30,7 +30,7 @@ class SignatureTurnHelpersTest(SimpleTestCase):
         self.assertEqual(indices_turno, [0, 1])
         self.assertIn(_indice_por_token(firmantes, 'b'), indices_turno)
 
-    def test_same_email_after_other_pending_signer_waits_for_later_turn(self):
+    def test_same_email_after_other_pending_signer_shares_turn(self):
         firmantes = [
             {'email': 'uno@example.com', 'token_firmante': 'a'},
             {'email': 'dos@example.com', 'token_firmante': 'b'},
@@ -41,8 +41,8 @@ class SignatureTurnHelpersTest(SimpleTestCase):
         indice = _indice_pendiente_actual(proceso, firmantes)
         indices_turno = _indices_firmas_en_turno(firmantes, indice)
 
-        self.assertEqual(indices_turno, [0])
-        self.assertNotIn(_indice_por_token(firmantes, 'c'), indices_turno)
+        self.assertEqual(indices_turno, [0, 2])
+        self.assertIn(_indice_por_token(firmantes, 'c'), indices_turno)
 
     def test_pending_index_recovers_when_saved_index_points_to_signed_row(self):
         firmantes = [
