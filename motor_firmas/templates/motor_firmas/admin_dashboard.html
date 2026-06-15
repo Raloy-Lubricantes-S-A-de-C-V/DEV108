@@ -1,12 +1,10 @@
-<!DOCTYPE html>
-
-<html class="light" lang="es"><head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<!DOCTYPE html><html class="light" lang="es" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
 <title>Panel de Administración - Raloy</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
 <script id="tailwind-config">
         tailwind.config = {
             darkMode: "class",
@@ -99,20 +97,18 @@
     </style>
 </head>
 <body class="bg-background">
-<header class="glass-header px-8 py-4 mb-8">
+<header class="bg-[#0f172a] text-white px-8 py-4 mb-8 sticky top-0 z-50 shadow-lg">
 <div class="max-w-[1600px] mx-auto flex justify-between items-center">
 <div class="flex items-center gap-4">
-<div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-<span class="material-symbols-outlined text-white">dashboard</span>
-</div>
-<h1 class="text-xl font-display font-bold text-primary tracking-tight">Panel de Administración Global</h1>
+<img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAv7dgWWtMZ7QYIUxIsHThvENIEYYKjdtqHYNpn_97j5lZfnK8P64gn-D-SOr_AktwS6a8pKRpe-GJefkzUeHB_13fv12SRbvNQPFWsKJjeDWFVydC7GJjPf2HmrUmDOv6VjG92DBUnzYA_b-QqPlW_dgHW_UN_YmTxmFrk3w_dZSTm0dy_U8xE2vAcm93y0voc4M8Aknp3TtWaQswbyL_w7GD2-8_zNp1PDFSXKtG8vgZrFZgShe1GbKnxyiXq-SGa8suM4hYOr9c" alt="Raloy Logo" class="w-8 h-8 object-contain">
+<h1 class="text-xl font-display font-bold text-white tracking-tight">Panel de Administración Global</h1>
 </div>
 <div class="flex items-center gap-6">
 <div class="text-right">
-<p class="text-xs text-on-surface-variant font-medium">Administrador</p>
-<p class="text-sm font-semibold text-primary">{{ admin_email }}</p>
+<p class="text-xs text-slate-400 font-medium">Administrador</p>
+<p class="text-sm font-semibold text-white">{{ admin_email }}</p>
 </div>
-<a class="px-4 py-2 text-sm font-bold text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors" href="{% url 'admin_logout' %}">
+<a class="px-4 py-2 text-sm font-bold text-white bg-red-600/80 hover:bg-red-600 rounded-lg transition-all border border-red-500/50" href="{% url 'admin_logout' %}">
                 Cerrar Sesión
             </a>
 </div>
@@ -145,7 +141,7 @@
 </div>
 <div class="flex flex-col gap-1.5">
 <label class="text-xs font-bold text-on-surface-variant uppercase">Folio</label>
-<input class="form-input text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2.5" id="filFolio" placeholder="Ej. CONTRATO-001" type="text"/>
+<input class="form-input text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2.5" id="filFolio" placeholder="Ej. CONTRATO-001" type="text">
 </div>
 <div class="flex flex-col gap-1.5">
 <label class="text-xs font-bold text-on-surface-variant uppercase">Dominio</label>
@@ -155,24 +151,24 @@
 </div>
 <div class="flex flex-col gap-1.5">
 <label class="text-xs font-bold text-on-surface-variant uppercase">Desde</label>
-<input class="form-input text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2.5" id="filFechaIni" type="date"/>
+<input class="form-input text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2.5" id="filFechaIni" type="date">
 </div>
 <div class="flex flex-col gap-1.5">
 <label class="text-xs font-bold text-on-surface-variant uppercase">Hasta</label>
-<input class="form-input text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2.5" id="filFechaFin" type="date"/>
+<input class="form-input text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2.5" id="filFechaFin" type="date">
 </div>
 </div>
 <div class="table-container border border-outline-variant rounded-xl overflow-hidden">
 <table id="docTable">
 <thead>
 <tr>
-<th>Folio</th>
-<th>Creador</th>
-<th>Dominio</th>
-<th>Fecha</th>
-<th>Progreso</th>
-<th>Estado</th>
-<th>Acciones</th>
+<th class="">Folio</th>
+<th class="">Creador</th>
+<th class="">Dominio</th>
+<th class="">Fecha</th>
+<th class="">Progreso</th>
+<th class="">Estado</th>
+<th class="">Acciones</th>
 </tr>
 </thead>
 <tbody id="tableBody">
@@ -227,12 +223,12 @@
 <div class="space-y-4 mb-6">
 <div class="space-y-1">
 <label class="text-[11px] font-bold text-on-surface-variant uppercase">Dominio</label>
-<input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-2.5" id="inpDominio" list="listaDominios" placeholder="Ej. raloy.com.mx" type="text"/>
+<input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-2.5" id="inpDominio" list="listaDominios" placeholder="Ej. raloy.com.mx" type="text">
 <datalist id="listaDominios"></datalist>
 </div>
 <div class="space-y-1">
 <label class="text-[11px] font-bold text-on-surface-variant uppercase">ID Google Drive</label>
-<input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-2.5" id="inpDriveDom" placeholder="1bDP1Q..." type="text"/>
+<input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-2.5" id="inpDriveDom" placeholder="1bDP1Q..." type="text">
 </div>
 <button class="btn-primary w-full py-3 rounded-lg text-sm font-bold" onclick="guardarCarpetaDominio()">Guardar Carpeta</button>
 </div>
@@ -248,7 +244,7 @@
 <h3 class="font-display font-bold text-primary">Invitar a Firma</h3>
 </div>
 <div class="space-y-4">
-<input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-2.5" id="invMail" placeholder="correo@ejemplo.com" type="email"/>
+<input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-2.5" id="invMail" placeholder="correo@ejemplo.com" type="email">
 <button class="btn-primary w-full py-3 rounded-lg text-sm font-bold" onclick="ejecutarAccion('invitar_registro', {email: document.getElementById('invMail').value})">Enviar Invitación</button>
 </div>
 </div>
@@ -467,4 +463,31 @@
 
     init();
 </script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<footer class="border-t border-outline-variant bg-white py-8 mt-12">
+    <div class="max-w-[1600px] mx-auto px-8 flex flex-col md:flex-row justify-between items-center gap-4">
+        <p class="text-sm text-on-surface-variant font-medium">
+            © 2026 Raloy Lubricantes. Todos los derechos reservados.
+        </p>
+        <div class="flex gap-6">
+            <a href="#" class="text-xs text-slate-400 hover:text-primary transition-colors">Términos y Condiciones</a>
+            <a href="#" class="text-xs text-slate-400 hover:text-primary transition-colors">Aviso de Privacidad</a>
+            <a href="#" class="text-xs text-slate-400 hover:text-primary transition-colors">Soporte Técnico</a>
+        </div>
+    </div>
+</footer>
+
 </body></html>
