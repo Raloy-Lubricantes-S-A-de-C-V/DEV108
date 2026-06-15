@@ -1,78 +1,190 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Acceso Administrador - Raloy</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
-        h2 { color: #0056b3; margin-top: 0; }
-        .form-group { margin-bottom: 15px; text-align: left; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
-        input[type="email"], input[type="password"] { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-size: 1rem;}
-        input[type="password"] { letter-spacing: 3px; text-align: center; font-size: 1.2rem; }
-        .btn-submit { background-color: #0056b3; color: white; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1.1rem; margin-top: 10px; transition: 0.2s;}
-        .btn-submit:hover { background-color: #004494; }
-        .btn-otp { background-color: transparent; color: #666; border: 1px solid #ccc; padding: 10px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 0.9rem; margin-top: 15px; transition: 0.2s;}
-        .btn-otp:hover { background-color: #f1f1f1; }
-    </style>
-</head>
-<body>
-<div class="card">
-    <h2>Panel de Administración</h2>
-    <p style="color: #666; font-size: 0.9rem; margin-bottom: 20px;">Acceso restringido. Ingresa tus credenciales para administrar el portal de firmas.</p>
-
-    <div class="form-group">
-        <label>Correo Administrativo:</label>
-        <input type="email" id="email" placeholder="ejemplo@raloy.com.mx" required>
-    </div>
-
-    <div class="form-group">
-        <label>PIN de Seguridad:</label>
-        <input type="password" id="pin" placeholder="****" required maxlength="6">
-    </div>
-
-    <button class="btn-submit" id="btnLogin" onclick="iniciarSesion()">Ingresar al Panel</button>
-
-    <div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
-        <p style="font-size: 0.85rem; color: #777; margin: 0 0 10px 0;">¿No tienes tu PIN a la mano?</p>
-        <button class="btn-otp" id="btnOtp" onclick="pedirOTP()">Enviar PIN Temporal por Correo</button>
-    </div>
-</div>
-
+<!DOCTYPE html><html class="h-full bg-[#f8f9fa]" lang="es" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Acceso Admin - Raloy</title>
+<!-- Load Tailwind CSS v3 with relevant plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration for Design System -->
 <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#2c3e50', // Navy-like primary from design system custom_color
+            surface: '#f8f9fa',
+            'surface-dim': '#d9dadb',
+            'raloy-blue': '#0056b3', // Branding blue
+          },
+          borderRadius: {
+            'eight': '8px',
+          },
+          fontFamily: {
+            sans: ['Hanken Grotesk', 'sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
+<!-- Load Google Fonts: Hanken Grotesk -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style data-purpose="custom-typography">
+    body {
+      font-family: 'Hanken Grotesk', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .pin-input {
+      letter-spacing: 0.5em;
+      text-align: center;
+    }
+  </style>
+<style data-purpose="card-styling">
+    .admin-card {
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+      border: 1px solid rgba(0, 0, 0, 0.05);
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col items-center justify-center p-4">
+<!-- BEGIN: AdminLoginContainer -->
+<main class="w-full max-w-md" data-purpose="admin-login-card">
+<!-- Branding Logo Area -->
+<div class="mb-8 flex justify-center"><div class="bg-primary p-4 rounded-eight flex items-center justify-center gap-2 shadow-md"><svg class="w-8 h-8" fill="none" stroke="white" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path><path d="M14 2V8H20" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path><path d="M16 13L11 18L8 15" stroke="#fed023" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg><span class="text-white font-bold text-lg tracking-widest uppercase">ADMIN</span></div></div>
+<!-- Login Form Card -->
+<section class="bg-white admin-card rounded-eight p-8 md:p-10">
+<div class="text-center mb-8">
+<h1 class="text-2xl font-bold text-primary mb-2">Acceso Admin - Raloy</h1>
+<p class="text-sm text-gray-500">Ingresa tus credenciales para gestionar el portal de firmas.</p>
+</div>
+<form class="space-y-6" onsubmit="return false;">
+<!-- Email Field -->
+<div class="space-y-2">
+<label class="block text-sm font-semibold text-gray-700" for="email">Correo Administrativo</label>
+<input class="block w-full px-4 py-3 border-gray-200 rounded-eight focus:ring-primary focus:border-primary transition-colors text-sm" id="email" placeholder="ejemplo@raloy.com.mx" required="" type="email">
+</div>
+<!-- PIN Field -->
+<div class="space-y-2">
+<label class="block text-sm font-semibold text-gray-700" for="pin">PIN de Seguridad</label>
+<input class="pin-input block w-full px-4 py-3 border-gray-200 rounded-eight focus:ring-primary focus:border-primary transition-colors text-lg font-bold" id="pin" maxlength="6" placeholder="••••" required="" type="password">
+</div>
+<!-- Primary Action Button -->
+<button class="w-full bg-primary hover:bg-slate-800 text-white font-bold py-3.5 rounded-eight transition-all transform active:scale-[0.98] shadow-md" id="btnLogin" onclick="iniciarSesion()">
+          Ingresar al Panel
+        </button>
+</form>
+<!-- Secondary Actions -->
+<div class="mt-8 pt-6 border-t border-gray-100 text-center">
+<p class="text-xs text-gray-400 mb-3 uppercase tracking-widest font-semibold">¿Problemas de acceso?</p>
+<button class="text-sm font-medium text-gray-600 hover:text-primary transition-colors flex items-center justify-center gap-2 mx-auto" id="btnOtp" onclick="pedirOTP()">
+<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+          Solicitar PIN temporal por correo
+        </button>
+</div>
+</section>
+<!-- Footer Note -->
+<footer class="mt-8 text-center text-xs text-gray-400">© 2026 Raloy Lubricantes. Todos los derechos reservados. <br> Sistema de Firma Electrónica Segura.</footer>
+</main>
+<!-- END: AdminLoginContainer -->
+<!-- BEGIN: LogicScripts -->
+<script data-purpose="auth-logic">
+    /**
+     * Handles the login process by validating fields and sending a request to the server.
+     */
     function iniciarSesion() {
-        const email = document.getElementById('email').value;
-        const pin = document.getElementById('pin').value;
-        if(!email || !pin) return alert("Completa ambos campos");
+      const email = document.getElementById('email').value;
+      const pin = document.getElementById('pin').value;
 
-        const btn = document.getElementById('btnLogin');
-        btn.disabled = true; btn.innerText = "Verificando...";
+      if (!email || !pin) {
+        alert("Por favor, completa todos los campos requeridos.");
+        return;
+      }
 
-        fetch('{% url "admin_login" %}', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email, pin: pin })
-        }).then(r => r.json()).then(data => {
-            if(data.status === 'success') window.location.href = "{% url 'admin_dashboard' %}";
-            else { alert(data.error); btn.disabled = false; btn.innerText = "Ingresar al Panel"; }
-        });
+      const btn = document.getElementById('btnLogin');
+      const originalText = btn.innerText;
+
+      btn.disabled = true;
+      btn.innerHTML = `
+        <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Verificando...
+      `;
+
+      // Mock of fetch call based on original code structure
+      fetch('{% url "admin_login" %}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, pin: pin })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === 'success') {
+          window.location.href = "{% url 'admin_dashboard' %}";
+        } else {
+          alert(data.error || "Error de autenticación. Intente de nuevo.");
+          btn.disabled = false;
+          btn.innerText = originalText;
+        }
+      })
+      .catch(err => {
+        // Fallback for environment without backend or network error
+        console.error("Auth Error:", err);
+        btn.disabled = false;
+        btn.innerText = originalText;
+        alert("Error al conectar con el servidor.");
+      });
     }
 
+    /**
+     * Requests a One-Time PIN to be sent to the user's email.
+     */
     function pedirOTP() {
-        const email = document.getElementById('email').value;
-        if(!email) return alert("Ingresa tu correo administrativo arriba.");
-        const btn = document.getElementById('btnOtp');
-        btn.disabled = true; btn.innerText = "Enviando...";
+      const email = document.getElementById('email').value;
+      if (!email) {
+        alert("Ingresa tu correo administrativo para recibir el PIN.");
+        document.getElementById('email').focus();
+        return;
+      }
 
-        fetch('{% url "solicitar_otp" %}', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email })
-        }).then(r => r.json()).then(data => {
-            alert(data.msg || data.error);
-            btn.innerText = "PIN Temporal Enviado";
-        });
+      const btn = document.getElementById('btnOtp');
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerText = "Solicitando...";
+
+      fetch('{% url "solicitar_otp" %}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email })
+      })
+      .then(r => r.json())
+      .then(data => {
+        alert(data.msg || data.error || "Se ha enviado un PIN temporal a tu correo.");
+        btn.innerText = "PIN Temporal Enviado";
+        btn.classList.add('text-green-600');
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.innerHTML = originalText;
+          btn.classList.remove('text-green-600');
+        }, 5000);
+      })
+      .catch(err => {
+        console.error("OTP Error:", err);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      });
     }
-</script>
-</body>
-</html>
+  </script>
+<!-- END: LogicScripts -->
+
+
+
+
+
+
+
+
+</body></html>
