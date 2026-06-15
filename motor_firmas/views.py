@@ -138,17 +138,31 @@ def _marcar_notificaciones_firma(reference_id, email):
 
     try:
         from .models import SignatureNotification, SignaturesMaster
+        now = timezone.now().replace(tzinfo=None)
 
-        SignatureNotification.objects.filter(
-            reference_id=str(reference_id),
-            user_email=email_norm,
-            status='pending',
-        ).update(status='signed', processed=True)
+        _mongo_collection(SignatureNotification).update_many(
+            {
+                'reference_id': str(reference_id),
+                'user_email': email_norm,
+                'status': 'pending',
+            },
+            {'$set': {'status': 'signed', 'processed': True}},
+        )
 
-        SignaturesMaster.objects.filter(
-            reference_id=str(reference_id),
-            user_email=email_norm,
-        ).update(status='signed', notification_enabled=False, notified_to_mobile=True)
+        _mongo_collection(SignaturesMaster).update_many(
+            {
+                'reference_id': str(reference_id),
+                'user_email': email_norm,
+            },
+            {
+                '$set': {
+                    'status': 'signed',
+                    'notification_enabled': False,
+                    'notified_to_mobile': True,
+                    'updated_at': now,
+                }
+            },
+        )
     except Exception as e:
         print(f"Error marcando notificaciones firmadas para {email_norm} ({reference_id}): {e}")
 
@@ -1314,21 +1328,31 @@ def dev036_check_alerts(request):
         return JsonResponse({"has_new_signature": False, "error": "JSON inválido."}, status=400)
 
     try:
-        email = data.get('email')
+        email = _normalizar_email(data.get('email'))
         if not email:
             return JsonResponse({"has_new_signature": False, "error": "Email is required"}, status=400)
 
         from .models import SignaturesMaster
-        nuevas = SignaturesMaster.objects.filter(
-            user_email=email,
-            notification_enabled=True,
-            notified_to_mobile=False
+        primer_registro = _mongo_collection(SignaturesMaster).find_one(
+            {
+                'user_email': email,
+                'notification_enabled': True,
+                'notified_to_mobile': False,
+            },
+            sort=[('id', 1)],
         )
-        primer_registro = nuevas.first()
         if primer_registro:
-            ref_id = primer_registro.reference_id
+            ref_id = primer_registro.get('reference_id')
             # Acción Atómica: actualizar estado
-            nuevas.update(notified_to_mobile=True)
+            _mongo_collection(SignaturesMaster).update_one(
+                {'_id': primer_registro['_id']},
+                {
+                    '$set': {
+                        'notified_to_mobile': True,
+                        'updated_at': timezone.now().replace(tzinfo=None),
+                    }
+                },
+            )
             return JsonResponse({"has_new_signature": True, "reference_id": ref_id})
         else:
             return JsonResponse({"has_new_signature": False})

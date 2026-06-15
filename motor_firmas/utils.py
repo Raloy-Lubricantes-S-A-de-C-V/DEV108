@@ -138,8 +138,106 @@ from django.conf import settings
 from django.utils import timezone
 
 
+_MONGO_CLIENT = None
+
+
 def _normalizar_email(email):
     return str(email or '').strip().lower()
+
+
+def _mongo_database():
+    global _MONGO_CLIENT
+    db_conf = settings.DATABASES['default']
+    if _MONGO_CLIENT is None:
+        from pymongo import MongoClient
+        _MONGO_CLIENT = MongoClient(
+            db_conf['CLIENT']['host'],
+            serverSelectionTimeoutMS=5000,
+            uuidRepresentation='pythonLegacy',
+        )
+    return _MONGO_CLIENT[db_conf['NAME']]
+
+
+def _mongo_collection(model):
+    return _mongo_database()[model._meta.db_table]
+
+
+def _mongo_next_int_id(model):
+    document = _mongo_collection(model).find_one(
+        {'id': {'$exists': True}},
+        sort=[('id', -1)],
+        projection={'id': True},
+    )
+    try:
+        return int(document.get('id', 0)) + 1 if document else 1
+    except (TypeError, ValueError):
+        return 1
+
+
+def _mongo_now():
+    return timezone.now().replace(tzinfo=None)
+
+
+def _usuario_tiene_notificacion_movil(DirectorioFirmas, email_norm):
+    user = DirectorioFirmas.objects.filter(email=email_norm).first()
+    return bool(user and user.notificar_celular)
+
+
+def _registrar_notificacion_pendiente(SignatureNotification, email_norm, reference_id):
+    collection = _mongo_collection(SignatureNotification)
+    reference_id = str(reference_id)
+    query = {
+        'user_email': email_norm,
+        'reference_id': reference_id,
+        'status': 'pending',
+        'processed': False,
+    }
+
+    if collection.find_one(query):
+        collection.update_one(query, {'$set': {'created_at': _mongo_now()}})
+        return
+
+    collection.insert_one({
+        'id': _mongo_next_int_id(SignatureNotification),
+        'user_email': email_norm,
+        'reference_id': reference_id,
+        'status': 'pending',
+        'created_at': _mongo_now(),
+        'processed': False,
+    })
+
+
+def _actualizar_registro_maestro(SignaturesMaster, email_norm, reference_id):
+    collection = _mongo_collection(SignaturesMaster)
+    reference_id = str(reference_id)
+    now = _mongo_now()
+    master = collection.find_one({'reference_id': reference_id})
+
+    debe_actualizar = (
+        master is None
+        or _normalizar_email(master.get('user_email')) == email_norm
+        or master.get('status') != 'pending'
+        or not master.get('notification_enabled', False)
+    )
+    if not debe_actualizar:
+        return
+
+    update_doc = {
+        'user_email': email_norm,
+        'status': 'pending',
+        'notification_enabled': True,
+        'notified_to_mobile': False,
+        'updated_at': now,
+    }
+    if master:
+        collection.update_one({'_id': master['_id']}, {'$set': update_doc})
+        return
+
+    update_doc.update({
+        'id': _mongo_next_int_id(SignaturesMaster),
+        'reference_id': reference_id,
+    })
+    collection.insert_one(update_doc)
 
 
 def crear_notificacion_firma(user_email, reference_id, message_body=""):
@@ -149,41 +247,14 @@ def crear_notificacion_firma(user_email, reference_id, message_body=""):
         if not email_norm:
             return False
 
-        user = DirectorioFirmas.objects.filter(email=email_norm).first()
-        if not user or not user.notificar_celular:
+        if not _usuario_tiene_notificacion_movil(DirectorioFirmas, email_norm):
             return False
 
-        pending = SignatureNotification.objects.filter(
-            user_email=email_norm,
-            reference_id=str(reference_id),
-            status='pending',
-            processed=False
-        ).first()
+        _registrar_notificacion_pendiente(SignatureNotification, email_norm, reference_id)
 
-        if pending:
-            pending.created_at = timezone.now()
-            pending.save()
-        else:
-            SignatureNotification.objects.create(
-                user_email=email_norm,
-                reference_id=str(reference_id),
-                status='pending',
-                processed=False
-            )
-        
         # Integración DEV108/DEV036: Registro maestro
-        master = SignaturesMaster.objects.filter(reference_id=str(reference_id)).first()
-        if not master or _normalizar_email(master.user_email) == email_norm:
-            SignaturesMaster.objects.update_or_create(
-                reference_id=str(reference_id),
-                defaults={
-                    'user_email': email_norm,
-                    'status': 'pending',
-                    'notification_enabled': True,
-                    'notified_to_mobile': False,
-                }
-            )
-        
+        _actualizar_registro_maestro(SignaturesMaster, email_norm, reference_id)
+
         print(f"Notificación MongoDB registrada para {email_norm} (Ref: {reference_id})")
         return True
     except Exception as e:
