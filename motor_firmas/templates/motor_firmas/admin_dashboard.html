@@ -1,173 +1,281 @@
 <!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Panel de Administración - Raloy</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background-color: #ecf0f1; margin: 0; padding: 20px; }
-        .topbar { background: #2c3e50; color: white; padding: 15px 30px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;}
-        .topbar h1 { margin: 0; font-size: 1.5rem; }
-        .btn-logout { background: #e74c3c; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; font-weight: bold;}
 
-        .grid-layout { display: grid; grid-template-columns: 3fr 1fr; gap: 20px; }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        .card h3 { margin-top: 0; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Panel de Administración - Raloy</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#162839", // Deep Navy
+                        "secondary": "#fed023", // Yellow
+                        "surface": "#ffffff",
+                        "background": "#ffffff",
+                        "on-surface-variant": "#43474c",
+                        "outline-variant": "#e1e3e4",
+                    },
+                    fontFamily: {
+                        "sans": ["Inter", "sans-serif"],
+                        "display": ["Hanken Grotesk", "sans-serif"],
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #ffffff; color: #1a1a1a; }
+        .glass-header {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(225, 227, 228, 0.5);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+        .card {
+            background: #ffffff;
+            border: 1px solid #e1e3e4;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease;
+        }
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+            padding: 16px;
+            color: #43474c;
+            border-bottom: 1px solid #e1e3e4;
+        }
+        td { padding: 16px; border-bottom: 1px solid #f1f3f4; font-size: 0.875rem; }
+        .btn-primary {
+            background-color: #162839;
+            color: white;
+            transition: all 0.2s;
+        }
+        .btn-primary:hover { background-color: #2c3e50; }
+        .btn-secondary {
+            background-color: #fed023;
+            color: #162839;
+            font-weight: 600;
+        }
+        .btn-secondary:hover { background-color: #eec209; }
+        .badge {
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .bg-processing { background: #fff9db; color: #8a6d3b; }
+        .bg-completed { background: #d3f9d8; color: #2b8a3e; }
+        .bg-cancelled { background: #ffe3e3; color: #c92a2a; }
 
-        .controls { display: flex; gap: 15px; margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 5px; align-items: flex-end; flex-wrap: wrap;}
-        .control-group { display: flex; flex-direction: column; flex: 1; min-width: 150px; }
-        .control-group label { font-size: 0.85rem; font-weight: bold; margin-bottom: 5px; color: #555;}
-        .control-group select, .control-group input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-        .btn-action { background: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;}
-        .btn-save { background: #27ae60; }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
-        th { background: #f8f9fa; color: #333; }
-        .group-header { background: #34495e; color: white; font-weight: bold; }
-
-        .badge { padding: 5px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
-        .bg-processing { background: #f1c40f; color: #8a6d3b; }
-        .bg-completed { background: #2ecc71; color: white; }
-        .bg-cancelled { background: #e74c3c; color: white; }
-
-        .btn-cancelar { color: #e74c3c; cursor: pointer; text-decoration: underline; background: none; border: none; font-weight:bold; }
-        .btn-traz { color: #3498db; text-decoration: none; font-weight: bold; margin-right: 10px;}
-
-        .side-input { width: 100%; padding: 10px; box-sizing: border-box; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px;}
-        .side-btn { width: 100%; padding: 10px; border: none; border-radius: 4px; color: white; font-weight: bold; cursor: pointer; background: #34495e;}
-        .side-btn-primary { display: block; text-align: center; text-decoration: none; background: #2980b9; margin-top: 10px; padding: 12px; border-radius: 4px; color: white; font-weight: bold;}
-        .side-btn-primary:hover { background: #2471a3; }
+        .group-header {
+            background: #f8f9fa;
+            color: #162839;
+            font-weight: 700;
+            font-size: 0.8rem;
+        }
     </style>
 </head>
-<body>
-
-<div class="topbar">
-    <h1>Panel de Administración Global</h1>
-    <div>
-        <span style="margin-right: 15px;">Admin: <strong>{{ admin_email }}</strong></span>
-        <a href="{% url 'admin_logout' %}" class="btn-logout">Cerrar Sesión</a>
-    </div>
+<body class="bg-background">
+<header class="glass-header px-8 py-4 mb-8">
+<div class="max-w-[1600px] mx-auto flex justify-between items-center">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-white">dashboard</span>
 </div>
-
-<div class="grid-layout">
-    <div>
-        <div class="card">
-            <h3>Visor de Documentos</h3>
-
-            <div class="controls">
-                <div class="control-group">
-                    <label>Agrupar por:</label>
-                    <select id="selGroup">
-                        <option value="none">Sin agrupación</option>
-                        <option value="dominio">Dominio Empresarial</option>
-                        <option value="owner_email">Usuario Específico (Dueño)</option>
-                        <option value="reference_id">Folio de Documento</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label>Buscar por Folio:</label>
-                    <input type="text" id="filFolio" placeholder="Ej. CONTRATO-001">
-                </div>
-                <div class="control-group">
-                    <label>Filtrar por Dominio:</label>
-                    <select id="filDominio"><option value="all">Todos</option></select>
-                </div>
-                <div class="control-group">
-                    <label>Fecha Desde:</label>
-                    <input type="date" id="filFechaIni">
-                </div>
-                <div class="control-group">
-                    <label>Fecha Hasta:</label>
-                    <input type="date" id="filFechaFin">
-                </div>
-                <button class="btn-action btn-save" onclick="guardarDiseno()" style="height: 35px; align-self: flex-end;">Guardar Diseño</button>
-            </div>
-
-            <table id="docTable">
-                <thead>
-                    <tr>
-                        <th>Folio</th>
-                        <th>Creador</th>
-                        <th>Dominio</th>
-                        <th>Fecha Creación</th>
-                        <th>Progreso</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody id="tableBody"></tbody>
-            </table>
-        </div>
-    </div>
-
-    <div>
-        <div class="card" style="border-left: 5px solid #2980b9;">
-            <h3>Gestión de Plantillas</h3>
-            <p style="font-size: 0.85rem; color:#666;">Crea nuevos flujos documentales y formularios dinámicos a partir de Google Docs.</p>
-            <a href="{% url 'admin_crear_plantilla' %}" class="side-btn-primary" style="margin-bottom: 15px;">+ Generar Formulario Nuevo</a>
-
-            <h4 style="margin-top: 20px; font-size: 0.95rem; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 5px;">Plantillas Creadas</h4>
-            <div style="max-height: 300px; overflow-y: auto;">
-                {% for p in plantillas %}
-                    <div style="background: #f8f9fa; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #e9ecef;">
-                        <strong style="display: block; font-size: 0.9rem; color: #333;">{{ p.nombre }}</strong>
-                        <span style="font-size: 0.75rem; color: #777;">Doc ID: {{ p.doc_id|slice:":12" }}...</span><br>
-                        <span style="font-size: 0.75rem; color: #777;">Creado por: {{ p.owner_email }}</span>
-
-                        <div style="margin-top: 8px; display: flex; gap: 15px;">
-                            <a href="{% url 'admin_editar_plantilla' p.id %}" style="font-size: 0.8rem; color: #f39c12; text-decoration: none; font-weight: bold;">✏️ Editar Plantilla</a>
-                            <a href="javascript:void(0);" onclick="eliminarPlantilla('{{ p.id }}')" style="font-size: 0.8rem; color: #e74c3c; text-decoration: none; font-weight: bold;">✖ Eliminar</a>
-                        </div>
-                    </div>
-                {% empty %}
-                    <p style="font-size: 0.85rem; color: #999; text-align: center; margin-top: 15px;">No hay plantillas creadas aún.</p>
-                {% endfor %}
-            </div>
-        </div>
-
-        <div class="card" style="border-left: 5px solid #8e44ad;">
-            <h3>Carpetas por Dominio</h3>
-            <p style="font-size: 0.85rem; color:#666;">Asigna un ID de Google Drive estándar para agrupar documentos por dominio.</p>
-
-            <label style="font-size: 0.8rem; font-weight: bold; margin-bottom: 5px; display:block;">Dominio Sugerido o Nuevo:</label>
-            <input type="text" id="inpDominio" class="side-input" placeholder="Ej. raloy.com.mx" list="listaDominios">
-            <datalist id="listaDominios"></datalist>
-
-            <label style="font-size: 0.8rem; font-weight: bold; margin-bottom: 5px; display:block;">ID de Carpeta Drive:</label>
-            <input type="text" id="inpDriveDom" class="side-input" placeholder="1bDP1Q-4wRK6c5Bdx...">
-
-            <button class="side-btn" onclick="guardarCarpetaDominio()" style="background: #8e44ad; margin-bottom: 15px;">Guardar Carpeta</button>
-
-            <h4 style="margin-top: 10px; font-size: 0.95rem; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 5px;">Configuraciones Activas</h4>
-            <div id="listCarpetasDominio" style="max-height: 200px; overflow-y: auto;">
-                </div>
-        </div>
-<div class="card">
-    <h3>Invitar a Registro de Firma</h3>
-    <p style="font-size: 0.85rem; color:#666;">Envía la liga para generar PIN a un colaborador o proveedor.</p>
-    <input type="email" id="invMail" class="side-input" placeholder="correo@ejemplo.com">
-    <button class="side-btn" onclick="ejecutarAccion('invitar_registro', {email: document.getElementById('invMail').value})">Enviar Invitación</button>
+<h1 class="text-xl font-display font-bold text-primary tracking-tight">Panel de Administración Global</h1>
 </div>
-
-<div class="card" style="border-left: 5px solid #10b981;">
-    <h3>Gestión de Accesos</h3>
-    <p style="font-size: 0.85rem; color:#666;">Administra empleados y ajusta sus permisos en el portal.</p>
-    <a href="{% url 'admin_usuarios' %}" class="side-btn-primary" style="background: #10b981;">👥 Usuarios Enrolados</a>
-
-    {% if es_superadmin %}
-    <a href="{% url 'admin_administradores' %}" class="side-btn-primary" style="background: #f59e0b; margin-top:10px;">🛡️ Superadministradores</a>
-    {% endif %}
+<div class="flex items-center gap-6">
+<div class="text-right">
+<p class="text-xs text-on-surface-variant font-medium">Administrador</p>
+<p class="text-sm font-semibold text-primary">{{ admin_email }}</p>
+</div>
+<a class="px-4 py-2 text-sm font-bold text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors" href="{% url 'admin_logout' %}">
+                Cerrar Sesión
+            </a>
+</div>
+</div>
+</header>
+<main class="max-w-[1600px] mx-auto px-8 pb-12">
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+<!-- Main Content Area -->
+<div class="lg:col-span-3 space-y-8">
+<div class="card p-6">
+<div class="flex items-center justify-between mb-8 border-b border-outline-variant pb-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">description</span>
+<h3 class="text-lg font-display font-bold text-primary uppercase tracking-wide">Visor de Documentos</h3>
+</div>
+<button class="btn-primary px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2" onclick="guardarDiseno()">
+<span class="material-symbols-outlined text-[18px]">save</span>
+                        Guardar Diseño
+                    </button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-8 bg-slate-50 p-6 rounded-xl border border-slate-100">
+<div class="flex flex-col gap-1.5">
+<label class="text-xs font-bold text-on-surface-variant uppercase">Agrupar por</label>
+<select class="form-select text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2.5" id="selGroup">
+<option value="none">Sin agrupación</option>
+<option value="dominio">Dominio Empresarial</option>
+<option value="owner_email">Usuario (Dueño)</option>
+<option value="reference_id">Folio</option>
+</select>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="text-xs font-bold text-on-surface-variant uppercase">Folio</label>
+<input class="form-input text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2.5" id="filFolio" placeholder="Ej. CONTRATO-001" type="text"/>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="text-xs font-bold text-on-surface-variant uppercase">Dominio</label>
+<select class="form-select text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2.5" id="filDominio">
+<option value="all">Todos</option>
+</select>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="text-xs font-bold text-on-surface-variant uppercase">Desde</label>
+<input class="form-input text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2.5" id="filFechaIni" type="date"/>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="text-xs font-bold text-on-surface-variant uppercase">Hasta</label>
+<input class="form-input text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2.5" id="filFechaFin" type="date"/>
+</div>
+</div>
+<div class="table-container border border-outline-variant rounded-xl overflow-hidden">
+<table id="docTable">
+<thead>
+<tr>
+<th>Folio</th>
+<th>Creador</th>
+<th>Dominio</th>
+<th>Fecha</th>
+<th>Progreso</th>
+<th>Estado</th>
+<th>Acciones</th>
+</tr>
+</thead>
+<tbody id="tableBody">
+<!-- Dynamic Content -->
+</tbody>
+</table>
 </div>
 </div>
 </div>
-
-    </div>
+<!-- Sidebar Actions -->
+<div class="space-y-6">
+<!-- Templates Card -->
+<div class="card p-6 border-l-4 border-l-primary">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-primary">dynamic_form</span>
+<h3 class="font-display font-bold text-primary">Gestión de Plantillas</h3>
 </div>
-
+<p class="text-xs text-on-surface-variant mb-6 leading-relaxed">Crea flujos documentales y formularios dinámicos a partir de Google Docs.</p>
+<a class="btn-secondary w-full py-3 rounded-lg flex items-center justify-center gap-2 mb-6" href="{% url 'admin_crear_plantilla' %}">
+<span class="material-symbols-outlined">add_circle</span>
+                    Nuevo Formulario
+                </a>
+<h4 class="text-xs font-bold text-on-surface-variant uppercase mb-4 pb-2 border-b border-outline-variant">Plantillas Creadas</h4>
+<div class="max-height-[300px] space-y-3 overflow-y-auto pr-1">
+                    {% for p in plantillas %}
+                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 hover:border-primary/20 transition-all">
+<strong class="block text-sm text-primary mb-1">{{ p.nombre }}</strong>
+<div class="flex flex-col gap-1 mb-4">
+<span class="text-[10px] text-on-surface-variant font-medium">ID: {{ p.doc_id|slice:":12" }}...</span>
+<span class="text-[10px] text-on-surface-variant font-medium">Por: {{ p.owner_email }}</span>
+</div>
+<div class="flex justify-between items-center border-t border-slate-200 pt-3">
+<a class="text-[11px] font-bold text-primary flex items-center gap-1 hover:underline" href="{% url 'admin_editar_plantilla' p.id %}">
+<span class="material-symbols-outlined text-[14px]">edit</span> Editar
+                                </a>
+<a class="text-[11px] font-bold text-red-500 flex items-center gap-1 hover:underline" href="javascript:void(0);" onclick="eliminarPlantilla('{{ p.id }}')">
+<span class="material-symbols-outlined text-[14px]">delete</span> Eliminar
+                                </a>
+</div>
+</div>
+                    {% empty %}
+                        <p class="text-xs text-center text-slate-400 py-4">No hay plantillas creadas.</p>
+                    {% endfor %}
+                </div>
+</div>
+<!-- Domain Folders Card -->
+<div class="card p-6 border-l-4 border-l-secondary">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-primary">folder_shared</span>
+<h3 class="font-display font-bold text-primary">Carpetas por Dominio</h3>
+</div>
+<div class="space-y-4 mb-6">
+<div class="space-y-1">
+<label class="text-[11px] font-bold text-on-surface-variant uppercase">Dominio</label>
+<input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-2.5" id="inpDominio" list="listaDominios" placeholder="Ej. raloy.com.mx" type="text"/>
+<datalist id="listaDominios"></datalist>
+</div>
+<div class="space-y-1">
+<label class="text-[11px] font-bold text-on-surface-variant uppercase">ID Google Drive</label>
+<input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-2.5" id="inpDriveDom" placeholder="1bDP1Q..." type="text"/>
+</div>
+<button class="btn-primary w-full py-3 rounded-lg text-sm font-bold" onclick="guardarCarpetaDominio()">Guardar Carpeta</button>
+</div>
+<h4 class="text-xs font-bold text-on-surface-variant uppercase mb-4 pb-2 border-b border-outline-variant">Configuraciones Activas</h4>
+<div class="max-h-[200px] overflow-y-auto space-y-3 pr-1" id="listCarpetasDominio">
+<!-- Dynamic -->
+</div>
+</div>
+<!-- Invitations Card -->
+<div class="card p-6">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-primary">mail</span>
+<h3 class="font-display font-bold text-primary">Invitar a Firma</h3>
+</div>
+<div class="space-y-4">
+<input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-2.5" id="invMail" placeholder="correo@ejemplo.com" type="email"/>
+<button class="btn-primary w-full py-3 rounded-lg text-sm font-bold" onclick="ejecutarAccion('invitar_registro', {email: document.getElementById('invMail').value})">Enviar Invitación</button>
+</div>
+</div>
+<!-- Access Management Card -->
+<div class="card p-6 border-l-4 border-l-emerald-500">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-primary">group</span>
+<h3 class="font-display font-bold text-primary">Gestión de Accesos</h3>
+</div>
+<div class="space-y-3">
+<a class="w-full py-3 rounded-lg bg-emerald-50 text-emerald-700 text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-100 transition-colors" href="{% url 'admin_usuarios' %}">
+<span class="material-symbols-outlined">person</span> Usuarios Enrolados
+                    </a>
+                    {% if es_superadmin %}
+                    <a class="w-full py-3 rounded-lg bg-amber-50 text-amber-700 text-sm font-bold flex items-center justify-center gap-2 hover:bg-amber-100 transition-colors" href="{% url 'admin_administradores' %}">
+<span class="material-symbols-outlined">security</span> Superadministradores
+                    </a>
+                    {% endif %}
+                </div>
+</div>
+</div>
+</div>
+</main>
 <script>
     const rawData = {{ docs_json|safe }};
     const savedConfig = {{ saved_config|safe }};
-    const carpetasDominio = {{ carpetas_dominio|safe }}; // Nativos desde Django
+    const carpetasDominio = {{ carpetas_dominio|safe }};
 
     const tableBody = document.getElementById('tableBody');
     const selGroup = document.getElementById('selGroup');
@@ -179,13 +287,11 @@
     function init() {
         const dominios = [...new Set(rawData.map(d => d.dominio))];
 
-        // Poblado de Filtros
         dominios.forEach(dom => {
             const opt = document.createElement('option'); opt.value = dom; opt.innerText = dom;
             filDominio.appendChild(opt);
         });
 
-        // Poblado de Autocompletado de Dominios (DataList)
         const dataList = document.getElementById('listaDominios');
         dominios.forEach(dom => {
             if (dom !== 'N/A' && dom !== 'Desconocido') {
@@ -207,24 +313,23 @@
         renderCarpetasDominio();
     }
 
-    // --- NUEVO: FUNCIONES PARA CARPETAS POR DOMINIO ---
     function renderCarpetasDominio() {
         const container = document.getElementById('listCarpetasDominio');
         container.innerHTML = '';
 
         if (carpetasDominio.length === 0) {
-            container.innerHTML = '<p style="font-size: 0.85rem; color: #999; text-align: center;">No hay carpetas configuradas aún.</p>';
+            container.innerHTML = '<p class="text-[11px] text-slate-400 text-center py-4 italic">No hay carpetas configuradas.</p>';
             return;
         }
 
         carpetasDominio.forEach(c => {
             container.innerHTML += `
-                <div style="background: #f8f9fa; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: 1px solid #e9ecef;">
-                    <strong style="display: block; font-size: 0.9rem; color: #333;">@${c.dominio}</strong>
-                    <span style="font-size: 0.75rem; color: #777; word-break: break-all;">ID: ${c.drive_folder_id}</span>
-                    <div style="margin-top: 8px; text-align: right;">
-                        <a href="javascript:void(0);" onclick="eliminarCarpetaDominio(${c.id})" style="font-size: 0.8rem; color: #e74c3c; text-decoration: none; font-weight: bold;">✖ Eliminar</a>
-                    </div>
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 relative group">
+                    <strong class="block text-xs text-primary mb-1">@${c.dominio}</strong>
+                    <span class="text-[10px] text-slate-500 break-all block pr-6">ID: ${c.drive_folder_id}</span>
+                    <button onclick="eliminarCarpetaDominio(${c.id})" class="absolute top-3 right-3 text-red-400 hover:text-red-600">
+                        <span class="material-symbols-outlined text-[16px]">close</span>
+                    </button>
                 </div>
             `;
         });
@@ -245,7 +350,6 @@
             ejecutarAccion('eliminar_carpeta_dominio', {id}).then(() => window.location.reload());
         }
     }
-    // ----------------------------------------------------
 
     function renderTable() {
         let docs = [...rawData];
@@ -276,7 +380,7 @@
             for (const [groupName, items] of Object.entries(groups)) {
                 const trGroup = document.createElement('tr');
                 trGroup.className = 'group-header';
-                trGroup.innerHTML = `<td colspan="7">Agrupación: ${groupName} (${items.length} documentos)</td>`;
+                trGroup.innerHTML = `<td colspan="7" class="py-3 px-4 border-l-4 border-primary">Grupo: ${groupName} <span class="ml-2 font-normal text-slate-500">(${items.length} docs)</span></td>`;
                 tableBody.appendChild(trGroup);
 
                 items.forEach(doc => tableBody.appendChild(crearFila(doc)));
@@ -286,6 +390,7 @@
 
     function crearFila(doc) {
         const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-50 transition-colors';
 
         let badgeClass = 'bg-processing'; let statusText = 'En Proceso';
         if(doc.status === 'COMPLETED') { badgeClass = 'bg-completed'; statusText = 'Completado'; }
@@ -293,19 +398,23 @@
 
         let cancelBtn = '';
         if(doc.status === 'PROCESSING') {
-            cancelBtn = `<button class="btn-cancelar" onclick="cancelarDoc('${doc.token}')">X Cancelar</button>`;
+            cancelBtn = `<button class="text-red-500 hover:text-red-700 text-[11px] font-bold underline" onclick="cancelarDoc('${doc.token}')">Cancelar</button>`;
         }
 
         tr.innerHTML = `
-            <td><strong>${doc.reference_id}</strong></td>
-            <td>${doc.owner_email}</td>
-            <td>${doc.dominio}</td>
-            <td>${doc.fecha}</td>
-            <td>${doc.progreso} Firmas</td>
+            <td><span class="font-bold text-primary">${doc.reference_id}</span></td>
+            <td class="text-on-surface-variant">${doc.owner_email}</td>
+            <td class="text-on-surface-variant font-medium text-xs">@${doc.dominio}</td>
+            <td class="text-on-surface-variant text-xs">${doc.fecha}</td>
+            <td class="text-primary font-semibold text-xs">${doc.progreso} Firmas</td>
             <td><span class="badge ${badgeClass}">${statusText}</span></td>
             <td>
-                <a href="/trazabilidad/${doc.token}/" target="_blank" class="btn-traz">Ver Trazabilidad</a>
-                ${cancelBtn}
+                <div class="flex items-center gap-4">
+                    <a href="/trazabilidad/${doc.token}/" target="_blank" class="text-primary font-bold text-[11px] hover:underline flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[16px]">visibility</span> Ver
+                    </a>
+                    ${cancelBtn}
+                </div>
             </td>
         `;
         return tr;
@@ -335,7 +444,9 @@
             filFechaIni: filFechaIni.value,
             filFechaFin: filFechaFin.value
         };
-        ejecutarAccion('guardar_config', { configuracion: config });
+        ejecutarAccion('guardar_config', { configuracion: config }).then(() => {
+            alert("Configuración de vista guardada correctamente.");
+        });
     }
 
     function ejecutarAccion(accion, payload) {
@@ -356,5 +467,4 @@
 
     init();
 </script>
-</body>
-</html>
+</body></html>
