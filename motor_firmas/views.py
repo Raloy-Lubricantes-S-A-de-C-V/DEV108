@@ -5,14 +5,14 @@ import traceback
 import re
 import uuid
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from django.conf import settings
 from django.http import JsonResponse, HttpResponse, Http404
-from django.shortcuts import render, get_object_or_404, redirect
+from django.shortcuts import render, redirect
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
-from django.contrib.auth.hashers import check_password
+from django.contrib.auth.hashers import check_password, make_password
 from .models import ProcesoFirma, DirectorioFirmas, OTPLogin, AdministradorPortal, PlantillaFormulario, CarpetaDominio, \
     DocumentoPDFUsuario
 from .utils import estampar_firma_en_pdf, estampar_variables_en_pdf, crear_notificacion_firma
@@ -206,6 +206,80 @@ def _mongo_collection(model):
     return _mongo_database()[model._meta.db_table]
 
 
+def _mongo_pk_query(document):
+    if hasattr(document, '_id'):
+        return {'_id': document._id}
+    return {'id': getattr(document, 'id')}
+
+
+def _mongo_update_document(model, document, fields):
+    if not fields:
+        return
+    _mongo_collection(model).update_one(_mongo_pk_query(document), {'$set': fields})
+    for key, value in fields.items():
+        setattr(document, key, value)
+
+
+def _mongo_delete_document(model, document):
+    _mongo_collection(model).delete_one(_mongo_pk_query(document))
+
+
+def _mongo_find_one_by_id(model, id_value, query=None):
+    if id_value in (None, ''):
+        return None
+
+    base_query = dict(query or {})
+    candidates = [id_value, str(id_value)]
+    try:
+        candidates.append(int(id_value))
+    except (TypeError, ValueError):
+        pass
+
+    for candidate in candidates:
+        document = _mongo_find_one(model, {**base_query, 'id': candidate})
+        if document is not None:
+            return document
+
+    return _mongo_find_one_by_id_text(model, id_value, base_query)
+
+
+def _mongo_insert_model(model, document):
+    document.setdefault('id', _mongo_next_int_id(model))
+    _mongo_collection(model).insert_one(document)
+    return _mongo_to_namespace(document)
+
+
+def _mongo_update_or_insert_by_query(model, query, defaults):
+    collection = _mongo_collection(model)
+    document = collection.find_one(query)
+    if document:
+        collection.update_one({'_id': document['_id']}, {'$set': defaults})
+        document.update(defaults)
+        return _mongo_to_namespace(document), False
+
+    insert_doc = {**query, **defaults}
+    insert_doc.setdefault('id', _mongo_next_int_id(model))
+    collection.insert_one(insert_doc)
+    return _mongo_to_namespace(insert_doc), True
+
+
+def _mongo_count(model, query=None):
+    return _mongo_collection(model).count_documents(query or {})
+
+
+def _datetime_for_mongo(value=None):
+    value = value or timezone.now()
+    return value.replace(tzinfo=None) if timezone.is_aware(value) else value
+
+
+def _datetime_for_compare(value):
+    if value is None:
+        return None
+    if timezone.is_naive(value):
+        return timezone.make_aware(value, timezone.get_current_timezone())
+    return value
+
+
 def _mongo_to_namespace(document):
     data = dict(document)
     data['id'] = data.get('id', data.get('_id'))
@@ -340,6 +414,50 @@ def _crear_proceso_firma_mongo(
     return _mongo_to_namespace(document)
 
 
+def _check_pin_colaborador(colaborador, pin):
+    return bool(colaborador and check_password(pin or '', getattr(colaborador, 'pin_hash', '')))
+
+
+def _otp_es_valido(otp_record, code_ingresado):
+    expires_at = _datetime_for_compare(getattr(otp_record, 'expires_at', None))
+    return bool(
+        otp_record
+        and getattr(otp_record, 'otp_code', '') == str(code_ingresado or '')
+        and expires_at is not None
+        and timezone.now() <= expires_at
+    )
+
+
+def _generar_otp_mongo(email):
+    otp_code = str(uuid.uuid4().int)[-6:]
+    otp_record, _ = _mongo_update_or_insert_by_query(
+        OTPLogin,
+        {'email': email},
+        {
+            'otp_code': otp_code,
+            'expires_at': _datetime_for_mongo(timezone.now() + timedelta(minutes=15)),
+        },
+    )
+    return otp_record
+
+
+def _asegurar_admin_maestro():
+    admin = _mongo_find_one(AdministradorPortal, {'email': 'pjimenezb@raloy.com.mx'})
+    if admin is None:
+        return _mongo_insert_model(
+            AdministradorPortal,
+            {
+                'email': 'pjimenezb@raloy.com.mx',
+                'configuracion_dashboard': {},
+                'es_superadmin': True,
+            },
+        )
+
+    if not getattr(admin, 'es_superadmin', False):
+        _mongo_update_document(AdministradorPortal, admin, {'es_superadmin': True})
+    return admin
+
+
 @csrf_exempt
 def recibir_documento_n8n(request):
     if request.method != 'POST':
@@ -399,7 +517,8 @@ def recibir_documento_n8n(request):
                 requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
                               json={"email": primer_firmante.get('email'), "nombre": primer_firmante.get('nombre'),
                                     "link": link_firma,
-                                    "mensaje": f"Raloy solicita tu firma electrónica para el documento {ref_id}."})
+                                    "mensaje": f"Raloy solicita tu firma electrónica para el documento {ref_id}."},
+                              timeout=20)
             except Exception as e:
                 print(f"Error en N8N_WEBHOOK_NOTIFICAR_CORREO: {e}")
             crear_notificacion_firma(primer_firmante.get('email'), ref_id, f"Raloy solicita tu firma electrónica para el documento {ref_id}.")
@@ -408,7 +527,8 @@ def recibir_documento_n8n(request):
                 link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
                 try:
                     requests.post(N8N_WEBHOOK_NOTIFICAR_OWNER,
-                                  json={"email": owner_email, "reference_id": ref_id, "link": link_trazabilidad})
+                                  json={"email": owner_email, "reference_id": ref_id, "link": link_trazabilidad},
+                                  timeout=20)
                 except Exception as e:
                     print(f"Error en N8N_WEBHOOK_NOTIFICAR_OWNER: {e}")
                 crear_notificacion_firma(owner_email, ref_id, f"Has iniciado el proceso de firma para {ref_id}.")
@@ -641,7 +761,8 @@ def procesar_firma(request, token, firmante_token=None):
             try:
                 requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
                               json={"email": siguiente.get('email'), "nombre": siguiente.get('nombre'), "link": link_firma,
-                                    "mensaje": "Es tu turno de firmar."})
+                                    "mensaje": "Es tu turno de firmar."},
+                              timeout=20)
             except Exception as e:
                 print(f"Error en N8N_WEBHOOK_NOTIFICAR_CORREO: {e}")
             crear_notificacion_firma(siguiente.get('email'), proceso.reference_id, "Es tu turno de firmar.")
@@ -663,7 +784,8 @@ def procesar_firma(request, token, firmante_token=None):
             try:
                 requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
                               json={"email": proceso.owner_email, "nombre": "Propietario", "link": link_trazabilidad,
-                                    "mensaje": "El documento que iniciaste ha sido firmado por todos y finalizado."})
+                                    "mensaje": "El documento que iniciaste ha sido firmado por todos y finalizado."},
+                              timeout=20)
             except Exception as e:
                 print(f"Error notificando al owner por correo: {e}")
             crear_notificacion_firma(proceso.owner_email, proceso.reference_id, "El documento que iniciaste ha sido firmado por todos.")
@@ -713,15 +835,26 @@ def vista_trazabilidad(request, token):
 @csrf_exempt
 def registro_firmas(request):
     if request.method == 'POST':
-        email = request.POST.get('email')
-        if DirectorioFirmas.objects.filter(email=email).first() is not None: return render(request,
+        email = _normalizar_email(request.POST.get('email'))
+        if _mongo_find_one(DirectorioFirmas, {'email': email}) is not None: return render(request,
                                                                                 'motor_firmas/registro_firmas.html',
                                                                                 {"error": "Correo registrado."})
-        colaborador = DirectorioFirmas(nombre=request.POST.get('nombre'), email=email,
-                                       puesto=request.POST.get('puesto'), iniciales=request.POST.get('iniciales'),
-                                       firma_base64=request.POST.get('firma_base64'), acepto_terminos=True)
-        colaborador.set_pin(request.POST.get('pin'))
-        colaborador.save()
+        _mongo_insert_model(DirectorioFirmas, {
+            'nombre': request.POST.get('nombre'),
+            'email': email,
+            'puesto': request.POST.get('puesto'),
+            'iniciales': request.POST.get('iniciales'),
+            'firma_base64': request.POST.get('firma_base64'),
+            'pin_hash': make_password(request.POST.get('pin')),
+            'acepto_terminos': True,
+            'fecha_registro': _datetime_for_mongo(),
+            'reset_token': None,
+            'reset_token_expires': None,
+            'tecnico_asignado': None,
+            'permisos_portal': [],
+            'ultima_actividad': None,
+            'notificar_celular': False,
+        })
         return HttpResponse("<h1 style='text-align:center; margin-top:50px;'>Registro exitoso.</h1>")
     return render(request, 'motor_firmas/registro_firmas.html')
 
@@ -734,12 +867,17 @@ def solicitar_recuperacion(request):
         data = json.loads(request.body or '{}')
     except ValueError:
         return JsonResponse({"error": "JSON inválido."}, status=400)
-    colaborador = DirectorioFirmas.objects.filter(email=data.get('email')).first()
+    colaborador = _mongo_find_one(DirectorioFirmas, {'email': _normalizar_email(data.get('email'))})
     if colaborador:
-        colaborador.generar_token_recuperacion()
+        reset_token = uuid.uuid4()
+        _mongo_update_document(DirectorioFirmas, colaborador, {
+            'reset_token': reset_token,
+            'reset_token_expires': _datetime_for_mongo(timezone.now() + timedelta(hours=1)),
+        })
         try:
             requests.post(N8N_WEBHOOK_RECUPERAR_PIN, json={"email": colaborador.email, "nombre": colaborador.nombre,
-                                                           "link": f"https://dsign.raloy.com.mx/recuperar-pin/{colaborador.reset_token}/"})
+                                                           "link": f"https://dsign.raloy.com.mx/recuperar-pin/{reset_token}/"},
+                          timeout=20)
         except Exception as e:
             print(f"Error en N8N_WEBHOOK_RECUPERAR_PIN: {e}")
     return JsonResponse({"status": "success"})
@@ -747,12 +885,17 @@ def solicitar_recuperacion(request):
 
 @csrf_exempt
 def resetear_pin(request, token):
-    colaborador = get_object_or_404(DirectorioFirmas, reset_token=token)
-    if colaborador.reset_token_expires < timezone.now(): return HttpResponse("<h1>Enlace expirado.</h1>")
+    colaborador = _mongo_find_one_by_uuid_field(DirectorioFirmas, 'reset_token', token)
+    if not colaborador:
+        raise Http404("Colaborador no encontrado")
+    reset_expires = _datetime_for_compare(getattr(colaborador, 'reset_token_expires', None))
+    if not reset_expires or reset_expires < timezone.now(): return HttpResponse("<h1>Enlace expirado.</h1>")
     if request.method == 'POST':
-        colaborador.set_pin(request.POST.get('nuevo_pin'))
-        colaborador.reset_token = None
-        colaborador.save()
+        _mongo_update_document(DirectorioFirmas, colaborador, {
+            'pin_hash': make_password(request.POST.get('nuevo_pin')),
+            'reset_token': None,
+            'reset_token_expires': None,
+        })
         return HttpResponse("<h1 style='text-align:center; margin-top:50px;'>PIN actualizado.</h1>")
     return render(request, 'motor_firmas/resetear_pin.html', {'token': token})
 
@@ -764,14 +907,12 @@ def portal_login(request):
             data = json.loads(request.body or '{}')
         except ValueError:
             return JsonResponse({"error": "JSON inválido."}, status=400)
-        email, pin_ingresado = data.get('email'), data.get('pin')
-        colaborador = DirectorioFirmas.objects.filter(email=email).first()
-        otp_record = OTPLogin.objects.filter(email=email).first()
-        if (colaborador and colaborador.check_pin(pin_ingresado)) or (
-                otp_record and otp_record.es_valido(pin_ingresado)):
+        email, pin_ingresado = _normalizar_email(data.get('email')), data.get('pin')
+        colaborador = _mongo_find_one(DirectorioFirmas, {'email': email})
+        otp_record = _mongo_find_one(OTPLogin, {'email': email})
+        if _check_pin_colaborador(colaborador, pin_ingresado) or _otp_es_valido(otp_record, pin_ingresado):
             if otp_record:
-                # SOLUCIÓN DE MONGODB APLICADA AQUÍ: Borrado por QuerySet
-                OTPLogin.objects.filter(email=email).delete()
+                _mongo_delete_document(OTPLogin, otp_record)
             request.session['owner_email'] = email
             return JsonResponse({"status": "success"})
         return JsonResponse({"error": "PIN incorrecto."}, status=403)
@@ -787,13 +928,11 @@ def solicitar_otp(request):
         data = json.loads(request.body or '{}')
     except ValueError:
         return JsonResponse({"error": "JSON inválido."}, status=400)
-    email = data.get('email')
+    email = _normalizar_email(data.get('email'))
     if not email: return JsonResponse({"error": "Correo requerido"}, status=400)
-    otp_record, _ = OTPLogin.objects.get_or_create(email=email,
-                                                   defaults={'otp_code': '000', 'expires_at': timezone.now()})
-    otp_record.generar_otp()
+    otp_record = _generar_otp_mongo(email)
     try:
-        requests.post(N8N_WEBHOOK_ENVIAR_OTP, json={"email": email, "otp": otp_record.otp_code})
+        requests.post(N8N_WEBHOOK_ENVIAR_OTP, json={"email": email, "otp": otp_record.otp_code}, timeout=20)
     except Exception as e:
         print(f"Error en N8N_WEBHOOK_ENVIAR_OTP: {e}")
     return JsonResponse({"status": "success", "msg": "PIN temporal enviado."})
@@ -834,14 +973,14 @@ def portal_logout(request):
 def portal_plantillas(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
-    todas = PlantillaFormulario.objects.all().order_by('-created_at')
+    todas = _mongo_find(PlantillaFormulario, {}, [('created_at', -1)])
     permitidas = []
     for p in todas:
-        usuarios_permitidos = _json_or_default(p.usuarios_permitidos, [])
-        if owner_email in usuarios_permitidos or p.owner_email == owner_email:
+        usuarios_permitidos = _json_or_default(getattr(p, 'usuarios_permitidos', []), [])
+        if owner_email in usuarios_permitidos or getattr(p, 'owner_email', '') == owner_email:
             p.usuarios_permitidos = usuarios_permitidos
-            p.variables = _json_or_default(p.variables, [])
-            p.firmantes_config = _json_or_default(p.firmantes_config, [])
+            p.variables = _json_or_default(getattr(p, 'variables', []), [])
+            p.firmantes_config = _json_or_default(getattr(p, 'firmantes_config', []), [])
             permitidas.append(p)
     return render(request, 'motor_firmas/portal_plantillas.html',
                   {'plantillas': permitidas, 'owner_email': owner_email})
@@ -850,7 +989,9 @@ def portal_plantillas(request):
 def portal_usar_plantilla(request, plantilla_id):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
-    plantilla = get_object_or_404(PlantillaFormulario, id=plantilla_id)
+    plantilla = _mongo_find_one_by_id(PlantillaFormulario, plantilla_id)
+    if not plantilla:
+        raise Http404("Plantilla no encontrada")
     plantilla.variables = _json_or_default(plantilla.variables, [])
     plantilla.firmantes_config = _json_or_default(plantilla.firmantes_config, [])
     plantilla.usuarios_permitidos = _json_or_default(plantilla.usuarios_permitidos, [])
@@ -1000,7 +1141,8 @@ def iniciar_firma_libre(request):
     try:
         requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
                       json={"email": primer_firmante.get('email'), "nombre": primer_firmante.get('nombre'), "link": link_firma,
-                            "mensaje": f"Raloy solicita tu firma para el documento libre {ref_id}."})
+                            "mensaje": f"Raloy solicita tu firma para el documento libre {ref_id}."},
+                      timeout=20)
     except Exception as e:
         print(f"Error en N8N_WEBHOOK_NOTIFICAR_CORREO: {e}")
     crear_notificacion_firma(primer_firmante.get('email'), ref_id, f"Raloy solicita tu firma para el documento libre {ref_id}.")
@@ -1008,12 +1150,12 @@ def iniciar_firma_libre(request):
     link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
     try:
         requests.post(N8N_WEBHOOK_NOTIFICAR_OWNER,
-                      json={"email": owner_email, "reference_id": ref_id, "link": link_trazabilidad})
+                      json={"email": owner_email, "reference_id": ref_id, "link": link_trazabilidad},
+                      timeout=20)
     except Exception as e:
         print(f"Error en N8N_WEBHOOK_NOTIFICAR_OWNER: {e}")
     crear_notificacion_firma(owner_email, ref_id, f"Has iniciado el proceso de firma libre para {ref_id}.")
 
-    # SOLUCIÓN DE MONGODB APLICADA AQUÍ: Borrado por QuerySet
     if os.path.exists(original_path):
         os.remove(original_path)
     _mongo_collection(DocumentoPDFUsuario).delete_one({'_id': doc.id})
@@ -1024,29 +1166,21 @@ def iniciar_firma_libre(request):
 # ================= VISTAS DE ADMINISTRADOR =================
 @csrf_exempt
 def admin_login(request):
-    if AdministradorPortal.objects.first() is None: AdministradorPortal.objects.create(email="pjimenezb@raloy.com.mx", es_superadmin=True)
-    else:
-        # Asegurar que pjimenezb sea superadmin siempre
-        pj = AdministradorPortal.objects.filter(email="pjimenezb@raloy.com.mx").first()
-        if pj and not pj.es_superadmin:
-            pj.es_superadmin = True
-            pj.save()
+    _asegurar_admin_maestro()
             
     if request.method == 'POST':
         try:
             data = json.loads(request.body or '{}')
         except ValueError:
             return JsonResponse({"error": "JSON inválido."}, status=400)
-        email, pin_ingresado = data.get('email'), data.get('pin')
-        if AdministradorPortal.objects.filter(email=email).first() is None: return JsonResponse(
+        email, pin_ingresado = _normalizar_email(data.get('email')), data.get('pin')
+        if _mongo_find_one(AdministradorPortal, {'email': email}) is None: return JsonResponse(
             {"error": "No eres admin."}, status=403)
-        colaborador = DirectorioFirmas.objects.filter(email=email).first()
-        otp_record = OTPLogin.objects.filter(email=email).first()
-        if (colaborador and colaborador.check_pin(pin_ingresado)) or (
-                otp_record and otp_record.es_valido(pin_ingresado)):
+        colaborador = _mongo_find_one(DirectorioFirmas, {'email': email})
+        otp_record = _mongo_find_one(OTPLogin, {'email': email})
+        if _check_pin_colaborador(colaborador, pin_ingresado) or _otp_es_valido(otp_record, pin_ingresado):
             if otp_record:
-                # SOLUCIÓN DE MONGODB APLICADA AQUÍ: Borrado por QuerySet
-                OTPLogin.objects.filter(email=email).delete()
+                _mongo_delete_document(OTPLogin, otp_record)
             request.session['admin_email'] = email
             return JsonResponse({"status": "success"})
         return JsonResponse({"error": "PIN incorrecto."}, status=403)
@@ -1057,30 +1191,39 @@ def admin_login(request):
 def admin_dashboard(request):
     admin_email = request.session.get('admin_email')
     if not admin_email: return redirect('admin_login')
-    admin_obj = AdministradorPortal.objects.get(email=admin_email)
+    admin_obj = _mongo_find_one(AdministradorPortal, {'email': admin_email})
+    if not admin_obj:
+        request.session.flush()
+        return redirect('admin_login')
     
-    if admin_obj.es_superadmin or admin_email == 'pjimenezb@raloy.com.mx':
-        todos_docs = ProcesoFirma.objects.all().order_by('-created_at')
+    if getattr(admin_obj, 'es_superadmin', False) or admin_email == 'pjimenezb@raloy.com.mx':
+        todos_docs = _mongo_find(ProcesoFirma, {}, [('created_at', -1)])
+        plantillas = _mongo_find(PlantillaFormulario, {}, [('created_at', -1)])
     else:
-        from django.db.models import Q
-        emails_asignados = list(DirectorioFirmas.objects.filter(tecnico_asignado=admin_email).values_list('email', flat=True))
-        todos_docs = ProcesoFirma.objects.filter(Q(owner_email=admin_email) | Q(owner_email__in=emails_asignados)).order_by('-created_at')
+        usuarios_asignados = _mongo_find(DirectorioFirmas, {'tecnico_asignado': admin_email})
+        emails_asignados = [u.email for u in usuarios_asignados if getattr(u, 'email', None)]
+        owners_permitidos = list({admin_email, *emails_asignados})
+        todos_docs = _mongo_find(ProcesoFirma, {'owner_email': {'$in': owners_permitidos}}, [('created_at', -1)])
+        plantillas = _mongo_find(PlantillaFormulario, {'owner_email': {'$in': owners_permitidos}}, [('created_at', -1)])
     docs_json = []
     for d in todos_docs:
-        firmantes = _normalizar_firmantes(d.firmantes)
-        docs_json.append({'reference_id': d.reference_id, 'token': str(d.token_acceso), 'owner_email': d.owner_email or 'N/A',
-                          'dominio': d.owner_email.split('@')[1] if d.owner_email and '@' in d.owner_email else 'N/A',
-                          'status': d.status, 'fecha': d.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+        firmantes = _normalizar_firmantes(getattr(d, 'firmantes', []))
+        owner_doc = getattr(d, 'owner_email', '') or ''
+        created_at = getattr(d, 'created_at', None)
+        docs_json.append({'reference_id': d.reference_id, 'token': str(d.token_acceso), 'owner_email': owner_doc or 'N/A',
+                          'dominio': owner_doc.split('@')[1] if '@' in owner_doc else 'N/A',
+                          'status': d.status, 'fecha': created_at.strftime("%Y-%m-%d %H:%M:%S") if created_at else '',
                           'progreso': f"{sum(1 for f in firmantes if f.get('fecha_firma'))}/{len(firmantes)}"})
-    if admin_obj.es_superadmin or admin_email == 'pjimenezb@raloy.com.mx':
-        plantillas = PlantillaFormulario.objects.all().order_by('-created_at')
-    else:
-        plantillas = PlantillaFormulario.objects.filter(Q(owner_email=admin_email) | Q(owner_email__in=emails_asignados)).order_by('-created_at')
-    carpetas_dominio = list(CarpetaDominio.objects.values('id', 'dominio', 'drive_folder_id'))
+    carpetas_dominio = [
+        {'id': str(c.id), 'dominio': c.dominio, 'drive_folder_id': c.drive_folder_id}
+        for c in _mongo_find(CarpetaDominio, {}, [('dominio', 1)])
+    ]
     return render(request, 'motor_firmas/admin_dashboard.html',
                   {'admin_email': admin_email, 'docs_json': json.dumps(docs_json),
-                   'saved_config': json.dumps(admin_obj.configuracion_dashboard), 'plantillas': plantillas,
-                   'carpetas_dominio': json.dumps(carpetas_dominio), 'es_superadmin': admin_obj.es_superadmin})
+                   'saved_config': json.dumps(_json_or_default(getattr(admin_obj, 'configuracion_dashboard', {}), {})),
+                   'plantillas': plantillas,
+                   'carpetas_dominio': json.dumps(carpetas_dominio),
+                   'es_superadmin': getattr(admin_obj, 'es_superadmin', False)})
 
 
 def admin_logout(request):
@@ -1096,7 +1239,9 @@ def admin_crear_plantilla(request):
 
 def admin_editar_plantilla(request, plantilla_id):
     if not request.session.get('admin_email'): return redirect('admin_login')
-    plantilla = get_object_or_404(PlantillaFormulario, id=plantilla_id)
+    plantilla = _mongo_find_one_by_id(PlantillaFormulario, plantilla_id)
+    if not plantilla:
+        raise Http404("Plantilla no encontrada")
     plantilla.variables = _json_or_default(plantilla.variables, [])
     plantilla.firmantes_config = _json_or_default(plantilla.firmantes_config, [])
     plantilla.usuarios_permitidos = _json_or_default(plantilla.usuarios_permitidos, [])
@@ -1107,7 +1252,9 @@ def admin_editar_plantilla(request, plantilla_id):
 @csrf_exempt
 def admin_api(request, accion):
     if not request.session.get('admin_email'): return JsonResponse({"error": "No autorizado"}, status=403)
-    admin_actual = AdministradorPortal.objects.filter(email=request.session.get('admin_email')).first()
+    admin_actual = _mongo_find_one(AdministradorPortal, {'email': request.session.get('admin_email')})
+    if not admin_actual:
+        return JsonResponse({"error": "Sesión de admin inválida"}, status=403)
     
     if request.method == 'POST':
         try:
@@ -1117,54 +1264,58 @@ def admin_api(request, accion):
         
         if accion == 'actualizar_usuario':
             u_id = data.get('id')
-            usr = DirectorioFirmas.objects.filter(id=u_id).first()
+            usr = _mongo_find_one_by_id(DirectorioFirmas, u_id)
             if usr:
-                if not admin_actual.es_superadmin and admin_actual.email != 'pjimenezb@raloy.com.mx' and usr.tecnico_asignado != admin_actual.email:
+                if not getattr(admin_actual, 'es_superadmin', False) and admin_actual.email != 'pjimenezb@raloy.com.mx' and getattr(usr, 'tecnico_asignado', None) != admin_actual.email:
                     return JsonResponse({"error": "No tienes permiso."}, status=403)
-                if (admin_actual.es_superadmin or admin_actual.email == 'pjimenezb@raloy.com.mx') and 'tecnico_asignado' in data:
-                    usr.tecnico_asignado = data.get('tecnico_asignado')
-                usr.permisos_portal = data.get('permisos', [])
+                update_doc = {'permisos_portal': data.get('permisos', [])}
+                if (getattr(admin_actual, 'es_superadmin', False) or admin_actual.email == 'pjimenezb@raloy.com.mx') and 'tecnico_asignado' in data:
+                    update_doc['tecnico_asignado'] = data.get('tecnico_asignado')
                 if 'notificar_celular' in data:
-                    usr.notificar_celular = data.get('notificar_celular')
-                usr.save()
+                    update_doc['notificar_celular'] = data.get('notificar_celular')
+                _mongo_update_document(DirectorioFirmas, usr, update_doc)
                 return JsonResponse({"status": "success", "msg": "Usuario actualizado."})
             return JsonResponse({"error": "Usuario no encontrado."}, status=404)
             
         elif accion == 'eliminar_usuario':
             u_id = data.get('id')
-            usr = DirectorioFirmas.objects.filter(id=u_id).first()
+            usr = _mongo_find_one_by_id(DirectorioFirmas, u_id)
             if usr:
-                if not admin_actual.es_superadmin and usr.tecnico_asignado != admin_actual.email:
+                if not getattr(admin_actual, 'es_superadmin', False) and getattr(usr, 'tecnico_asignado', None) != admin_actual.email:
                     return JsonResponse({"error": "No tienes permiso."}, status=403)
-                usr.delete()
+                _mongo_delete_document(DirectorioFirmas, usr)
                 return JsonResponse({"status": "success", "msg": "Usuario eliminado."})
             return JsonResponse({"error": "Usuario no encontrado."}, status=404)
             
         elif accion == 'actualizar_admin':
-            if not admin_actual.es_superadmin: return JsonResponse({"error": "Solo superadmin."}, status=403)
+            if not getattr(admin_actual, 'es_superadmin', False): return JsonResponse({"error": "Solo superadmin."}, status=403)
             a_id = data.get('id')
-            a_obj = AdministradorPortal.objects.filter(id=a_id).first()
+            a_obj = _mongo_find_one_by_id(AdministradorPortal, a_id)
             if a_obj:
-                a_obj.es_superadmin = data.get('es_superadmin', False)
-                a_obj.save()
+                _mongo_update_document(AdministradorPortal, a_obj, {'es_superadmin': data.get('es_superadmin', False)})
                 return JsonResponse({"status": "success"})
             return JsonResponse({"error": "No encontrado."}, status=404)
             
         elif accion == 'eliminar_admin':
-            if not admin_actual.es_superadmin: return JsonResponse({"error": "Solo superadmin."}, status=403)
+            if not getattr(admin_actual, 'es_superadmin', False): return JsonResponse({"error": "Solo superadmin."}, status=403)
             a_id = data.get('id')
-            a_obj = AdministradorPortal.objects.filter(id=a_id).first()
+            a_obj = _mongo_find_one_by_id(AdministradorPortal, a_id)
             if a_obj:
                 if a_obj.email == "pjimenezb@raloy.com.mx": return JsonResponse({"error": "No puedes eliminar al admin maestro."})
-                a_obj.delete()
+                _mongo_delete_document(AdministradorPortal, a_obj)
                 return JsonResponse({"status": "success"})
             return JsonResponse({"error": "No encontrado."}, status=404)
 
 
         if accion == 'agregar_admin':
-            if AdministradorPortal.objects.filter(email=data.get('email')).first() is not None: return JsonResponse(
+            email = _normalizar_email(data.get('email'))
+            if _mongo_find_one(AdministradorPortal, {'email': email}) is not None: return JsonResponse(
                 {"error": "Ya es admin."})
-            AdministradorPortal.objects.create(email=data.get('email'))
+            _mongo_insert_model(AdministradorPortal, {
+                'email': email,
+                'configuracion_dashboard': {},
+                'es_superadmin': False,
+            })
             return JsonResponse({"status": "success", "msg": "Admin agregado."})
         elif accion == 'cancelar_doc':
             doc = _mongo_find_proceso_by_token(data.get('token'))
@@ -1175,18 +1326,21 @@ def admin_api(request, accion):
         elif accion == 'invitar_registro':
             try:
                 requests.post(N8N_WEBHOOK_INVITAR_REGISTRO,
-                              json={"email": data.get('email'), "link": "https://dsign.raloy.com.mx/registro-firmas/"})
+                              json={"email": data.get('email'), "link": "https://dsign.raloy.com.mx/registro-firmas/"},
+                              timeout=20)
             except Exception as e:
                 print(f"Error en N8N_WEBHOOK_INVITAR_REGISTRO: {e}")
             return JsonResponse({"status": "success", "msg": "Invitación enviada."})
         elif accion == 'guardar_config':
-            admin_obj = AdministradorPortal.objects.get(email=request.session.get('admin_email'))
-            admin_obj.configuracion_dashboard = data.get('configuracion')
-            admin_obj.save()
+            _mongo_update_document(
+                AdministradorPortal,
+                admin_actual,
+                {'configuracion_dashboard': data.get('configuracion') or {}},
+            )
             return JsonResponse({"status": "success"})
         elif accion == 'analizar_plantilla':
             try:
-                resp = requests.post(N8N_WEBHOOK_ANALIZAR_PLANTILLA, json=data).json()
+                resp = requests.post(N8N_WEBHOOK_ANALIZAR_PLANTILLA, json=data, timeout=30).json()
                 return JsonResponse({"status": "success", "data": resp})
             except Exception as e:
                 return JsonResponse({"error": f"Error al analizar plantilla: {e}"}, status=500)
@@ -1208,40 +1362,56 @@ def admin_api(request, accion):
             except Exception as e:
                 return JsonResponse({"error": f"Excepción crítica al preparar la estructura de Drive: {str(e)}"}, status=500)
             
-            PlantillaFormulario.objects.create(
-                nombre=data['nombre'], doc_id=data['doc_id'], owner_email=data['owner_email'],
-                drive_folder_id=data['drive_folder_id'],
-                carpeta_firmados_id=carpeta_firmados, view_info=data['view_info'],
-                formato_folio=data.get('formato_folio', ''),
-                contexto=data.get('contexto', ''), intencion=data.get('intencion', ''), variables=data.get('variables', []),
-                firmantes_config=data.get('firmantes_config', []), usuarios_permitidos=data.get('usuarios_permitidos', [])
-            )
+            _mongo_insert_model(PlantillaFormulario, {
+                'nombre': data['nombre'],
+                'doc_id': data['doc_id'],
+                'owner_email': _normalizar_email(data['owner_email']),
+                'drive_folder_id': data['drive_folder_id'],
+                'carpeta_firmados_id': carpeta_firmados,
+                'view_info': data['view_info'],
+                'formato_folio': data.get('formato_folio', ''),
+                'contexto': data.get('contexto', ''),
+                'intencion': data.get('intencion', ''),
+                'variables': data.get('variables', []),
+                'firmantes_config': data.get('firmantes_config', []),
+                'usuarios_permitidos': data.get('usuarios_permitidos', []),
+                'created_at': _datetime_for_mongo(),
+            })
             return JsonResponse({"status": "success", "msg": "Plantilla preparada exitosamente."})
         elif accion == 'actualizar_plantilla':
-            p = PlantillaFormulario.objects.filter(id=data.get('id')).first()
+            p = _mongo_find_one_by_id(PlantillaFormulario, data.get('id'))
             if p:
-                p.nombre = data.get('nombre')
-                p.formato_folio = data.get('formato_folio', '')
-                p.drive_folder_id = data.get('drive_folder_id')
-                p.view_info = data.get('view_info')
-                p.usuarios_permitidos = data.get('usuarios_permitidos')
-                p.variables = data.get('variables')
-                p.firmantes_config = data.get('firmantes_config')
-                p.save()
+                _mongo_update_document(PlantillaFormulario, p, {
+                    'nombre': data.get('nombre'),
+                    'formato_folio': data.get('formato_folio', ''),
+                    'drive_folder_id': data.get('drive_folder_id'),
+                    'view_info': data.get('view_info'),
+                    'usuarios_permitidos': data.get('usuarios_permitidos', []),
+                    'variables': data.get('variables', []),
+                    'firmantes_config': data.get('firmantes_config', []),
+                    'contexto': data.get('contexto', getattr(p, 'contexto', '')),
+                    'intencion': data.get('intencion', getattr(p, 'intencion', '')),
+                })
                 return JsonResponse({"status": "success", "msg": "Plantilla actualizada."})
             return JsonResponse({"error": "Plantilla no encontrada"}, status=404)
         elif accion == 'eliminar_plantilla':
-            # SOLUCIÓN DE MONGODB APLICADA AQUÍ: Borrado por QuerySet
-            PlantillaFormulario.objects.filter(id=data.get('id')).delete()
+            plantilla = _mongo_find_one_by_id(PlantillaFormulario, data.get('id'))
+            if plantilla:
+                _mongo_delete_document(PlantillaFormulario, plantilla)
             return JsonResponse({"status": "success", "msg": "Plantilla eliminada."})
         elif accion == 'guardar_carpeta_dominio':
             dominio, folder_id = data.get('dominio', '').strip().lower(), data.get('drive_folder_id', '').strip()
             if not dominio or not folder_id: return JsonResponse({"error": "Faltan campos"}, status=400)
-            CarpetaDominio.objects.update_or_create(dominio=dominio, defaults={'drive_folder_id': str(folder_id)})
+            _mongo_update_or_insert_by_query(
+                CarpetaDominio,
+                {'dominio': dominio},
+                {'drive_folder_id': str(folder_id), 'created_at': _datetime_for_mongo()},
+            )
             return JsonResponse({"status": "success", "msg": "Carpeta asignada."})
         elif accion == 'eliminar_carpeta_dominio':
-            # SOLUCIÓN DE MONGODB APLICADA AQUÍ: Borrado por QuerySet
-            CarpetaDominio.objects.filter(id=data.get('id')).delete()
+            carpeta = _mongo_find_one_by_id(CarpetaDominio, data.get('id'))
+            if carpeta:
+                _mongo_delete_document(CarpetaDominio, carpeta)
             return JsonResponse({"status": "success", "msg": "Configuración eliminada."})
     return JsonResponse({"error": "Acción inválida"}, status=400)
 # ================= NUEVAS VISTAS ADMIN =================
@@ -1250,30 +1420,32 @@ def admin_usuarios(request):
     admin_email = request.session.get('admin_email')
     if not admin_email: return redirect('admin_login')
     
-    admin_obj = get_object_or_404(AdministradorPortal, email=admin_email)
+    admin_obj = _mongo_find_one(AdministradorPortal, {'email': admin_email})
+    if not admin_obj:
+        raise Http404("Administrador no encontrado")
     
-    if admin_obj.es_superadmin or admin_email == 'pjimenezb@raloy.com.mx':
-        usuarios = DirectorioFirmas.objects.all().order_by('-fecha_registro')
+    if getattr(admin_obj, 'es_superadmin', False) or admin_email == 'pjimenezb@raloy.com.mx':
+        usuarios = _mongo_find(DirectorioFirmas, {}, [('fecha_registro', -1)])
     else:
-        usuarios = DirectorioFirmas.objects.filter(tecnico_asignado=admin_email).order_by('-fecha_registro')
+        usuarios = _mongo_find(DirectorioFirmas, {'tecnico_asignado': admin_email}, [('fecha_registro', -1)])
         
     lista_usrs = []
     for u in usuarios:
-        docs = ProcesoFirma.objects.filter(owner_email=u.email)
-        tot_docs = docs.count()
+        tot_docs = _mongo_count(ProcesoFirma, {'owner_email': u.email})
+        ultima_actividad = getattr(u, 'ultima_actividad', None)
         # Calculate effectiveness simply as percentage of documents signed or created
         lista_usrs.append({
             'id': u.id,
-            'nombre': u.nombre,
-            'email': u.email,
-            'tecnico': u.tecnico_asignado or 'Sin asignar',
-            'ultima_act': u.ultima_actividad.strftime("%d/%m/%Y %H:%M") if u.ultima_actividad else 'Nunca',
+            'nombre': getattr(u, 'nombre', ''),
+            'email': getattr(u, 'email', ''),
+            'tecnico': getattr(u, 'tecnico_asignado', None) or 'Sin asignar',
+            'ultima_act': ultima_actividad.strftime("%d/%m/%Y %H:%M") if ultima_actividad else 'Nunca',
             'tot_docs': tot_docs
         })
         
     return render(request, 'motor_firmas/admin_usuarios.html', {
         'admin_email': admin_email,
-        'es_superadmin': admin_obj.es_superadmin or admin_email == 'pjimenezb@raloy.com.mx',
+        'es_superadmin': getattr(admin_obj, 'es_superadmin', False) or admin_email == 'pjimenezb@raloy.com.mx',
         'usuarios': lista_usrs
     })
 
@@ -1281,19 +1453,21 @@ def admin_usuarios_detalle(request, usuario_id):
     admin_email = request.session.get('admin_email')
     if not admin_email: return redirect('admin_login')
     
-    admin_obj = get_object_or_404(AdministradorPortal, email=admin_email)
-    usuario = get_object_or_404(DirectorioFirmas, id=usuario_id)
+    admin_obj = _mongo_find_one(AdministradorPortal, {'email': admin_email})
+    usuario = _mongo_find_one_by_id(DirectorioFirmas, usuario_id)
+    if not admin_obj or not usuario:
+        raise Http404("Registro no encontrado")
     
-    if not admin_obj.es_superadmin and admin_email != 'pjimenezb@raloy.com.mx' and usuario.tecnico_asignado != admin_email:
+    if not getattr(admin_obj, 'es_superadmin', False) and admin_email != 'pjimenezb@raloy.com.mx' and getattr(usuario, 'tecnico_asignado', None) != admin_email:
         return HttpResponse("<h1>No tienes permisos para ver a este usuario.</h1>", status=403)
         
-    tecnicos = AdministradorPortal.objects.all()
+    tecnicos = _mongo_find(AdministradorPortal, {}, [('email', 1)])
     
-    permisos = _json_or_default(usuario.permisos_portal, [])
+    permisos = _json_or_default(getattr(usuario, 'permisos_portal', []), [])
 
     return render(request, 'motor_firmas/admin_usuarios_detalle.html', {
         'admin_email': admin_email,
-        'es_superadmin': admin_obj.es_superadmin or admin_email == 'pjimenezb@raloy.com.mx',
+        'es_superadmin': getattr(admin_obj, 'es_superadmin', False) or admin_email == 'pjimenezb@raloy.com.mx',
         'usuario': usuario,
         'tecnicos': tecnicos,
         'permisos': permisos
@@ -1303,11 +1477,13 @@ def admin_administradores(request):
     admin_email = request.session.get('admin_email')
     if not admin_email: return redirect('admin_login')
     
-    admin_obj = get_object_or_404(AdministradorPortal, email=admin_email)
-    if not admin_obj.es_superadmin:
+    admin_obj = _mongo_find_one(AdministradorPortal, {'email': admin_email})
+    if not admin_obj:
+        raise Http404("Administrador no encontrado")
+    if not getattr(admin_obj, 'es_superadmin', False):
         return HttpResponse("<h1>Acceso denegado. Solo superadministradores.</h1>", status=403)
         
-    admins = AdministradorPortal.objects.all().order_by('email')
+    admins = _mongo_find(AdministradorPortal, {}, [('email', 1)])
     return render(request, 'motor_firmas/admin_administradores.html', {
         'admin_email': admin_email,
         'admins': admins

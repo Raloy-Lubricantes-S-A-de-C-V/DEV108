@@ -179,8 +179,11 @@ def _mongo_now():
 
 
 def _usuario_tiene_notificacion_movil(DirectorioFirmas, email_norm):
-    user = DirectorioFirmas.objects.filter(email=email_norm).first()
-    return bool(user and user.notificar_celular)
+    user = _mongo_collection(DirectorioFirmas).find_one(
+        {'email': email_norm},
+        projection={'notificar_celular': True},
+    )
+    return bool(user and user.get('notificar_celular'))
 
 
 def _registrar_notificacion_pendiente(SignatureNotification, email_norm, reference_id):

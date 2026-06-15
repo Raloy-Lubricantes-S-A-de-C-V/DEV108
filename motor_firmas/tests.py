@@ -5,6 +5,10 @@ from django.test import SimpleTestCase
 
 from . import utils
 from .views import (
+    _mongo_count,
+    _mongo_delete_document,
+    _mongo_find_one_by_id,
+    _mongo_update_document,
     _indice_pendiente_actual,
     _indice_por_token,
     _indices_firmas_en_turno,
@@ -17,7 +21,14 @@ class FakeMongoCollection:
         self.documents = documents or []
 
     def _matches(self, document, query):
-        return all(document.get(key) == value for key, value in query.items())
+        for key, value in query.items():
+            if isinstance(value, dict) and '$in' in value:
+                if document.get(key) not in value['$in']:
+                    return False
+                continue
+            if document.get(key) != value:
+                return False
+        return True
 
     def find_one(self, query, sort=None, projection=None):
         matches = [document for document in self.documents if self._matches(document, query)]
@@ -36,8 +47,47 @@ class FakeMongoCollection:
         if document:
             document.update(update.get('$set', {}))
 
+    def delete_one(self, query):
+        document = self.find_one(query)
+        if document:
+            self.documents.remove(document)
+
+    def count_documents(self, query):
+        return len([document for document in self.documents if self._matches(document, query)])
+
     def insert_one(self, document):
+        document.setdefault('_id', f"fake-{len(self.documents) + 1}")
         self.documents.append(document)
+
+
+class MongoViewHelpersTest(SimpleTestCase):
+    def _model(self, table_name):
+        return SimpleNamespace(_meta=SimpleNamespace(db_table=table_name))
+
+    def test_find_one_by_id_accepts_string_for_integer_id(self):
+        model = self._model('motor_firmas_directoriofirmas')
+        collection = FakeMongoCollection([
+            {'_id': 'mongo-1', 'id': 7, 'email': 'uno@example.com'}
+        ])
+
+        with patch('motor_firmas.views._mongo_collection', return_value=collection):
+            document = _mongo_find_one_by_id(model, '7')
+
+        self.assertEqual(document.email, 'uno@example.com')
+
+    def test_update_and_delete_use_mongo_primary_key(self):
+        model = self._model('motor_firmas_directoriofirmas')
+        collection = FakeMongoCollection([
+            {'_id': 'mongo-1', 'id': 7, 'email': 'uno@example.com', 'notificar_celular': False}
+        ])
+        document = SimpleNamespace(_id='mongo-1', id=7)
+
+        with patch('motor_firmas.views._mongo_collection', return_value=collection):
+            _mongo_update_document(model, document, {'notificar_celular': True})
+            self.assertEqual(_mongo_count(model, {'notificar_celular': True}), 1)
+            _mongo_delete_document(model, document)
+
+        self.assertEqual(collection.documents, [])
 
 
 class MongoNotificationHelpersTest(SimpleTestCase):
