@@ -80,7 +80,7 @@
                     </div>
                     <div class="bg-surface-container-low rounded-xl p-6 border border-outline-variant space-y-5">
                         <div id="firmxSigners" class="space-y-4"></div>
-                        <button type="button" onclick="addFirmxSigner()" class="inline-flex items-center justify-center gap-2 border border-outline-variant bg-white text-primary px-4 py-3 rounded-lg font-bold hover:bg-surface-container transition-colors">
+                        <button id="firmxAddSignerButton" type="button" class="inline-flex items-center justify-center gap-2 border border-outline-variant bg-white text-primary px-4 py-3 rounded-lg font-bold hover:bg-surface-container transition-colors">
                             <span class="material-symbols-outlined text-[18px]">person_add</span>
                             Agregar firmante
                         </button>
@@ -120,7 +120,7 @@
                     </div>
                 </div>
 
-                <button id="firmxSubmitButton" type="button" onclick="registerFirmxDocument()" class="w-full bg-primary hover:bg-primary-container text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
+                <button id="firmxSubmitButton" type="button" class="w-full bg-primary hover:bg-primary-container text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
                     <span class="material-symbols-outlined">send</span>
                     Registrar documento en FIRMX
                 </button>
@@ -139,7 +139,7 @@
                     <div class="firmx-qr-frame" id="firmxQrFrame">
                         <span class="material-symbols-outlined text-outline text-5xl">qr_code_2</span>
                     </div>
-                    <button id="firmxQrButton" type="button" onclick="loadFirmxQr()" disabled class="w-full mt-4 border border-outline-variant bg-white text-primary px-4 py-3 rounded-lg font-bold hover:bg-surface-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <button id="firmxQrButton" type="button" disabled class="w-full mt-4 border border-outline-variant bg-white text-primary px-4 py-3 rounded-lg font-bold hover:bg-surface-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                         Obtener QR para firmar
                     </button>
                     <input id="firmxDocumentIdManual" type="text" class="w-full mt-3 px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" placeholder="ID FIRMX si no viene en respuesta">
@@ -159,6 +159,16 @@
 <script>
     let firmxDocumentId = '';
 
+    window.addEventListener('error', (event) => {
+        const status = document.getElementById('firmxStatus');
+        if (status) setFirmxStatus(`Error de pantalla: ${event.message}`, 'error');
+    });
+
+    window.addEventListener('unhandledrejection', (event) => {
+        const status = document.getElementById('firmxStatus');
+        if (status) setFirmxStatus(`Error de pantalla: ${event.reason?.message || event.reason}`, 'error');
+    });
+
     function todayPlus(days) {
         const date = new Date();
         date.setDate(date.getDate() + days);
@@ -171,18 +181,29 @@
         el.className = 'mt-4 text-sm font-semibold ' + (type === 'error' ? 'text-status-danger' : type === 'ok' ? 'text-status-success' : 'text-outline');
     }
 
+    function setFirmxResponse(payload) {
+        const response = document.getElementById('firmxResponse');
+        response.textContent = typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2);
+    }
+
+    async function parseFetchPayload(response) {
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.toLowerCase().includes('application/json')) return response.json();
+        return { error: await response.text() };
+    }
+
     function addFirmxSigner(name = '', email = '') {
         const container = document.getElementById('firmxSigners');
         const idx = container.children.length + 1;
         const row = document.createElement('div');
-        row.className = 'rounded-lg border border-outline-variant bg-white p-4';
+        row.className = 'firmx-signer-row rounded-lg border border-outline-variant bg-white p-4';
         row.innerHTML = `
             <div class="flex items-center justify-between gap-3 mb-3">
                 <div class="flex items-center gap-2 text-primary font-bold">
                     <span class="material-symbols-outlined text-[18px]">draw</span>
                     Firmante ${idx}
                 </div>
-                <button type="button" onclick="this.closest('div.rounded-lg').remove()" class="text-status-danger hover:underline text-sm font-bold">Quitar</button>
+                <button type="button" onclick="this.closest('.firmx-signer-row').remove()" class="text-status-danger hover:underline text-sm font-bold">Quitar</button>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <input type="text" class="firmx-signer-name w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" placeholder="Nombre completo" value="${name}">
@@ -242,14 +263,31 @@
 
     async function registerFirmxDocument() {
         const fileInput = document.getElementById('firmxPdfFile');
-        if (!fileInput.files.length) return alert('Selecciona un PDF.');
-        if (fileInput.files[0].type !== 'application/pdf') return alert('Solo se permiten PDFs.');
+        if (!fileInput.files.length) {
+            setFirmxStatus('Selecciona un PDF antes de registrar el documento.', 'error');
+            fileInput.focus();
+            return;
+        }
+        const selectedFile = fileInput.files[0];
+        if (selectedFile.type && selectedFile.type !== 'application/pdf' && !selectedFile.name.toLowerCase().endsWith('.pdf')) {
+            setFirmxStatus('Solo se permiten archivos PDF.', 'error');
+            fileInput.focus();
+            return;
+        }
+        if (!document.getElementById('firmxDeadline').value) {
+            setFirmxStatus('Selecciona la fecha límite de firma.', 'error');
+            document.getElementById('firmxDeadline').focus();
+            return;
+        }
 
-        const signers = [...document.querySelectorAll('#firmxSigners .rounded-lg')].map(row => ({
+        const signers = [...document.querySelectorAll('#firmxSigners .firmx-signer-row')].map(row => ({
             name: row.querySelector('.firmx-signer-name').value.trim(),
             email: row.querySelector('.firmx-signer-email').value.trim()
         })).filter(item => item.name && item.email);
-        if (!signers.length) return alert('Agrega al menos un firmante con nombre y correo.');
+        if (!signers.length) {
+            setFirmxStatus('Agrega al menos un firmante con nombre y correo.', 'error');
+            return;
+        }
 
         const btn = document.getElementById('firmxSubmitButton');
         btn.disabled = true;
@@ -258,8 +296,8 @@
 
         const tags = document.getElementById('firmxTags').value.split(',').map(tag => tag.trim()).filter(Boolean).map(tag => ({ tag }));
         const formData = new FormData();
-        formData.append('pdf_file', fileInput.files[0]);
-        formData.append('document_name', document.getElementById('firmxDocumentName').value.trim() || fileInput.files[0].name);
+        formData.append('pdf_file', selectedFile);
+        formData.append('document_name', document.getElementById('firmxDocumentName').value.trim() || selectedFile.name);
         formData.append('signature_type', document.getElementById('firmxSignatureType').value);
         formData.append('dead_line_to_sign', document.getElementById('firmxDeadline').value);
         formData.append('remeber_me_every', document.getElementById('firmxReminder').value.trim());
@@ -272,8 +310,8 @@
 
         try {
             const res = await fetch('/api/firmx/register-document/', { method: 'POST', body: formData });
-            const payload = await res.json();
-            document.getElementById('firmxResponse').textContent = JSON.stringify(payload, null, 2);
+            const payload = await parseFetchPayload(res);
+            setFirmxResponse(payload);
             if (!res.ok) throw new Error(payload.error || 'FIRMX no pudo registrar el documento.');
             firmxDocumentId = payload.document_id || '';
             document.getElementById('firmxDocumentIdManual').value = firmxDocumentId;
@@ -290,15 +328,19 @@
     async function loadFirmxQr() {
         const manualId = document.getElementById('firmxDocumentIdManual').value.trim();
         const id = manualId || firmxDocumentId;
-        if (!id) return alert('Indica el ID de documento FIRMX.');
+        if (!id) {
+            setFirmxStatus('Indica el ID de documento FIRMX.', 'error');
+            document.getElementById('firmxDocumentIdManual').focus();
+            return;
+        }
         const btn = document.getElementById('firmxQrButton');
         btn.disabled = true;
         btn.textContent = 'Consultando QR...';
         setFirmxStatus('Consultando QR en FIRMX...');
         try {
             const res = await fetch(`/api/firmx/documents/${encodeURIComponent(id)}/sign-qr/`);
-            const payload = await res.json();
-            document.getElementById('firmxResponse').textContent = JSON.stringify(payload, null, 2);
+            const payload = await parseFetchPayload(res);
+            setFirmxResponse(payload);
             if (!res.ok) throw new Error(payload.error || 'No se pudo obtener el QR.');
             renderQrFromPayload(payload);
             setFirmxStatus('QR obtenido desde FIRMX.', 'ok');
@@ -312,6 +354,9 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('firmxDeadline').value = todayPlus(7);
+        document.getElementById('firmxSubmitButton').addEventListener('click', registerFirmxDocument);
+        document.getElementById('firmxQrButton').addEventListener('click', loadFirmxQr);
+        document.getElementById('firmxAddSignerButton').addEventListener('click', () => addFirmxSigner());
         document.getElementById('firmxDocumentIdManual').addEventListener('input', (event) => {
             document.getElementById('firmxQrButton').disabled = !event.target.value.trim();
         });
