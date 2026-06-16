@@ -92,6 +92,13 @@
                 Usar Plantilla
             </a>
             {% endif %}
+
+            {% if 'firmx' in permisos %}
+            <a href="{% url 'portal_firmx' %}" class="inline-flex items-center gap-3 text-white px-5 py-3 rounded-lg font-bold hover:opacity-90 transition-opacity" style="background-color:#2d9be8;">
+                <img src="/static/motor_firmas/img/firmx-logo.png" alt="FIRMX" class="h-7 w-auto rounded-sm">
+                FIRMX
+            </a>
+            {% endif %}
         </div>
     </section>
 

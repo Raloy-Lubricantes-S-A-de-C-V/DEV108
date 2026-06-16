@@ -49,11 +49,19 @@
             </span>
         </label>
 
-        <label class="flex items-start gap-4 bg-surface-container-low border border-outline-variant p-4 rounded-lg">
+        <label class="flex items-start gap-4 bg-surface-container-low border border-outline-variant p-4 rounded-lg mb-3">
             <input type="checkbox" id="chkPlantillas" value="plantillas" {% if 'plantillas' in permisos %}checked{% endif %} class="mt-1 h-5 w-5 rounded border-outline-variant text-primary focus:ring-primary">
             <span>
                 <strong class="text-primary">USAR PLANTILLAS CREADAS</strong><br>
                 <span class="text-sm text-text-muted">Permite al usuario utilizar las plantillas habilitadas para él.</span>
+            </span>
+        </label>
+
+        <label class="flex items-start gap-4 bg-surface-container-low border border-outline-variant p-4 rounded-lg">
+            <input type="checkbox" id="chkFirmx" value="firmx" {% if 'firmx' in permisos %}checked{% endif %} class="mt-1 h-5 w-5 rounded border-outline-variant text-primary focus:ring-primary">
+            <span>
+                <strong class="text-primary">FIRMX</strong><br>
+                <span class="text-sm text-text-muted">Habilita el módulo de firma legal externa integrado con FIRMX.</span>
             </span>
         </label>
     </section>
@@ -103,6 +111,7 @@
         let permisos = [];
         if(document.getElementById('chkApi').checked) permisos.push('api_tester');
         if(document.getElementById('chkPlantillas').checked) permisos.push('plantillas');
+        if(document.getElementById('chkFirmx').checked) permisos.push('firmx');
 
         let payload = {
             id: {{ usuario.id }},

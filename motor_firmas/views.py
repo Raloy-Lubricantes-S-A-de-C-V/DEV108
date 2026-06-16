@@ -5,6 +5,7 @@ import traceback
 import re
 import uuid
 import shutil
+import base64
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 from urllib.parse import quote
@@ -398,6 +399,75 @@ def _parse_email_list(value):
         if email not in emails:
             emails.append(email)
     return emails
+
+
+def _firmx_headers():
+    api_key = getattr(settings, 'FIRMX_API_KEY', '')
+    if not api_key:
+        raise ValueError("FIRMX_API_KEY no está configurada.")
+    return {
+        'X-Api-Key': api_key,
+        'Content-Type': 'application/json',
+    }
+
+
+def _firmx_url(path):
+    base_url = getattr(settings, 'FIRMX_API_BASE_URL', '').rstrip('/')
+    return f"{base_url}/{path.lstrip('/')}"
+
+
+def _firmx_timeout():
+    return int(getattr(settings, 'FIRMX_REQUEST_TIMEOUT', 45))
+
+
+def _json_response_from_requests(response):
+    content_type = response.headers.get('content-type', '')
+    if 'application/json' in content_type.lower():
+        try:
+            return response.json()
+        except ValueError:
+            return {"raw": response.text}
+    return {"raw": response.text}
+
+
+def _extract_firmx_document_id(data):
+    if isinstance(data, dict):
+        for key in ('document_id', 'documentId', 'id', 'document', 'document_pk', 'pk'):
+            value = data.get(key)
+            if isinstance(value, (str, int)) and str(value).strip():
+                return str(value).strip()
+            if isinstance(value, dict):
+                nested = _extract_firmx_document_id(value)
+                if nested:
+                    return nested
+        for value in data.values():
+            nested = _extract_firmx_document_id(value)
+            if nested:
+                return nested
+    if isinstance(data, list):
+        for item in data:
+            nested = _extract_firmx_document_id(item)
+            if nested:
+                return nested
+    return ''
+
+
+def _parse_json_field(raw_value, default):
+    if raw_value in (None, ''):
+        return _default_json_value(default)
+    if isinstance(raw_value, (list, dict)):
+        return raw_value
+    try:
+        return json.loads(raw_value)
+    except (TypeError, ValueError):
+        return _default_json_value(default)
+
+
+def _usuario_tiene_permiso(owner_email, permiso):
+    colaborador = _mongo_find_one(DirectorioFirmas, {'email': _normalizar_email(owner_email)})
+    permisos = getattr(colaborador, 'permisos_portal', []) if colaborador else []
+    permisos = _json_or_default(permisos, [])
+    return permiso in permisos
 
 
 def _mongo_next_int_id(model):
@@ -1107,6 +1177,162 @@ def portal_dashboard(request):
         'documentos': lista_docs,
         'tiene_carpeta_dominio': tiene_carpeta_dominio,
         'permisos': permisos
+    })
+
+
+def portal_firmx(request):
+    owner_email = request.session.get('owner_email')
+    if not owner_email:
+        return redirect('portal_login')
+    if not _usuario_tiene_permiso(owner_email, 'firmx'):
+        return HttpResponse("<h1>No tienes permisos para usar el módulo FIRMX.</h1>", status=403)
+    return render(request, 'motor_firmas/portal_firmx.html', {
+        'owner_email': owner_email,
+        'firmx_base_url': getattr(settings, 'FIRMX_API_BASE_URL', ''),
+    })
+
+
+@csrf_exempt
+def firmx_registrar_documento(request):
+    owner_email = request.session.get('owner_email')
+    if not owner_email:
+        return JsonResponse({"error": "No autenticado"}, status=403)
+    if not _usuario_tiene_permiso(owner_email, 'firmx'):
+        return JsonResponse({"error": "No tienes permiso para usar FIRMX."}, status=403)
+    if request.method != 'POST':
+        return JsonResponse({"error": "Método no permitido."}, status=405)
+
+    pdf_file = request.FILES.get('pdf_file')
+    if not pdf_file:
+        return JsonResponse({"error": "Archivo PDF requerido."}, status=400)
+    if getattr(pdf_file, 'content_type', '') != 'application/pdf' and not str(pdf_file.name).lower().endswith('.pdf'):
+        return JsonResponse({"error": "Solo se permiten archivos PDF."}, status=400)
+
+    signers = _parse_json_field(request.POST.get('signers_json'), [])
+    viewers = _parse_json_field(request.POST.get('viewers_json'), [])
+    tags = _parse_json_field(request.POST.get('tags_json'), [])
+    if not isinstance(signers, list) or not signers:
+        return JsonResponse({"error": "Agrega al menos un firmante."}, status=400)
+
+    firmantes_limpios = []
+    for signer in signers:
+        if not isinstance(signer, dict):
+            continue
+        name = str(signer.get('name') or '').strip()
+        email = _normalizar_email(signer.get('email'))
+        if name and re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
+            firmantes_limpios.append({"name": name, "email": email})
+    if not firmantes_limpios:
+        return JsonResponse({"error": "Agrega firmantes con nombre y correo válido."}, status=400)
+
+    viewers_limpios = []
+    for viewer in viewers if isinstance(viewers, list) else []:
+        if not isinstance(viewer, dict):
+            continue
+        name = str(viewer.get('name') or '').strip()
+        email = _normalizar_email(viewer.get('email'))
+        if name and re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
+            viewers_limpios.append({"name": name, "email": email})
+
+    tags_limpios = []
+    for tag in tags if isinstance(tags, list) else []:
+        if isinstance(tag, dict):
+            value = str(tag.get('tag') or '').strip()
+        else:
+            value = str(tag or '').strip()
+        if value:
+            tags_limpios.append({"tag": value})
+
+    document_name = str(request.POST.get('document_name') or pdf_file.name).strip()
+    deadline = str(request.POST.get('dead_line_to_sign') or '').strip()
+    if not deadline:
+        return JsonResponse({"error": "Fecha límite de firma requerida."}, status=400)
+
+    document_base64 = base64.b64encode(pdf_file.read()).decode('ascii')
+    firmx_payload = {
+        "document_name": document_name,
+        "document_base64": document_base64,
+        "signature_type": request.POST.get('signature_type') or 'SIMPLE_BIOMETRIC',
+        "dead_line_to_sign": deadline,
+        "remeber_me_every": request.POST.get('remeber_me_every') or '',
+        "tags": tags_limpios,
+        "notify_signers": str(request.POST.get('notify_signers', 'true')).lower() == 'true',
+        "notify_viewers": str(request.POST.get('notify_viewers', 'true')).lower() == 'true',
+        "signers": firmantes_limpios,
+        "viewers": viewers_limpios,
+        "message_for_request": request.POST.get('message_for_request') or 'Favor de revisar y firmar el documento.',
+    }
+
+    try:
+        response = requests.post(
+            _firmx_url('/documents/register/'),
+            headers=_firmx_headers(),
+            json=firmx_payload,
+            timeout=_firmx_timeout(),
+        )
+        response_data = _json_response_from_requests(response)
+    except Exception as e:
+        return JsonResponse({"error": f"Error contactando FIRMX: {e}"}, status=502)
+
+    if not 200 <= response.status_code < 300:
+        return JsonResponse({
+            "error": "FIRMX no pudo registrar el documento.",
+            "firmx_status": response.status_code,
+            "firmx_response": response_data,
+        }, status=502)
+
+    return JsonResponse({
+        "status": "success",
+        "firmx_status": response.status_code,
+        "document_id": _extract_firmx_document_id(response_data),
+        "firmx_response": response_data,
+    })
+
+
+@csrf_exempt
+def firmx_obtener_qr(request, document_id):
+    owner_email = request.session.get('owner_email')
+    if not owner_email:
+        return JsonResponse({"error": "No autenticado"}, status=403)
+    if not _usuario_tiene_permiso(owner_email, 'firmx'):
+        return JsonResponse({"error": "No tienes permiso para usar FIRMX."}, status=403)
+    if request.method != 'GET':
+        return JsonResponse({"error": "Método no permitido."}, status=405)
+
+    clean_id = str(document_id or '').strip()
+    if not re.match(r'^[A-Za-z0-9_-]+$', clean_id):
+        return JsonResponse({"error": "ID de documento FIRMX inválido."}, status=400)
+
+    try:
+        response = requests.get(
+            _firmx_url(f'/documents/api/{clean_id}/sign_qr'),
+            headers=_firmx_headers(),
+            timeout=_firmx_timeout(),
+        )
+    except Exception as e:
+        return JsonResponse({"error": f"Error contactando FIRMX: {e}"}, status=502)
+
+    content_type = response.headers.get('content-type', '')
+    if not 200 <= response.status_code < 300:
+        return JsonResponse({
+            "error": "FIRMX no pudo obtener el QR.",
+            "firmx_status": response.status_code,
+            "firmx_response": _json_response_from_requests(response),
+        }, status=502)
+
+    if content_type.lower().startswith('image/'):
+        return JsonResponse({
+            "status": "success",
+            "firmx_status": response.status_code,
+            "content_type": content_type,
+            "qr_image": f"data:{content_type};base64,{base64.b64encode(response.content).decode('ascii')}",
+        })
+
+    return JsonResponse({
+        "status": "success",
+        "firmx_status": response.status_code,
+        "content_type": content_type,
+        "firmx_response": _json_response_from_requests(response),
     })
 
 

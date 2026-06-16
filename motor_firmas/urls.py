@@ -22,7 +22,10 @@ urlpatterns = [
     path('portal/', views.portal_login, name='portal_login'),
     path('api/solicitar-otp/', views.solicitar_otp, name='solicitar_otp'),
     path('portal/dashboard/', views.portal_dashboard, name='portal_dashboard'),
+    path('portal/firmx/', views.portal_firmx, name='portal_firmx'),
     path('portal/logout/', views.portal_logout, name='portal_logout'),
+    path('api/firmx/register-document/', views.firmx_registrar_documento, name='firmx_registrar_documento'),
+    path('api/firmx/documents/<str:document_id>/sign-qr/', views.firmx_obtener_qr, name='firmx_obtener_qr'),
 
     # RUTAS DE PLANTILLAS
     path('portal/plantillas/', views.portal_plantillas, name='portal_plantillas'),

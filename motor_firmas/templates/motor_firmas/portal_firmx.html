@@ -1,0 +1,321 @@
+{% extends "motor_firmas/base.html" %}
+
+{% block title %}FIRMX - Firma Legal{% endblock %}
+{% block body_class %}bg-background min-h-screen text-text-main py-8 px-4{% endblock %}
+
+{% block extra_head %}
+<style>
+    .firmx-logo-panel { width: 9rem; max-width: 100%; height: auto; display: block; }
+    .firmx-step-number { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 9999px; background: #162839; color: #fff; font-size: 0.875rem; font-weight: 800; flex-shrink: 0; }
+    .firmx-response { white-space: pre-wrap; word-break: break-word; max-height: 360px; overflow: auto; }
+    .firmx-qr-frame { width: 220px; min-height: 220px; border: 1px solid #c4c6cd; border-radius: 0.75rem; background: #fff; display: flex; align-items: center; justify-content: center; margin: 0 auto; padding: 1rem; }
+    .firmx-qr-frame img { max-width: 180px; max-height: 180px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <main class="bg-white rounded-xl shadow-sm border border-outline-variant overflow-hidden">
+        <header class="bg-primary text-white p-6 md:p-8">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                <div>
+                    <img src="/static/motor_firmas/img/raloy-logo-inverted.svg" alt="Raloy Lubricantes" class="raloy-logo-sm mb-6">
+                    <a href="/portal/dashboard/" class="inline-flex items-center gap-2 text-primary-fixed-dim hover:text-white text-sm font-semibold mb-6 transition-colors">
+                        <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+                        Volver al panel
+                    </a>
+                    <div class="flex items-start gap-4">
+                        <span class="material-symbols-outlined text-secondary-container text-4xl">verified_user</span>
+                        <div>
+                            <h1 class="text-2xl md:text-3xl font-bold">Firma legal by FIRMX integrada a Raloy</h1>
+                            <p class="text-primary-fixed-dim text-sm mt-2">Carga documentos en FIRMX Classic, registra firmantes y consulta el QR de firma.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl px-5 py-4 shadow-sm">
+                    <img src="/static/motor_firmas/img/firmx-logo.png" alt="FIRMX" class="firmx-logo-panel">
+                </div>
+            </div>
+        </header>
+
+        <div class="p-6 md:p-8 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8">
+            <section class="space-y-8">
+                <div>
+                    <div class="flex items-center gap-4 mb-5">
+                        <span class="firmx-step-number">1</span>
+                        <h2 class="text-xl font-bold text-primary">Documento</h2>
+                    </div>
+                    <div class="bg-surface-container-low rounded-xl p-6 border border-outline-variant space-y-5">
+                        <div>
+                            <label class="block text-sm font-semibold text-on-surface-variant mb-2">Nombre del documento</label>
+                            <input id="firmxDocumentName" type="text" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" placeholder="Contrato legal Raloy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-on-surface-variant mb-2">Archivo PDF</label>
+                            <input id="firmxPdfFile" type="file" accept="application/pdf" class="w-full px-4 py-4 border-2 border-dashed border-outline-variant rounded-xl bg-surface-bright cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-white file:font-semibold">
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-on-surface-variant mb-2">Tipo de firma</label>
+                                <select id="firmxSignatureType" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
+                                    <option value="SIMPLE_BIOMETRIC">SIMPLE_BIOMETRIC</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-on-surface-variant mb-2">Fecha límite</label>
+                                <input id="firmxDeadline" type="date" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-on-surface-variant mb-2">Mensaje para solicitud</label>
+                            <textarea id="firmxMessage" class="w-full min-h-[100px] px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" placeholder="Favor de revisar y firmar el documento.">Favor de revisar y firmar el documento.</textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex items-center gap-4 mb-5">
+                        <span class="firmx-step-number">2</span>
+                        <h2 class="text-xl font-bold text-primary">Firmantes</h2>
+                    </div>
+                    <div class="bg-surface-container-low rounded-xl p-6 border border-outline-variant space-y-5">
+                        <div id="firmxSigners" class="space-y-4"></div>
+                        <button type="button" onclick="addFirmxSigner()" class="inline-flex items-center justify-center gap-2 border border-outline-variant bg-white text-primary px-4 py-3 rounded-lg font-bold hover:bg-surface-container transition-colors">
+                            <span class="material-symbols-outlined text-[18px]">person_add</span>
+                            Agregar firmante
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex items-center gap-4 mb-5">
+                        <span class="firmx-step-number">3</span>
+                        <h2 class="text-xl font-bold text-primary">Notificación y etiquetas</h2>
+                    </div>
+                    <div class="bg-surface-container-low rounded-xl p-6 border border-outline-variant space-y-5">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <label class="flex items-center gap-3 bg-white border border-outline-variant p-4 rounded-lg">
+                                <input id="firmxNotifySigners" type="checkbox" checked class="h-5 w-5 rounded border-outline-variant text-primary focus:ring-primary">
+                                <span class="text-sm font-semibold text-primary">Notificar firmantes</span>
+                            </label>
+                            <label class="flex items-center gap-3 bg-white border border-outline-variant p-4 rounded-lg">
+                                <input id="firmxNotifyViewers" type="checkbox" checked class="h-5 w-5 rounded border-outline-variant text-primary focus:ring-primary">
+                                <span class="text-sm font-semibold text-primary">Notificar visualizadores</span>
+                            </label>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-on-surface-variant mb-2">Recordatorio</label>
+                            <input id="firmxReminder" type="text" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" placeholder="Ej. cada 2 días">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-on-surface-variant mb-2">Etiquetas</label>
+                            <input id="firmxTags" type="text" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" placeholder="legal, raloy, contrato">
+                            <p class="text-xs text-text-muted mt-2">Separa etiquetas con coma.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-on-surface-variant mb-2">Visualizadores</label>
+                            <textarea id="firmxViewers" class="w-full min-h-[90px] px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" placeholder="Nombre Completo <correo@raloy.com.mx>"></textarea>
+                            <p class="text-xs text-text-muted mt-2">Opcional. Usa una línea por persona con formato Nombre &lt;correo&gt;.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="firmxSubmitButton" type="button" onclick="registerFirmxDocument()" class="w-full bg-primary hover:bg-primary-container text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined">send</span>
+                    Registrar documento en FIRMX
+                </button>
+            </section>
+
+            <aside class="space-y-5">
+                <section class="bg-surface-container-low rounded-xl border border-outline-variant p-5">
+                    <h2 class="text-lg font-bold text-primary mb-3">Estado de integración</h2>
+                    <p class="text-sm text-text-muted mb-3">Base FIRMX:</p>
+                    <div class="text-xs bg-white border border-outline-variant rounded-lg p-3 break-all">{{ firmx_base_url }}</div>
+                    <div id="firmxStatus" class="mt-4 text-sm font-semibold text-outline">Esperando registro.</div>
+                </section>
+
+                <section class="bg-white rounded-xl border border-outline-variant p-5">
+                    <h2 class="text-lg font-bold text-primary mb-4">QR de firma</h2>
+                    <div class="firmx-qr-frame" id="firmxQrFrame">
+                        <span class="material-symbols-outlined text-outline text-5xl">qr_code_2</span>
+                    </div>
+                    <button id="firmxQrButton" type="button" onclick="loadFirmxQr()" disabled class="w-full mt-4 border border-outline-variant bg-white text-primary px-4 py-3 rounded-lg font-bold hover:bg-surface-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        Obtener QR para firmar
+                    </button>
+                    <input id="firmxDocumentIdManual" type="text" class="w-full mt-3 px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" placeholder="ID FIRMX si no viene en respuesta">
+                </section>
+
+                <section class="bg-white rounded-xl border border-outline-variant p-5">
+                    <h2 class="text-lg font-bold text-primary mb-3">Respuesta FIRMX</h2>
+                    <pre id="firmxResponse" class="firmx-response text-xs bg-surface-container-low border border-outline-variant rounded-lg p-4 text-on-surface-variant">Sin respuesta todavía.</pre>
+                </section>
+            </aside>
+        </div>
+    </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let firmxDocumentId = '';
+
+    function todayPlus(days) {
+        const date = new Date();
+        date.setDate(date.getDate() + days);
+        return date.toISOString().slice(0, 10);
+    }
+
+    function setFirmxStatus(message, type = 'muted') {
+        const el = document.getElementById('firmxStatus');
+        el.textContent = message;
+        el.className = 'mt-4 text-sm font-semibold ' + (type === 'error' ? 'text-status-danger' : type === 'ok' ? 'text-status-success' : 'text-outline');
+    }
+
+    function addFirmxSigner(name = '', email = '') {
+        const container = document.getElementById('firmxSigners');
+        const idx = container.children.length + 1;
+        const row = document.createElement('div');
+        row.className = 'rounded-lg border border-outline-variant bg-white p-4';
+        row.innerHTML = `
+            <div class="flex items-center justify-between gap-3 mb-3">
+                <div class="flex items-center gap-2 text-primary font-bold">
+                    <span class="material-symbols-outlined text-[18px]">draw</span>
+                    Firmante ${idx}
+                </div>
+                <button type="button" onclick="this.closest('div.rounded-lg').remove()" class="text-status-danger hover:underline text-sm font-bold">Quitar</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input type="text" class="firmx-signer-name w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" placeholder="Nombre completo" value="${name}">
+                <input type="email" class="firmx-signer-email w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" placeholder="correo@empresa.com" value="${email}">
+            </div>
+        `;
+        container.appendChild(row);
+    }
+
+    function parsePeopleTextarea(value) {
+        return value.split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+            const match = line.match(/^(.+?)\\s*<([^>]+)>$/);
+            if (match) return { name: match[1].trim(), email: match[2].trim() };
+            return { name: line.split('@')[0], email: line };
+        });
+    }
+
+    function extractQrCandidate(data) {
+        if (!data || typeof data !== 'object') return '';
+        if (Array.isArray(data)) {
+            for (const item of data) {
+                const found = extractQrCandidate(item);
+                if (found) return found;
+            }
+            return '';
+        }
+        for (const key of ['qr_image', 'qr', 'qr_url', 'sign_qr', 'sign_url', 'url', 'link']) {
+            if (typeof data[key] === 'string' && data[key]) return data[key];
+        }
+        for (const value of Object.values(data)) {
+            const found = extractQrCandidate(value);
+            if (found) return found;
+        }
+        return '';
+    }
+
+    function renderQrFromPayload(payload) {
+        const frame = document.getElementById('firmxQrFrame');
+        frame.innerHTML = '';
+        const qrCandidate = payload.qr_image || extractQrCandidate(payload.firmx_response);
+        if (!qrCandidate) {
+            frame.innerHTML = '<span class="material-symbols-outlined text-outline text-5xl">qr_code_2</span>';
+            return;
+        }
+        if (qrCandidate.startsWith('data:image') || qrCandidate.startsWith('http')) {
+            const img = document.createElement('img');
+            img.src = qrCandidate;
+            img.alt = 'QR FIRMX';
+            frame.appendChild(img);
+        } else {
+            const div = document.createElement('div');
+            div.className = 'text-xs text-on-surface-variant break-all';
+            div.textContent = qrCandidate;
+            frame.appendChild(div);
+        }
+    }
+
+    async function registerFirmxDocument() {
+        const fileInput = document.getElementById('firmxPdfFile');
+        if (!fileInput.files.length) return alert('Selecciona un PDF.');
+        if (fileInput.files[0].type !== 'application/pdf') return alert('Solo se permiten PDFs.');
+
+        const signers = [...document.querySelectorAll('#firmxSigners .rounded-lg')].map(row => ({
+            name: row.querySelector('.firmx-signer-name').value.trim(),
+            email: row.querySelector('.firmx-signer-email').value.trim()
+        })).filter(item => item.name && item.email);
+        if (!signers.length) return alert('Agrega al menos un firmante con nombre y correo.');
+
+        const btn = document.getElementById('firmxSubmitButton');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Registrando en FIRMX...';
+        setFirmxStatus('Enviando documento a FIRMX...');
+
+        const tags = document.getElementById('firmxTags').value.split(',').map(tag => tag.trim()).filter(Boolean).map(tag => ({ tag }));
+        const formData = new FormData();
+        formData.append('pdf_file', fileInput.files[0]);
+        formData.append('document_name', document.getElementById('firmxDocumentName').value.trim() || fileInput.files[0].name);
+        formData.append('signature_type', document.getElementById('firmxSignatureType').value);
+        formData.append('dead_line_to_sign', document.getElementById('firmxDeadline').value);
+        formData.append('remeber_me_every', document.getElementById('firmxReminder').value.trim());
+        formData.append('message_for_request', document.getElementById('firmxMessage').value.trim());
+        formData.append('notify_signers', document.getElementById('firmxNotifySigners').checked ? 'true' : 'false');
+        formData.append('notify_viewers', document.getElementById('firmxNotifyViewers').checked ? 'true' : 'false');
+        formData.append('signers_json', JSON.stringify(signers));
+        formData.append('viewers_json', JSON.stringify(parsePeopleTextarea(document.getElementById('firmxViewers').value)));
+        formData.append('tags_json', JSON.stringify(tags));
+
+        try {
+            const res = await fetch('/api/firmx/register-document/', { method: 'POST', body: formData });
+            const payload = await res.json();
+            document.getElementById('firmxResponse').textContent = JSON.stringify(payload, null, 2);
+            if (!res.ok) throw new Error(payload.error || 'FIRMX no pudo registrar el documento.');
+            firmxDocumentId = payload.document_id || '';
+            document.getElementById('firmxDocumentIdManual').value = firmxDocumentId;
+            document.getElementById('firmxQrButton').disabled = !firmxDocumentId;
+            setFirmxStatus(firmxDocumentId ? `Documento registrado. ID FIRMX: ${firmxDocumentId}` : 'Documento registrado. Captura el ID FIRMX para consultar QR.', 'ok');
+        } catch (error) {
+            setFirmxStatus(error.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<span class="material-symbols-outlined">send</span> Registrar documento en FIRMX';
+        }
+    }
+
+    async function loadFirmxQr() {
+        const manualId = document.getElementById('firmxDocumentIdManual').value.trim();
+        const id = manualId || firmxDocumentId;
+        if (!id) return alert('Indica el ID de documento FIRMX.');
+        const btn = document.getElementById('firmxQrButton');
+        btn.disabled = true;
+        btn.textContent = 'Consultando QR...';
+        setFirmxStatus('Consultando QR en FIRMX...');
+        try {
+            const res = await fetch(`/api/firmx/documents/${encodeURIComponent(id)}/sign-qr/`);
+            const payload = await res.json();
+            document.getElementById('firmxResponse').textContent = JSON.stringify(payload, null, 2);
+            if (!res.ok) throw new Error(payload.error || 'No se pudo obtener el QR.');
+            renderQrFromPayload(payload);
+            setFirmxStatus('QR obtenido desde FIRMX.', 'ok');
+        } catch (error) {
+            setFirmxStatus(error.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Obtener QR para firmar';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('firmxDeadline').value = todayPlus(7);
+        document.getElementById('firmxDocumentIdManual').addEventListener('input', (event) => {
+            document.getElementById('firmxQrButton').disabled = !event.target.value.trim();
+        });
+        addFirmxSigner();
+    });
+</script>
+{% endblock %}

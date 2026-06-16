@@ -135,6 +135,14 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 
+# FIRMX Classic API integration. Values can be overridden in production.
+FIRMX_API_BASE_URL = os.environ.get(
+    'FIRMX_API_BASE_URL',
+    'https://stage.firmx.mobilender.mx/digisign/api/v1',
+).rstrip('/')
+FIRMX_API_KEY = os.environ.get('FIRMX_API_KEY', 'NKn4E8bW.0We4XYtyi5GHOf8lmHIdmEXbimb9Mdp1')
+FIRMX_REQUEST_TIMEOUT = int(os.environ.get('FIRMX_REQUEST_TIMEOUT', '45'))
+
 # --- MONKEY PATCH PARA DJONGO + PYMONGO 4+ / PYTHON 3.12 ---
 # Corrige errores de compatibilidad y revela el error original en DatabaseError
 try:
