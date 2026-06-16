@@ -9,6 +9,9 @@ urlpatterns = [
     path('api/procesar/<uuid:token>/', views.procesar_firma, name='procesar_firma_old'),
     path('api/procesar/<uuid:token>/<str:firmante_token>/', views.procesar_firma, name='procesar_firma'),
     path('trazabilidad/<uuid:token>/', views.vista_trazabilidad, name='vista_trazabilidad'),
+    path('trazabilidad/qr/<path:codigo>/', views.vista_trazabilidad_qr, name='vista_trazabilidad_qr'),
+    path('api/trazabilidad-qr/<uuid:token>/', views.generar_qr_trazabilidad, name='generar_qr_trazabilidad'),
+    path('api/enviar-qr-trazabilidad/', views.enviar_qr_trazabilidad, name='enviar_qr_trazabilidad'),
 
     # RUTAS DE BANCO DE FIRMAS
     path('registro-firmas/', views.registro_firmas, name='registro_firmas'),

@@ -7,10 +7,12 @@ import uuid
 import shutil
 from datetime import datetime, timedelta
 from types import SimpleNamespace
+from urllib.parse import quote
 from django.conf import settings
+from django.core import signing
 from django.http import JsonResponse, HttpResponse, Http404
 from django.shortcuts import render, redirect
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.utils import timezone
 from django.contrib.auth.hashers import check_password, make_password
 from .models import ProcesoFirma, DirectorioFirmas, OTPLogin, AdministradorPortal, PlantillaFormulario, CarpetaDominio, \
@@ -27,6 +29,11 @@ N8N_WEBHOOK_INVITAR_REGISTRO = "https://n8n.raloy.com.mx/webhook/invitar-registr
 N8N_WEBHOOK_ANALIZAR_PLANTILLA = "https://n8n.raloy.com.mx/webhook/analizar-plantilla"
 N8N_WEBHOOK_PREPARAR_DIR = "https://n8n.raloy.com.mx/webhook/preparar-directorio"
 N8N_WEBHOOK_SUBIR_PDF_USUARIO = "https://n8n.raloy.com.mx/webhook/subir-pdf-usuario"
+N8N_WEBHOOK_ENVIAR_QR = "https://n8n.raloy.com.mx/webhook/enviar-qr-trazabilidad"
+
+PUBLIC_BASE_URL = "https://dsign.raloy.com.mx"
+QR_TRAZABILIDAD_SALT = "motor_firmas.trazabilidad_qr"
+QR_TRAZABILIDAD_MAX_AGE_SECONDS = getattr(settings, "QR_TRAZABILIDAD_MAX_AGE_SECONDS", 60 * 60 * 24 * 30)
 
 _MONGO_CLIENT = None
 
@@ -350,6 +357,47 @@ def _get_proceso_por_token_or_404(token):
     if not proceso:
         raise Http404("Proceso de firma no encontrado")
     return proceso
+
+
+def _crear_payload_qr_trazabilidad(proceso):
+    signed_hash = signing.dumps(
+        {
+            'token': str(proceso.token_acceso),
+            'reference_id': proceso.reference_id,
+        },
+        salt=QR_TRAZABILIDAD_SALT,
+    )
+    expires_at = timezone.now() + timedelta(seconds=QR_TRAZABILIDAD_MAX_AGE_SECONDS)
+    qr_url = f"{PUBLIC_BASE_URL}/trazabilidad/qr/{quote(signed_hash, safe='')}/"
+    return {
+        'hash': signed_hash,
+        'link': qr_url,
+        'expires_at': expires_at,
+        'expires_at_label': timezone.localtime(expires_at).strftime('%d/%m/%Y %H:%M'),
+        'max_age_seconds': QR_TRAZABILIDAD_MAX_AGE_SECONDS,
+    }
+
+
+def _validar_acceso_owner(proceso, owner_email):
+    return _normalizar_email(getattr(proceso, 'owner_email', '')) == _normalizar_email(owner_email)
+
+
+def _parse_email_list(value):
+    if isinstance(value, list):
+        raw_items = value
+    else:
+        raw_items = re.split(r'[\s,;]+', str(value or ''))
+
+    emails = []
+    for item in raw_items:
+        email = _normalizar_email(item)
+        if not email:
+            continue
+        if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
+            continue
+        if email not in emails:
+            emails.append(email)
+    return emails
 
 
 def _mongo_next_int_id(model):
@@ -842,6 +890,92 @@ def vista_trazabilidad(request, token):
                   })
 
 
+def vista_trazabilidad_qr(request, codigo):
+    try:
+        payload = signing.loads(
+            codigo,
+            salt=QR_TRAZABILIDAD_SALT,
+            max_age=QR_TRAZABILIDAD_MAX_AGE_SECONDS,
+        )
+    except signing.SignatureExpired:
+        return HttpResponse("El codigo QR de trazabilidad ha expirado.", status=410)
+    except signing.BadSignature:
+        return HttpResponse("El codigo QR de trazabilidad no es valido.", status=403)
+
+    token = payload.get('token')
+    if not token:
+        return HttpResponse("El codigo QR de trazabilidad no contiene un proceso valido.", status=403)
+    return redirect('vista_trazabilidad', token=token)
+
+
+def generar_qr_trazabilidad(request, token):
+    owner_email = request.session.get('owner_email')
+    if not owner_email:
+        return JsonResponse({"error": "Sesion no valida."}, status=403)
+
+    proceso = _get_proceso_por_token_or_404(token)
+    if not _validar_acceso_owner(proceso, owner_email):
+        return JsonResponse({"error": "No tienes acceso a este documento."}, status=403)
+
+    qr_payload = _crear_payload_qr_trazabilidad(proceso)
+    return JsonResponse({
+        "status": "success",
+        "reference_id": proceso.reference_id,
+        "link": qr_payload['link'],
+        "hash": qr_payload['hash'],
+        "expires_at": qr_payload['expires_at'].isoformat(),
+        "expires_at_label": qr_payload['expires_at_label'],
+        "max_age_seconds": qr_payload['max_age_seconds'],
+    })
+
+
+def enviar_qr_trazabilidad(request):
+    if request.method != 'POST':
+        return JsonResponse({"error": "Metodo no permitido."}, status=405)
+
+    owner_email = request.session.get('owner_email')
+    if not owner_email:
+        return JsonResponse({"error": "Sesion no valida."}, status=403)
+
+    try:
+        data = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({"error": "JSON invalido."}, status=400)
+
+    token = data.get('token')
+    proceso = _get_proceso_por_token_or_404(token)
+    if not _validar_acceso_owner(proceso, owner_email):
+        return JsonResponse({"error": "No tienes acceso a este documento."}, status=403)
+
+    correos = _parse_email_list(data.get('correos'))
+    if not correos:
+        return JsonResponse({"error": "Agrega al menos un correo valido."}, status=400)
+
+    qr_payload = _crear_payload_qr_trazabilidad(proceso)
+    payload_n8n = {
+        "correos_destino": ",".join(correos),
+        "reference_id": proceso.reference_id,
+        "status": proceso.status,
+        "owner_email": owner_email,
+        "link": qr_payload['link'],
+        "hash": qr_payload['hash'],
+        "expires_at": qr_payload['expires_at_label'],
+        "qr_image": data.get('qr_image', ''),
+    }
+
+    try:
+        response = requests.post(N8N_WEBHOOK_ENVIAR_QR, json=payload_n8n, timeout=20)
+        if response.status_code >= 400:
+            return JsonResponse({
+                "error": "N8N no pudo enviar el correo del QR.",
+                "detail": response.text,
+            }, status=502)
+    except Exception as e:
+        return JsonResponse({"error": f"Error contactando N8N: {e}"}, status=502)
+
+    return JsonResponse({"status": "success", "sent_to": correos})
+
+
 @csrf_exempt
 def registro_firmas(request):
     if request.method == 'POST':
@@ -948,6 +1082,7 @@ def solicitar_otp(request):
     return JsonResponse({"status": "success", "msg": "PIN temporal enviado."})
 
 
+@ensure_csrf_cookie
 def portal_dashboard(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')

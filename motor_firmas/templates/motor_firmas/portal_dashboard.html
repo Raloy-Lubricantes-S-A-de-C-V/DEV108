@@ -4,6 +4,7 @@
 {% block body_class %}bg-background min-h-screen text-text-main py-8 px-4 md:px-8{% endblock %}
 
 {% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 <style>
     .doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.25rem; }
     .doc-card { background: #fff; border: 1px solid #c4c6cd; border-radius: 0.75rem; overflow: hidden; display: flex; flex-direction: column; border-top: 4px solid #162839; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
@@ -24,6 +25,28 @@
     .api-url { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 0.85rem; color: #43474c; background: #edeeef; padding: 0.5rem 0.75rem; border-radius: 0.5rem; word-break: break-all; }
     .api-btn-send { background: #162839; color: white; border: none; padding: 0.85rem 1rem; border-radius: 0.5rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
     .api-btn-send:disabled { background: #74777d; cursor: not-allowed; }
+    .doc-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+    .doc-action-btn { min-height: 48px; border: 1px solid #c4c6cd; background: #ffffff; color: #162839; padding: 0.75rem 0.65rem; border-radius: 0.5rem; font-weight: 800; font-size: 0.82rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; text-align: center; transition: background-color 0.2s ease, border-color 0.2s ease; }
+    .doc-action-btn:hover { background: #edeeef; border-color: #74777d; }
+    .doc-action-btn.secondary { background: #fed023; border-color: #fed023; color: #162839; }
+    .doc-action-btn.secondary:hover { background: #eec209; border-color: #eec209; }
+    .qr-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(22, 40, 57, 0.78); z-index: 1100; justify-content: center; align-items: center; backdrop-filter: blur(4px); padding: 1rem; }
+    .qr-modal { width: 720px; max-width: 100%; max-height: 92vh; background: #ffffff; border: 1px solid #c4c6cd; border-radius: 0.75rem; overflow: hidden; box-shadow: 0 20px 45px rgba(0,0,0,0.2); display: flex; flex-direction: column; }
+    .qr-modal-body { padding: 1.5rem; overflow-y: auto; }
+    .qr-step { display: none; }
+    .qr-step.active { display: block; }
+    .qr-canvas-wrap { width: 260px; height: 260px; max-width: 100%; margin: 0 auto; display: flex; align-items: center; justify-content: center; border: 1px solid #e1e3e4; border-radius: 0.75rem; background: #ffffff; padding: 1rem; }
+    .qr-canvas-wrap canvas, .qr-canvas-wrap img { width: 220px !important; height: 220px !important; }
+    .qr-link-box { word-break: break-all; font-size: 0.78rem; color: #43474c; background: #f3f4f5; border: 1px solid #e1e3e4; border-radius: 0.5rem; padding: 0.75rem; }
+    .qr-preview { border: 1px solid #e1e3e4; border-radius: 0.75rem; overflow: hidden; background: #ffffff; }
+    .qr-preview-head { background: #162839; color: #ffffff; padding: 1.25rem; text-align: center; font-weight: 800; }
+    .qr-preview-body { padding: 1.25rem; color: #43474c; font-size: 0.9rem; line-height: 1.55; }
+    .qr-status { display: none; margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.88rem; font-weight: 700; }
+    .qr-status.ok { display: block; background: #d3f9d8; color: #1f7a44; }
+    .qr-status.error { display: block; background: #ffdad6; color: #93000a; }
+    @media screen and (max-width: 420px) {
+        .doc-action-btn { font-size: 0.76rem; padding-left: 0.35rem; padding-right: 0.35rem; }
+    }
 </style>
 {% endblock %}
 
@@ -115,6 +138,84 @@
     </section>
 
     <section class="doc-grid" id="gridContainer"></section>
+</div>
+
+<div class="qr-modal-overlay" id="qrModalOverlay">
+    <div class="qr-modal">
+        <div class="bg-primary text-white px-5 py-4 flex justify-between items-center gap-4">
+            <div>
+                <h2 class="text-lg font-bold flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[20px]">qr_code_2</span>
+                    Compartir trazabilidad por QR
+                </h2>
+                <p class="text-xs text-primary-fixed-dim mt-1" id="qrModalFolio">Documento</p>
+            </div>
+            <button onclick="closeQrWizard()" class="text-primary-fixed-dim hover:text-white text-2xl leading-none">×</button>
+        </div>
+        <div class="qr-modal-body">
+            <div class="qr-step active" id="qrStepOne">
+                <div class="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6 items-start">
+                    <div>
+                        <div class="qr-canvas-wrap" id="qrCanvasWrap">
+                            <span class="material-symbols-outlined animate-spin text-4xl text-outline">sync</span>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <h3 class="text-xl font-bold text-primary mb-2">QR de trazabilidad</h3>
+                            <p class="text-sm text-text-muted">El código abre una liga firmada que valida vigencia antes de mostrar la trazabilidad del documento.</p>
+                        </div>
+                        <div class="qr-link-box" id="qrLinkBox">Generando enlace seguro...</div>
+                        <p class="text-xs text-outline" id="qrExpiryLabel"></p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                            <button type="button" onclick="downloadQrImage()" class="inline-flex items-center justify-center gap-2 bg-primary text-white px-4 py-3 rounded-lg font-bold hover:bg-primary-container transition-colors">
+                                <span class="material-symbols-outlined text-[18px]">download</span>
+                                Descargar
+                            </button>
+                            <button type="button" onclick="goToQrEmailStep()" class="inline-flex items-center justify-center gap-2 bg-secondary-container text-primary px-4 py-3 rounded-lg font-bold hover:bg-secondary-fixed-dim transition-colors">
+                                <span class="material-symbols-outlined text-[18px]">mail</span>
+                                Mandar por correo
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="qr-status" id="qrStepOneStatus"></div>
+            </div>
+
+            <div class="qr-step" id="qrStepTwo">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-bold text-primary mb-2">Correos destino</label>
+                            <textarea id="qrEmailInput" class="w-full min-h-[140px] px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" placeholder="correo@raloy.com.mx, otro@raloy.com.mx"></textarea>
+                            <p class="text-xs text-outline mt-2">Puedes separar correos con coma, punto y coma o salto de línea.</p>
+                        </div>
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <button type="button" onclick="closeQrWizard()" class="inline-flex items-center justify-center gap-2 border border-outline-variant bg-white text-primary px-4 py-3 rounded-lg font-bold hover:bg-surface-container transition-colors">
+                                Cancelar
+                            </button>
+                            <button type="button" id="qrSendButton" onclick="sendQrByEmail()" class="inline-flex items-center justify-center gap-2 bg-primary text-white px-4 py-3 rounded-lg font-bold hover:bg-primary-container transition-colors">
+                                <span class="material-symbols-outlined text-[18px]">send</span>
+                                Enviar
+                            </button>
+                        </div>
+                        <div class="qr-status" id="qrSendStatus"></div>
+                    </div>
+                    <div class="qr-preview">
+                        <div class="qr-preview-head">Firma Digital Raloy</div>
+                        <div class="qr-preview-body">
+                            <p style="margin:0 0 12px 0;"><strong>Consulta de trazabilidad</strong></p>
+                            <p style="margin:0 0 16px 0;">Se comparte el código QR del documento <strong id="qrPreviewFolio">-</strong> para consultar su ciclo de vida y estado de firmas.</p>
+                            <div class="flex justify-center py-3">
+                                <img id="qrPreviewImage" alt="QR de trazabilidad" style="width:132px;height:132px;border:1px solid #e1e3e4;border-radius:8px;padding:8px;background:#fff;">
+                            </div>
+                            <p style="margin:12px 0 0 0; font-size:12px; color:#74777d;">La liga está protegida con hash y caduca el <span id="qrPreviewExpiry">-</span>.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="api-modal-overlay" id="apiModalOverlay">
@@ -265,13 +366,186 @@
                 ${progressHTML}
             </div>
             <div class="doc-card-footer">
-                <a href="/trazabilidad/${doc.token}/" target="_blank" class="flex items-center justify-center gap-2 border border-outline-variant bg-white hover:bg-surface-container text-primary py-3 px-4 rounded-lg font-bold transition-colors text-sm">
-                    <span class="material-symbols-outlined text-[18px]">visibility</span>
-                    Ver Trazabilidad y Documento
-                </a>
+                <div class="doc-actions">
+                    <a href="/trazabilidad/${doc.token}/" target="_blank" class="doc-action-btn">
+                        <span class="material-symbols-outlined text-[18px]">visibility</span>
+                        Ver trazabilidad
+                    </a>
+                    <button type="button" onclick="openQrWizard('${doc.token}')" class="doc-action-btn secondary">
+                        <span class="material-symbols-outlined text-[18px]">qr_code_2</span>
+                        Compartir QR
+                    </button>
+                </div>
             </div>
         `;
         return div;
+    }
+
+    const qrWizardState = {
+        doc: null,
+        link: '',
+        hash: '',
+        expiresAtLabel: '',
+        qrImage: ''
+    };
+
+    function getCookie(name) {
+        const cookies = document.cookie ? document.cookie.split(';') : [];
+        for (const cookie of cookies) {
+            const trimmed = cookie.trim();
+            if (trimmed.startsWith(`${name}=`)) {
+                return decodeURIComponent(trimmed.substring(name.length + 1));
+            }
+        }
+        return '';
+    }
+
+    function setQrStep(step) {
+        document.getElementById('qrStepOne').classList.toggle('active', step === 1);
+        document.getElementById('qrStepTwo').classList.toggle('active', step === 2);
+    }
+
+    function setQrStatus(id, type, message) {
+        const box = document.getElementById(id);
+        box.className = `qr-status ${type || ''}`;
+        box.textContent = message || '';
+    }
+
+    function closeQrWizard() {
+        document.getElementById('qrModalOverlay').style.display = 'none';
+        document.getElementById('qrEmailInput').value = '';
+        setQrStatus('qrStepOneStatus', '', '');
+        setQrStatus('qrSendStatus', '', '');
+    }
+
+    function getQrImageData() {
+        const wrap = document.getElementById('qrCanvasWrap');
+        const canvas = wrap.querySelector('canvas');
+        if (canvas) return canvas.toDataURL('image/png');
+        const img = wrap.querySelector('img');
+        return img ? img.src : '';
+    }
+
+    async function openQrWizard(token) {
+        const doc = rawData.find(item => item.token === token);
+        if (!doc) return;
+
+        qrWizardState.doc = doc;
+        qrWizardState.link = '';
+        qrWizardState.hash = '';
+        qrWizardState.expiresAtLabel = '';
+        qrWizardState.qrImage = '';
+
+        setQrStep(1);
+        setQrStatus('qrStepOneStatus', '', '');
+        setQrStatus('qrSendStatus', '', '');
+        document.getElementById('qrModalFolio').textContent = doc.reference_id;
+        document.getElementById('qrLinkBox').textContent = 'Generando enlace seguro...';
+        document.getElementById('qrExpiryLabel').textContent = '';
+        document.getElementById('qrCanvasWrap').innerHTML = '<span class="material-symbols-outlined animate-spin text-4xl text-outline">sync</span>';
+        document.getElementById('qrModalOverlay').style.display = 'flex';
+
+        try {
+            const res = await fetch(`/api/trazabilidad-qr/${token}/`, { headers: { 'Accept': 'application/json' } });
+            const payload = await res.json();
+            if (!res.ok) throw new Error(payload.error || 'No se pudo generar el QR.');
+
+            qrWizardState.link = payload.link;
+            qrWizardState.hash = payload.hash;
+            qrWizardState.expiresAtLabel = payload.expires_at_label;
+            document.getElementById('qrLinkBox').textContent = payload.link;
+            document.getElementById('qrExpiryLabel').textContent = `Vigente hasta ${payload.expires_at_label}.`;
+
+            const wrap = document.getElementById('qrCanvasWrap');
+            wrap.innerHTML = '';
+            if (typeof QRCode === 'undefined') {
+                throw new Error('No se pudo cargar el generador de QR. Revisa la conexión del navegador.');
+            }
+
+            new QRCode(wrap, {
+                text: payload.link,
+                width: 220,
+                height: 220,
+                colorDark: '#162839',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.M
+            });
+
+            window.setTimeout(() => {
+                qrWizardState.qrImage = getQrImageData();
+            }, 100);
+        } catch (error) {
+            document.getElementById('qrCanvasWrap').innerHTML = '<span class="material-symbols-outlined text-5xl text-status-danger">error</span>';
+            setQrStatus('qrStepOneStatus', 'error', error.message);
+        }
+    }
+
+    function downloadQrImage() {
+        const image = qrWizardState.qrImage || getQrImageData();
+        if (!image) {
+            setQrStatus('qrStepOneStatus', 'error', 'El QR todavía no está listo para descargar.');
+            return;
+        }
+
+        const link = document.createElement('a');
+        link.href = image;
+        link.download = `QR-${qrWizardState.doc.reference_id}.png`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        closeQrWizard();
+    }
+
+    function goToQrEmailStep() {
+        const image = qrWizardState.qrImage || getQrImageData();
+        if (!qrWizardState.link || !image) {
+            setQrStatus('qrStepOneStatus', 'error', 'Espera a que el QR termine de generarse.');
+            return;
+        }
+
+        qrWizardState.qrImage = image;
+        document.getElementById('qrPreviewFolio').textContent = qrWizardState.doc.reference_id;
+        document.getElementById('qrPreviewExpiry').textContent = qrWizardState.expiresAtLabel;
+        document.getElementById('qrPreviewImage').src = image;
+        setQrStep(2);
+        document.getElementById('qrEmailInput').focus();
+    }
+
+    async function sendQrByEmail() {
+        const emails = document.getElementById('qrEmailInput').value.trim();
+        const btn = document.getElementById('qrSendButton');
+        if (!emails) {
+            setQrStatus('qrSendStatus', 'error', 'Agrega al menos un correo destino.');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[18px]">sync</span> Enviando...';
+        setQrStatus('qrSendStatus', '', '');
+
+        try {
+            const res = await fetch('/api/enviar-qr-trazabilidad/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    token: qrWizardState.doc.token,
+                    correos: emails,
+                    qr_image: qrWizardState.qrImage || getQrImageData()
+                })
+            });
+            const payload = await res.json();
+            if (!res.ok) throw new Error(payload.error || 'No se pudo enviar el correo.');
+            setQrStatus('qrSendStatus', 'ok', 'QR enviado correctamente.');
+            window.setTimeout(closeQrWizard, 1200);
+        } catch (error) {
+            setQrStatus('qrSendStatus', 'error', error.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">send</span> Enviar';
+        }
     }
 
     function limpiarFiltros() {
