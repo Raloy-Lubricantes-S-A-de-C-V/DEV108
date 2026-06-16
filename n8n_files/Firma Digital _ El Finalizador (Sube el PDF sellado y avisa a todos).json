@@ -1,0 +1,113 @@
+{
+  "name": "Firma Digital | El Finalizador (Sube el PDF sellado y avisa a todos)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "subir-pdf-final",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "7e36a8eb-bdad-44db-a012-7917b29892a7",
+      "name": "Webhook",
+      "webhookId": "e679705d-30c2-4fae-a31f-b9e85c87f1a7"
+    },
+    {
+      "parameters": {
+        "inputDataFieldName": "pdf_final",
+        "name": "={{ $json.body.reference_id }}_CERTIFICADO.pdf",
+        "driveId": {
+          "__rl": true,
+          "value": "My Drive",
+          "mode": "list",
+          "cachedResultName": "My Drive",
+          "cachedResultUrl": "https://drive.google.com/drive/my-drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $node[\"Webhook\"].json.body.folder_id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        176,
+        0
+      ],
+      "id": "d3764f7c-fde0-4d8e-81ac-15f315d1bdaa",
+      "name": "Upload file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "5U0tNgPLDllo3BTf",
+          "name": "Google Drive Aplicaciones Grupo Nova"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $node[\"Webhook\"].json.body.correos_destino }}",
+        "subject": "=Documento certificado y firmado: {{ $node[\"Webhook\"].json.body.reference_id }}",
+        "message": "=<!DOCTYPE html>\n<html lang=\"es\"><head><meta charset=\"utf-8\"/><meta content=\"width=device-width, initial-scale=1.0\" name=\"viewport\"/><title>Documento certificado disponible - Firma Digital Raloy</title><style>body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;}table,td{mso-table-lspace:0pt;mso-table-rspace:0pt;border-collapse:collapse!important;}img{border:0;height:auto;line-height:100%;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;}@media screen and (max-width:620px){.email-shell{width:100%!important;}.email-body{padding:32px 24px!important;}.email-footer{padding:28px 24px!important;}.email-title{font-size:24px!important;}.email-button{width:100%!important;}}</style></head>\n<body style=\"margin:0; padding:0; width:100%!important; background-color:#f3f4f5; font-family:Inter, Arial, sans-serif;\"><center>\n<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"background-color:#f3f4f5;\" width=\"100%\"><tbody><tr><td align=\"center\" style=\"padding:40px 12px;\">\n<table class=\"email-shell\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px; width:100%; background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);\" width=\"600\"><tbody>\n<tr><td align=\"center\" style=\"background-color:#162839; padding:32px 0;\"><img alt=\"Raloy Lubricantes\" src=\"https://lh3.googleusercontent.com/aida-public/AB6AXuAnKAWTVlTmys42EeU0Agg-3NwQdJkrxiXnBl1voZal7KHIS0vlHC23zG-IHQzLAJEPSv48GnrmEdAyr9r09weSqzx_k0aiqx_RIe9KY3kdz-1rq3QFcgFuCvOMcicFsp_61TIdTDIsZWKpelfI5WucG7BkPF0jGGb-budesVdJlGavvuzyZFZajstv2R8qtMO53LTR47DGwrO2b_ogAhcDCyzKKITEAvrzFTg_ZJobmT08iMuL22NWcPUSc6qcMMq5_WVRjBKFvCk\" style=\"display:block; border:0;\" width=\"60\"/><div style=\"color:#ffffff; font-family:Arial, sans-serif; font-size:24px; font-weight:700; letter-spacing:0; margin-top:12px;\">Firma Digital Raloy</div></td></tr>\n<tr><td class=\"email-body\" style=\"padding:48px 40px;\"><h1 class=\"email-title\" style=\"margin:0 0 24px 0; color:#162839; font-family:Arial, sans-serif; font-size:28px; font-weight:700; line-height:1.2;\">Documento certificado disponible</h1><p style=\"margin:0 0 16px 0; color:#1a1a1a; font-family:Inter, Arial, sans-serif; font-size:16px; font-weight:700; line-height:1.5;\">Hola,</p><p style=\"margin:0 0 16px 0; color:#43474c; font-family:Inter, Arial, sans-serif; font-size:16px; font-weight:400; line-height:1.6;\">El proceso de firmas para el documento <strong>{{ $node[\"Webhook\"].json.body.reference_id }}</strong> ha concluido exitosamente.</p><p style=\"margin:0 0 32px 0; color:#43474c; font-family:Inter, Arial, sans-serif; font-size:16px; font-weight:400; line-height:1.6;\">La copia certificada quedó resguardada para consulta y registro de las partes involucradas.</p>\n<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"background-color: #f8f9fa; border: 1px solid #c4c6cd; border-radius: 8px;\" width=\"100%\">\n<tbody><tr><td style=\"padding: 24px;\"><table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\"><tbody><tr><td style=\"padding-bottom: 8px; font-family: Inter, Arial, sans-serif; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #74777d; letter-spacing: 0.05em;\" width=\"34%\">Folio</td><td style=\"padding-bottom: 8px; font-family: Inter, Arial, sans-serif; font-size: 16px; font-weight: 600; color: #162839; line-height: 1.45;\">{{ $node[\"Webhook\"].json.body.reference_id }}</td></tr><tr><td style=\"padding: 12px 0; border-top: 1px solid #e1e3e4; font-family: Inter, Arial, sans-serif; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #74777d; letter-spacing: 0.05em;\" width=\"34%\">Estado</td><td style=\"padding: 12px 0; border-top: 1px solid #e1e3e4; font-family: Inter, Arial, sans-serif; font-size: 16px; font-weight: 600; color: #162839; line-height: 1.45;\">Certificado y firmado</td></tr><tr><td style=\"padding: 12px 0; border-top: 1px solid #e1e3e4; font-family: Inter, Arial, sans-serif; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #74777d; letter-spacing: 0.05em;\" width=\"34%\">Archivo</td><td style=\"padding: 12px 0; border-top: 1px solid #e1e3e4; font-family: Inter, Arial, sans-serif; font-size: 16px; font-weight: 600; color: #162839; line-height: 1.45;\">PDF certificado</td></tr></tbody></table></td></tr></tbody>\n</table>\n<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-top: 40px;\" width=\"100%\"><tbody><tr><td align=\"center\">\n<a href=\"{{ $node[\"Upload file\"].json.webViewLink }}\" style=\"background-color: #fed023; color: #162839; display: inline-block; padding: 18px 34px; font-family: Inter, Arial, sans-serif; font-size: 14px; font-weight: 800; text-decoration: none; text-transform: uppercase; border-radius: 8px; letter-spacing: 0.05em; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.10);\">Ver certificado</a>\n</td></tr></tbody></table><p style=\"margin: 32px 0 0 0; color: #666666; font-family: Inter, Arial, sans-serif; font-size: 12px; line-height: 1.5; text-align: center; font-style: italic;\">Este enlace solo abre la consulta del documento certificado; no inicia ni modifica una firma.</p></td></tr>\n<tr><td class=\"email-footer\" align=\"center\" style=\"background-color:#f3f4f5; padding:32px 40px; border-top:1px solid #c4c6cd;\"><table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\"><tbody><tr><td align=\"center\" style=\"padding-bottom:16px;\"><span style=\"color:#162839; font-family:Inter, Arial, sans-serif; font-size:14px; font-weight:700;\">Raloy Lubricantes</span></td></tr><tr><td align=\"center\" style=\"padding-bottom:24px;\"><a href=\"https://raloylubricantes.mx/\" style=\"color:#162839; font-family:Inter, Arial, sans-serif; font-size:12px; text-decoration:underline; margin:0 8px;\">Aviso de Privacidad</a><a href=\"https://raloylubricantes.mx/\" style=\"color:#162839; font-family:Inter, Arial, sans-serif; font-size:12px; text-decoration:underline; margin:0 8px;\">Términos de Servicio</a></td></tr><tr><td align=\"center\"><p style=\"margin:0; color:#74777d; font-family:Inter, Arial, sans-serif; font-size:12px;\">&copy; 2026 Raloy Lubricantes. Todos los derechos reservados.</p></td></tr></tbody></table></td></tr>\n</tbody></table>\n<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px; width:100%;\" width=\"600\"><tbody><tr><td align=\"center\" style=\"padding-top:24px;\"><p style=\"margin:0; color:#96a9be; font-family:Inter, Arial, sans-serif; font-size:11px; line-height:1.4;\">Usted recibió esta notificación porque participa en un proceso gestionado por Firma Digital Raloy. Por favor no responda a este correo electrónico ya que la dirección no es monitoreada.</p></td></tr></tbody></table>\n</td></tr></tbody></table></center></body></html>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        368,
+        0
+      ],
+      "id": "e021154b-56ba-4a37-904f-631fc44b7250",
+      "name": "Send a message",
+      "webhookId": "ff4db06f-b6e0-4fb4-bfbe-4f131cdc0869",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "kZpCrF2WYlMkP0DJ",
+          "name": "Gmail account Aplicaciones Grupo Nova"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Upload file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload file": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "55eed925-5f78-49eb-8cbd-b20a40ff8951",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8f60456bf9961bd86877bcafc48ad054f66c033835b5187d280f6686f7dbdba1"
+  },
+  "id": "8MxQKUBcpgrh6F3k",
+  "tags": []
+}
