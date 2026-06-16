@@ -16,11 +16,14 @@
         </div>
     </header>
 
-    <section class="px-6 md:px-8 py-10 relative timeline-line">
+    <section class="px-6 md:px-8 py-10 relative">
         <ul class="space-y-12">
             <li class="relative flex gap-6 z-10">
+                {% if proceso.firmantes %}
+                    <span class="timeline-connector"></span>
+                {% endif %}
                 <div class="flex-none">
-                    <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/20 ring-4 ring-white">
+                    <div class="relative z-10 w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/20 ring-4 ring-white">
                         <span class="material-symbols-outlined text-white text-[20px]">description</span>
                     </div>
                 </div>
@@ -37,13 +40,16 @@
 
             {% for firmante in proceso.firmantes %}
             <li class="relative flex gap-6 z-10">
+                {% if firmante.fecha_firma %}
+                    <span class="timeline-connector"></span>
+                {% endif %}
                 <div class="flex-none">
                     {% if firmante.fecha_firma %}
-                        <div class="w-10 h-10 rounded-full bg-status-success flex items-center justify-center shadow-lg shadow-status-success/20 ring-4 ring-white">
+                        <div class="relative z-10 w-10 h-10 rounded-full bg-status-success flex items-center justify-center shadow-lg shadow-status-success/20 ring-4 ring-white">
                             <span class="material-symbols-outlined text-white text-[20px]">draw</span>
                         </div>
                     {% else %}
-                        <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center ring-4 ring-white border-2 border-outline-variant">
+                        <div class="relative z-10 w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center ring-4 ring-white border-2 border-outline-variant">
                             <span class="material-symbols-outlined text-text-muted text-[20px]">pending</span>
                         </div>
                     {% endif %}
@@ -85,11 +91,11 @@
             <li class="relative flex gap-6 z-10">
                 <div class="flex-none">
                     {% if proceso.status == 'COMPLETED' %}
-                        <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30 ring-4 ring-white">
+                        <div class="relative z-10 w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30 ring-4 ring-white">
                             <span class="material-symbols-outlined text-white text-[20px]">verified</span>
                         </div>
                     {% else %}
-                        <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center ring-4 ring-white border-2 border-outline-variant">
+                        <div class="relative z-10 w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center ring-4 ring-white border-2 border-outline-variant">
                             <span class="material-symbols-outlined text-text-muted text-[20px]">lock_clock</span>
                         </div>
                     {% endif %}
