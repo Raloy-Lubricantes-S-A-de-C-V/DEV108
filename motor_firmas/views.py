@@ -776,11 +776,12 @@ def procesar_firma(request, token, firmante_token=None):
             status='COMPLETED',
         )
 
+        link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
+
         todos_los_correos = [f.get('email') for f in firmantes_lista if f.get('email')]
         if proceso.owner_email:
             todos_los_correos.append(proceso.owner_email)
 
-            link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
             try:
                 requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
                               json={"email": proceso.owner_email, "nombre": "Propietario", "link": link_trazabilidad,
@@ -800,7 +801,8 @@ def procesar_firma(request, token, firmante_token=None):
             try:
                 resp_n8n = requests.post(N8N_WEBHOOK_FINALIZAR_PROCESO,
                               data={"reference_id": proceso.reference_id, "status": "COMPLETED",
-                                    "correos_destino": correos, "folder_id": proceso.dir_drive}, files={
+                                    "correos_destino": correos, "folder_id": proceso.dir_drive,
+                                    "link": link_trazabilidad}, files={
                         "pdf_final": (f"{proceso.reference_id}_CERTIFICADO.pdf", f, "application/pdf")}, timeout=30)
 
                 if resp_n8n.status_code != 200:
