@@ -965,7 +965,7 @@ def enviar_qr_trazabilidad(request):
 
     try:
         response = requests.post(N8N_WEBHOOK_ENVIAR_QR, json=payload_n8n, timeout=20)
-        if response.status_code >= 400:
+        if not 200 <= response.status_code < 300:
             return JsonResponse({
                 "error": "N8N no pudo enviar el correo del QR.",
                 "detail": response.text,
@@ -973,7 +973,7 @@ def enviar_qr_trazabilidad(request):
     except Exception as e:
         return JsonResponse({"error": f"Error contactando N8N: {e}"}, status=502)
 
-    return JsonResponse({"status": "success", "sent_to": correos})
+    return JsonResponse({"status": "success", "sent_to": correos, "n8n_status": response.status_code})
 
 
 @csrf_exempt

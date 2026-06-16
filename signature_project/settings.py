@@ -27,6 +27,9 @@ DEBUG = True
 
 # ALLOWED_HOSTS = ['testapppjb0001.raloy.com.mx', 'localhost', '127.0.0.1']
 ALLOWED_HOSTS=['*']
+CSRF_TRUSTED_ORIGINS = [
+    'https://dsign.raloy.com.mx',
+]
 # Application definition
 
 INSTALLED_APPS = [
