@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 104" role="img" aria-labelledby="title desc">
+  <title id="title">Raloy Lubricantes</title>
+  <desc id="desc">Logotipo Raloy invertido para fondos oscuros</desc>
+  <rect width="360" height="104" fill="none"/>
+  <path d="M21 64c34-31 70-44 118-43 10 0 18 1 29 3-36 4-68 17-99 39-16 11-31 22-48 28V64Z" fill="#f0f1f2"/>
+  <path d="M31 47c28-17 59-26 93-28 14-1 28 0 43 3-37 9-70 24-101 48-12 9-24 17-35 21V47Z" fill="#ff6b6b"/>
+  <path d="M38 78c26-16 54-23 86-21 16 1 29 5 42 11-28-1-53 4-76 15-17 8-34 14-52 16V78Z" fill="#fed023"/>
+  <text x="152" y="62" fill="#ffffff" font-family="Hanken Grotesk, Inter, Arial, sans-serif" font-size="44" font-weight="700" letter-spacing="0">RALOY</text>
+  <text x="157" y="82" fill="#b5c8df" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="600" letter-spacing="4">LUBRICANTES</text>
+</svg>

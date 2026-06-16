@@ -16,9 +16,12 @@
 {% block content %}
 <div class="max-w-7xl mx-auto">
     <header class="bg-primary text-white rounded-xl px-6 py-5 mb-8 shadow-soft flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-            <h1 class="text-xl md:text-2xl font-bold">Gestión de Usuarios Enrolados</h1>
-            <p class="text-sm text-primary-fixed-dim">Sesión Admin: <strong>{{ admin_email }}</strong></p>
+        <div class="flex items-center gap-4">
+            <img src="/static/motor_firmas/img/raloy-logo-inverted.svg" alt="Raloy Lubricantes" class="raloy-logo-sm shrink-0">
+            <div>
+                <h1 class="text-xl md:text-2xl font-bold">Gestión de Usuarios Enrolados</h1>
+                <p class="text-sm text-primary-fixed-dim">Sesión Admin: <strong>{{ admin_email }}</strong></p>
+            </div>
         </div>
         <a href="{% url 'admin_dashboard' %}" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-surface-slate text-white font-bold text-sm hover:bg-primary-container transition-colors">
             <span class="material-symbols-outlined text-[18px]">arrow_back</span>
