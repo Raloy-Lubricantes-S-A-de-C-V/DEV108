@@ -828,8 +828,16 @@ def procesar_firma(request, token, firmante_token=None):
 
 def vista_trazabilidad(request, token):
     proceso = _get_proceso_por_token_or_404(token)
+    firmantes = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
+    total_firmas = len(firmantes)
+    firmas_hechas = sum(1 for firmante in firmantes if firmante.get('fecha_firma'))
     return render(request, 'motor_firmas/trazabilidad.html',
-                  {'proceso': proceso, 'pdf_url': f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}"})
+                  {
+                      'proceso': proceso,
+                      'pdf_url': f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}",
+                      'total_firmas': total_firmas,
+                      'firmas_hechas': firmas_hechas,
+                  })
 
 
 @csrf_exempt
