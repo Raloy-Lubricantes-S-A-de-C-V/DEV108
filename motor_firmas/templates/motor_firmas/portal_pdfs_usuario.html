@@ -1,89 +1,79 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Mis PDFs - Raloy</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1f5f9; margin: 0; padding: 30px; color: #334155; }
-        .topbar { background: #0f172a; color: white; padding: 15px 30px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .topbar h1 { margin: 0; font-size: 1.3rem; letter-spacing: 0.5px; }
-        .topbar .user-info { font-size: 0.9rem; color: #94a3b8; }
-        .btn-logout { background: #e74c3c; color: white; padding: 7px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 0.85rem; margin-left: 15px;}
-        .main-container { max-width: 1200px; margin: auto; }
+{% extends "motor_firmas/base.html" %}
 
-        .actions-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; background: white; padding: 20px 25px; border-radius: 8px; border: 1px solid #e2e8f0; }
-        .btn-crear { background-color: #8e44ad; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 0.95rem; display: inline-flex; align-items: center; gap: 8px;}
-        .btn-crear:hover { background-color: #732d91; }
+{% block title %}Mis PDFs - Raloy{% endblock %}
+{% block body_class %}bg-background min-h-screen text-text-main py-8 px-4 md:px-8{% endblock %}
 
-        .templates-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; }
-        .template-card { background: white; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 5px rgba(0,0,0,0.02); display: flex; flex-direction: column; }
-        .card-header { padding: 20px; border-bottom: 1px solid #eee; background: #f8fafc; }
-        .card-title { margin: 0; font-size: 1.15rem; color: #1e293b; font-weight: 700; word-break: break-all;}
-        .card-body { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 12px; }
-        .card-footer { padding: 15px 20px; background: white; margin-top: auto; display: flex; gap: 10px; align-items: center; min-height: 45px;}
-        .btn-use { background-color: #10b981; color: white; padding: 12px; border-radius: 6px; border: none; cursor: pointer; text-decoration: none; font-weight: 700; text-align: center; flex: 1; transition: 0.2s;}
-        .btn-use:hover { background-color: #059669; }
-        .btn-del { background-color: white; border: 1px solid #e74c3c; color: #e74c3c; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s;}
-        .btn-del:hover { background-color: #e74c3c; color: white;}
-    </style>
-</head>
-<body>
-    <div class="topbar">
-        <h1>Mis PDFs Personalizados</h1>
-        <div class="user-info">
-            Usuario: <strong>{{ owner_email }}</strong>
-            <a href="/portal/dashboard/" class="btn-logout" style="background:#475569;">⬅ Volver al Panel</a>
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <header class="bg-primary text-white rounded-xl px-6 py-5 mb-8 shadow-soft flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+            <h1 class="text-xl md:text-2xl font-bold">Mis PDFs Personalizados</h1>
+            <p class="text-sm text-primary-fixed-dim">Usuario: <strong>{{ owner_email }}</strong></p>
         </div>
-    </div>
+        <a href="/portal/dashboard/" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-surface-slate text-white font-bold text-sm hover:bg-primary-container transition-colors">
+            <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+            Volver al Panel
+        </a>
+    </header>
 
-    <div class="main-container">
-        <div class="actions-bar">
-            <div>
-                <h2 style="margin: 0 0 5px 0;">Borradores de PDFs</h2>
-                <p style="margin: 0; color:#64748b; font-size:0.9rem;">Documentos pendientes de configurar. Al enviarlos a firma, se moverán a tu Panel Principal.</p>
+    <section class="bg-white rounded-xl border border-outline-variant p-6 mb-6 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+        <div>
+            <h2 class="text-xl font-bold text-primary mb-1">Borradores de PDFs</h2>
+            <p class="text-sm text-text-muted">Documentos pendientes de configurar. Al enviarlos a firma, se moverán a tu Panel Principal.</p>
+        </div>
+        <a href="{% url 'portal_subir_pdf' %}" class="inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-container text-white px-5 py-3 rounded-lg font-bold transition-colors">
+            <span class="material-symbols-outlined">upload_file</span>
+            Subir Nuevo PDF
+        </a>
+    </section>
+
+    <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        {% for p in pdfs %}
+            <article class="bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden flex flex-col">
+                <div class="p-5 border-b border-outline-variant bg-surface-bright">
+                    <h2 class="text-lg font-bold text-primary break-words">{{ p.nombre }}</h2>
+                </div>
+                <div class="p-5 flex-1">
+                    <div class="text-sm text-on-surface-variant flex items-center gap-2">
+                        <span class="material-symbols-outlined text-outline text-[18px]">schedule</span>
+                        <span><strong>Subido el:</strong> {{ p.created_at|date:"d/m/Y H:i" }}</span>
+                    </div>
+                </div>
+                <div class="p-5 border-t border-outline-variant bg-white flex items-center gap-3">
+                    {% if p.id_documento %}
+                        <a href="{% url 'portal_configurar_pdf' p.id_documento %}" class="flex-1 bg-primary hover:bg-primary-container text-white px-4 py-3 rounded-lg font-bold text-center transition-colors">Configurar y Enviar</a>
+                        <button class="border border-status-danger text-status-danger hover:bg-status-danger hover:text-white px-4 py-3 rounded-lg font-bold transition-colors" onclick="eliminarPdf('{{ p.id_documento }}')" title="Eliminar Borrador">
+                            <span class="material-symbols-outlined">delete</span>
+                        </button>
+                    {% else %}
+                        <span class="flex-1 text-status-danger text-sm font-bold text-center">Registro antiguo</span>
+                        <button class="border border-status-danger text-status-danger hover:bg-status-danger hover:text-white px-4 py-3 rounded-lg font-bold transition-colors" onclick="eliminarPdf('{{ p.id }}')" title="Forzar Eliminación">
+                            <span class="material-symbols-outlined">delete</span>
+                        </button>
+                    {% endif %}
+                </div>
+            </article>
+        {% empty %}
+            <div class="col-span-full text-center p-12 bg-white rounded-xl border border-outline-variant text-text-muted">
+                <span class="material-symbols-outlined text-5xl text-outline mb-4">inbox</span>
+                <p>No tienes ningún borrador de PDF pendiente.</p>
             </div>
-            <a href="{% url 'portal_subir_pdf' %}" class="btn-crear"><span>⬆️</span> SUBIR NUEVO PDF</a>
-        </div>
+        {% endfor %}
+    </section>
+</div>
+{% endblock %}
 
-        <div class="templates-grid">
-            {% for p in pdfs %}
-                <div class="template-card">
-                    <div class="card-header"><h3 class="card-title">{{ p.nombre }}</h3></div>
-                    <div class="card-body">
-                        <div style="font-size: 0.9rem; color: #475569;"><strong>Subido el:</strong> {{ p.created_at|date:"d/m/Y H:i" }}</div>
-                    </div>
-                    <div class="card-footer">
-                        {% if p.id_documento %}
-                            <a href="{% url 'portal_configurar_pdf' p.id_documento %}" class="btn-use">Configurar y Enviar ➔</a>
-                            <button class="btn-del" onclick="eliminarPdf('{{ p.id_documento }}')" title="Eliminar Borrador">🗑️</button>
-                        {% else %}
-                            <span style="flex:1; color: #e74c3c; font-size: 0.85rem; font-weight: bold; text-align: center; display: flex; align-items: center; justify-content: center;">
-                                ⚠️ Registro antiguo
-                            </span>
-                            <button class="btn-del" onclick="eliminarPdf('{{ p.id }}')" title="Forzar Eliminación">🗑️</button>
-                        {% endif %}
-                    </div>
-                </div>
-            {% empty %}
-                <div style="grid-column: 1 / -1; text-align: center; padding: 50px; background: white; border-radius: 8px; border: 1px solid #e2e8f0; color: #94a3b8;">
-                    <span style="font-size: 3rem; display: block; margin-bottom: 15px;">📥</span>
-                    No tienes ningún borrador de PDF pendiente.
-                </div>
-            {% endfor %}
-        </div>
-    </div>
-
-    <script>
-        function eliminarPdf(id_doc) {
-            if(confirm("¿Seguro que deseas eliminar este borrador de forma permanente?")) {
-                fetch(`/api/eliminar-pdf-usuario/${id_doc}/`, { method: 'POST' })
-                .then(r => r.json())
-                .then(res => {
-                    if(res.status === 'success') window.location.reload();
-                    else alert("Error al eliminar.");
-                });
-            }
+{% block scripts %}
+<script>
+    function eliminarPdf(id_doc) {
+        if(confirm("¿Seguro que deseas eliminar este borrador de forma permanente?")) {
+            fetch(`/api/eliminar-pdf-usuario/${id_doc}/`, { method: 'POST' })
+            .then(r => r.json())
+            .then(res => {
+                if(res.status === 'success') window.location.reload();
+                else alert("Error al eliminar.");
+            });
         }
-    </script>
-</body>
-</html>
+    }
+</script>
+{% endblock %}

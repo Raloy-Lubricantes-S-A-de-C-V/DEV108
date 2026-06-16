@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Raloy Firmas{% endblock %}</title>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-container-low": "#f3f4f5",
+                        "status-danger": "#e74c3c",
+                        "text-muted": "#666666",
+                        "error": "#ba1a1a",
+                        "on-tertiary-fixed": "#001d31",
+                        "surface-bright": "#f8f9fa",
+                        "on-tertiary-container": "#51aef3",
+                        "outline-variant": "#c4c6cd",
+                        "text-main": "#1a1a1a",
+                        "on-secondary-container": "#6f5900",
+                        "outline": "#74777d",
+                        "surface-dim": "#d9dadb",
+                        "primary-fixed": "#d1e4fb",
+                        "on-primary": "#ffffff",
+                        "primary": "#162839",
+                        "primary-container": "#2c3e50",
+                        "inverse-on-surface": "#f0f1f2",
+                        "background": "#f8f9fa",
+                        "secondary-fixed-dim": "#eec209",
+                        "tertiary-fixed-dim": "#92ccff",
+                        "on-surface-variant": "#43474c",
+                        "inverse-surface": "#2e3132",
+                        "surface-container": "#edeeef",
+                        "surface-slate": "#34495e",
+                        "secondary-fixed": "#ffe084",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-container": "#004063",
+                        "background-pure": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "surface": "#f8f9fa",
+                        "tertiary": "#002942",
+                        "tertiary-fixed": "#cce5ff",
+                        "on-primary-fixed-variant": "#36485b",
+                        "secondary": "#735c00",
+                        "on-background": "#191c1d",
+                        "status-success": "#27ae60",
+                        "on-tertiary-fixed-variant": "#004b73",
+                        "error-container": "#ffdad6",
+                        "primary-fixed-dim": "#b5c8df",
+                        "surface-container-highest": "#e1e3e4",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-container": "#96a9be",
+                        "surface-container-high": "#e7e8e9",
+                        "on-error-container": "#93000a",
+                        "surface-tint": "#4e6073",
+                        "inverse-primary": "#b5c8df",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed-variant": "#574500",
+                        "on-primary-fixed": "#091d2e",
+                        "surface-variant": "#e1e3e4",
+                        "on-secondary-fixed": "#231b00",
+                        "on-surface": "#191c1d",
+                        "secondary-container": "#fed023"
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.25rem",
+                        lg: "0.5rem",
+                        xl: "0.75rem",
+                        full: "9999px"
+                    },
+                    fontFamily: {
+                        label: ["Inter", "sans-serif"],
+                        body: ["Inter", "sans-serif"],
+                        display: ["Hanken Grotesk", "sans-serif"],
+                        sans: ["Inter", "sans-serif"]
+                    },
+                    boxShadow: {
+                        soft: "0 4px 20px -2px rgba(0, 0, 0, 0.05)"
+                    }
+                }
+            }
+        };
+    </script>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+        h1, h2, h3, h4 { font-family: 'Hanken Grotesk', sans-serif; }
+        input:not([type="email"]):not([type="password"]):not(.no-uppercase) { text-transform: uppercase; }
+        .pin-input { letter-spacing: 0.5em; text-align: center; }
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            height: 250px;
+            touch-action: none;
+            background-image: linear-gradient(to right, #f3f4f5 1px, transparent 1px), linear-gradient(to bottom, #f3f4f5 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        canvas.signature-canvas,
+        .canvas-container canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+        iframe.document-frame { width: 100%; height: 700px; border: none; border-radius: 0.5rem; background: #f8f9fa; }
+        .step { display: none; }
+        .step.active { display: block; }
+        .signature-box {
+            position: absolute;
+            border: 2px dashed #e74c3c;
+            background: rgba(231, 76, 60, 0.1);
+            width: 150px;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #ba1a1a;
+            font-weight: 700;
+            cursor: grab;
+            user-select: none;
+            font-size: 0.8rem;
+            text-align: center;
+            border-radius: 0.5rem;
+            z-index: 10;
+        }
+        .signature-box:active { cursor: grabbing; }
+        .signature-box.selected {
+            border-color: #162839;
+            background: rgba(22, 40, 57, 0.12);
+            color: #162839;
+        }
+        .timeline-line::before {
+            content: '';
+            position: absolute;
+            left: 20px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: #e1e3e4;
+            z-index: 0;
+        }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 9999px;
+            padding: 0.25rem 0.65rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .bg-processing { background: #fff9db; color: #6f5900; border: 1px solid #ffe084; }
+        .bg-completed { background: #d3f9d8; color: #1f7a44; border: 1px solid #9ee8b4; }
+        .bg-cancelled { background: #ffdad6; color: #93000a; border: 1px solid #f7b9b4; }
+        .drag-handle { cursor: grab; color: #74777d; margin-right: 10px; font-size: 1.2rem; user-select: none; }
+        .drag-handle:active { cursor: grabbing; }
+        #tbodyFirmas tr.dragging { opacity: 0.5; }
+        .api-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(22, 40, 57, 0.78);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+            padding: 1rem;
+        }
+        .api-modal {
+            width: 900px;
+            max-width: 100%;
+            height: 85vh;
+            background: #ffffff;
+            border: 1px solid #c4c6cd;
+            border-radius: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 20px 45px rgba(0,0,0,0.2);
+        }
+        .api-body { display: flex; flex: 1; overflow: hidden; }
+        .api-col { flex: 1; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; overflow-y: auto; }
+        .api-col:first-child { border-right: 1px solid #e1e3e4; background: #f8f9fa; }
+        .api-label { font-size: 0.75rem; font-weight: 700; color: #43474c; text-transform: uppercase; }
+        .api-textarea {
+            width: 100%;
+            flex: 1;
+            min-height: 260px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            font-size: 0.875rem;
+            padding: 1rem;
+            border: 1px solid #c4c6cd;
+            border-radius: 0.5rem;
+            resize: none;
+            background: #162839;
+            color: #f0f1f2;
+            outline: none;
+        }
+        .api-response {
+            flex: 1;
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-y: auto;
+            background: #f3f4f5;
+            border: 1px solid #c4c6cd;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            font-size: 0.85rem;
+            color: #191c1d;
+        }
+        @media (max-width: 768px) {
+            .api-body { flex-direction: column; }
+            .api-col:first-child { border-right: none; border-bottom: 1px solid #e1e3e4; }
+            iframe.document-frame { height: 520px; }
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="{% block body_class %}bg-background-pure text-text-main min-h-screen{% endblock %}">
+{% block content %}{% endblock %}
+{% block scripts %}{% endblock %}
+</body>
+</html>

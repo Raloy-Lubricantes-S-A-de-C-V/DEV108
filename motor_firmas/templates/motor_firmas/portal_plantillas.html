@@ -1,148 +1,105 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mis Plantillas de Firma - Raloy</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1f5f9; margin: 0; padding: 30px; color: #334155; }
+{% extends "motor_firmas/base.html" %}
 
-        /* Topbar estilizada */
-        .topbar { background: #0f172a; color: white; padding: 15px 30px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .topbar h1 { margin: 0; font-size: 1.3rem; letter-spacing: 0.5px; }
-        .topbar .user-info { font-size: 0.9rem; color: #94a3b8; }
-        .btn-logout { background: #e74c3c; color: white; padding: 7px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 0.85rem; margin-left: 15px;}
+{% block title %}Mis Plantillas de Firma - Raloy{% endblock %}
+{% block body_class %}bg-background min-h-screen text-text-main py-8 px-4 md:px-8{% endblock %}
 
-        /* Contenedor Principal */
-        .main-container { max-width: 1200px; margin: auto; }
-
-        /* Buscador estilizado */
-        .search-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); margin-bottom: 25px; border: 1px solid #e2e8f0; display: flex; gap: 15px; align-items: center;}
-        .search-container label { font-weight: bold; color: #1e293b; font-size: 0.95rem;}
-        .search-container input { flex: 1; padding: 10px 15px; border: 1px solid #cbd5e1; border-radius: 6px; background: #f8fafc; font-size: 0.95rem; }
-        .search-container input:focus { outline: none; border-color: #2563eb; background: white; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-
-        /* Grid de Tarjetas */
-        .templates-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; }
-
-        /* Tarjeta de Plantilla (CARD) */
-        .template-card { background: white; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 5px rgba(0,0,0,0.02); overflow: hidden; display: flex; flex-direction: column; transition: transform 0.2s, box-shadow 0.2s; }
-        .template-card:hover { transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
-
-        /* Cabecera de la tarjeta */
-        .card-header { padding: 20px; border-bottom: 1px solid #eee; background: #f8fafc; }
-        .card-title { margin: 0; font-size: 1.15rem; color: #1e293b; font-weight: 700; line-height: 1.3; }
-
-        /* Cuerpo de la tarjeta */
-        .card-body { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 12px; }
-
-        /* Lineas de info con iconos */
-        .info-line { display: flex; align-items: start; gap: 10px; font-size: 0.9rem; color: #475569; }
-        .info-icon { color: #94a3b8; font-size: 1rem; margin-top: 2px; width: 16px; text-align: center;}
-        .info-label { font-weight: 600; color: #64748b; }
-        .info-value { flex: 1; word-break: break-word; }
-
-        /* Bloque de IA resumido */
-        .ia-summary { background: #f1f5f9; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.85rem; color: #64748b; margin-top: 5px; }
-        .ia-summary strong { color: #475569; }
-
-        /* Pie de la tarjeta (Boton) */
-        .card-footer { padding: 15px 20px 20px 20px; background: white; margin-top: auto; }
-
-        /* Boton solicitado: ✓ Usar template de firma */
-        .btn-use { background-color: #10b981; color: white; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 0.95rem; transition: background 0.2s; text-align: center; width: 100%; box-sizing: border-box;}
-        .btn-use:hover { background-color: #059669; }
-    </style>
-</head>
-<body>
-
-    <div class="topbar">
-        <h1>Mis Plantillas de Firma</h1>
-        <div class="user-info">
-            Usuario: <strong>{{ owner_email }}</strong>
-            <a href="{% url 'portal_logout' %}" class="btn-logout">Cerrar Sesión</a>
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <header class="bg-primary text-white rounded-xl px-6 py-5 mb-8 shadow-soft flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="flex items-center gap-4">
+            <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuBftRUZynfLhwgIch9GbKWlTRvQslu8IF5wlJyvZh3zxG5BylXg8wFGJJSS1uCmXkl8pWN9vtDFLfM0B9FkK7d7ycQ-AMz9AheoS0LWj90ImgwsKKlnbCh5kKRrW_7UKxBwZWfKL1FKPqReRboT9JnDV8thlhh1o3J8-QvefpjuDId6za30FSSAGEWj16VSGQvWFmfDRB-nzDc20oSQB8a0L7Cva-Si9EKqIp1ebPgeFOxQ-1kNi9fimGbsi8a6LhCsGC5t44iHSLk" alt="Raloy Logo" class="w-10 h-auto">
+            <div>
+                <h1 class="text-xl md:text-2xl font-bold">Mis Plantillas de Firma</h1>
+                <p class="text-sm text-primary-fixed-dim">Usuario: <strong>{{ owner_email }}</strong></p>
+            </div>
         </div>
-    </div>
+        <a href="{% url 'portal_logout' %}" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-status-danger text-white font-bold text-sm hover:opacity-90 transition-opacity">
+            <span class="material-symbols-outlined text-[18px]">logout</span>
+            Cerrar Sesión
+        </a>
+    </header>
 
-    <div class="main-container">
-
-        <div class="search-container">
-            <label for="buscarPlantilla">🔍 Buscar:</label>
-            <input type="text" id="buscarPlantilla" placeholder="Filtrar plantillas por nombre..." onkeyup="filtrarPlantillas()">
+    <section class="bg-white rounded-xl border border-outline-variant p-5 mb-6 shadow-sm">
+        <label class="block text-sm font-bold text-primary mb-2" for="buscarPlantilla">Buscar plantilla</label>
+        <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+            <input class="w-full pl-11 pr-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="text" id="buscarPlantilla" placeholder="Filtrar plantillas por nombre..." onkeyup="filtrarPlantillas()">
         </div>
+    </section>
 
-        <div class="templates-grid" id="gridPlantillas">
-            {% for p in plantillas %}
-                <div class="template-card" data-nombre="{{ p.nombre|lower }}">
-                    <div class="card-header">
-                        <h3 class="card-title">{{ p.nombre }}</h3>
-                    </div>
-
-                    <div class="card-body">
-                        <div class="info-line">
-                            <span class="info-icon">👤</span>
-                            <div class="info-value"><span class="info-label">Creador:</span> {{ p.owner_email }}</div>
-                        </div>
-
-                        <div class="info-line">
-                            <span class="info-icon">🆔</span>
-                            <div class="info-value"><span class="info-label">Doc ID:</span> <span style="font-family: monospace;">{{ p.doc_id|slice:":15" }}...</span></div>
-                        </div>
-
-                        <div class="info-line">
-                            <span class="info-icon">📁</span>
-                            <div class="info-value"><span class="info-label">Carpeta Firmados:</span> <span style="font-family: monospace;">{{ p.carpeta_firmados_id|default:p.drive_folder_id|slice:":15" }}...</span></div>
-                        </div>
-
-                        <div class="info-line">
-                            <span class="info-icon">✍️</span>
-                            <div class="info-value"><span class="info-label">Configuración:</span> {{ p.variables|length }} campos, {{ p.firmantes_config|length }} firmantes</div>
-                        </div>
-
-                        {% if p.contexto or p.intencion %}
-                        <div class="info-line" style="margin-top: 5px;">
-                            <span class="info-icon">🤖</span>
-                            <div class="info-value"><span class="info-label">Resumen de IA:</span></div>
-                        </div>
-                        <div class="ia-summary">
-                            {% if p.contexto %}<strong>Contexto:</strong> {{ p.contexto|truncatechars:100 }}<br>{% endif %}
-                            {% if p.intencion %}<strong>Intención:</strong> {{ p.intencion|truncatechars:100 }}{% endif %}
-                        </div>
-                        {% endif %}
-
-                    </div>
-
-                    <div class="card-footer">
-                        <a href="{% url 'portal_usar_plantilla' p.id %}" class="btn-use">
-                            <span>✓</span> Usar template de firma
-                        </a>
-                    </div>
+    <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5" id="gridPlantillas">
+        {% for p in plantillas %}
+            <article class="template-card bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden flex flex-col hover:shadow-soft transition-shadow" data-nombre="{{ p.nombre|lower }}">
+                <div class="p-5 border-b border-outline-variant bg-surface-bright">
+                    <h2 class="text-lg font-bold text-primary leading-snug">{{ p.nombre }}</h2>
                 </div>
-            {% empty %}
-                <div style="grid-column: 1 / -1; text-align: center; padding: 50px; background: white; border-radius: 8px; border: 1px solid #e2e8f0; color: #94a3b8;">
-                    <span style="font-size: 3rem; display: block; margin-bottom: 15px;">📄</span>
-                    No tienes plantillas permitidas o creadas aún.
+
+                <div class="p-5 flex-1 space-y-4 text-sm text-on-surface-variant">
+                    <div class="flex items-start gap-3">
+                        <span class="material-symbols-outlined text-outline text-[20px]">person</span>
+                        <div><span class="font-semibold text-primary">Creador:</span> {{ p.owner_email }}</div>
+                    </div>
+
+                    <div class="flex items-start gap-3">
+                        <span class="material-symbols-outlined text-outline text-[20px]">badge</span>
+                        <div><span class="font-semibold text-primary">Doc ID:</span> <span class="font-mono">{{ p.doc_id|slice:":15" }}...</span></div>
+                    </div>
+
+                    <div class="flex items-start gap-3">
+                        <span class="material-symbols-outlined text-outline text-[20px]">folder</span>
+                        <div><span class="font-semibold text-primary">Carpeta Firmados:</span> <span class="font-mono">{{ p.carpeta_firmados_id|default:p.drive_folder_id|slice:":15" }}...</span></div>
+                    </div>
+
+                    <div class="flex items-start gap-3">
+                        <span class="material-symbols-outlined text-outline text-[20px]">draw</span>
+                        <div><span class="font-semibold text-primary">Configuración:</span> {{ p.variables|length }} campos, {{ p.firmantes_config|length }} firmantes</div>
+                    </div>
+
+                    {% if p.contexto or p.intencion %}
+                    <div class="bg-surface-container-low rounded-lg border border-outline-variant p-4 space-y-2">
+                        <div class="flex items-center gap-2 text-primary font-bold">
+                            <span class="material-symbols-outlined text-[18px]">psychology</span>
+                            Resumen de IA
+                        </div>
+                        {% if p.contexto %}<p><strong>Contexto:</strong> {{ p.contexto|truncatechars:100 }}</p>{% endif %}
+                        {% if p.intencion %}<p><strong>Intención:</strong> {{ p.intencion|truncatechars:100 }}</p>{% endif %}
+                    </div>
+                    {% endif %}
                 </div>
-            {% endfor %}
-        </div>
-    </div>
 
-    <script>
-        function filtrarPlantillas() {
-            const input = document.getElementById('buscarPlantilla');
-            const filter = input.value.toLowerCase();
-            const grid = document.getElementById('gridPlantillas');
-            const cards = grid.getElementsByClassName('template-card');
+                <div class="p-5 border-t border-outline-variant bg-white">
+                    <a href="{% url 'portal_usar_plantilla' p.id %}" class="w-full bg-primary hover:bg-primary-container text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors">
+                        <span class="material-symbols-outlined">task_alt</span>
+                        Usar template de firma
+                    </a>
+                </div>
+            </article>
+        {% empty %}
+            <div class="col-span-full text-center p-12 bg-white rounded-xl border border-outline-variant text-text-muted">
+                <span class="material-symbols-outlined text-5xl text-outline mb-4">description</span>
+                <p>No tienes plantillas permitidas o creadas aún.</p>
+            </div>
+        {% endfor %}
+    </section>
+</div>
+{% endblock %}
 
-            for (let i = 0; i < cards.length; i++) {
-                const nombre = cards[i].getAttribute('data-nombre');
-                if (nombre.indexOf(filter) > -1) {
-                    cards[i].style.display = "";
-                } else {
-                    cards[i].style.display = "none";
-                }
+{% block scripts %}
+<script>
+    function filtrarPlantillas() {
+        const input = document.getElementById('buscarPlantilla');
+        const filter = input.value.toLowerCase();
+        const grid = document.getElementById('gridPlantillas');
+        const cards = grid.getElementsByClassName('template-card');
+
+        for (let i = 0; i < cards.length; i++) {
+            const nombre = cards[i].getAttribute('data-nombre');
+            if (nombre.indexOf(filter) > -1) {
+                cards[i].style.display = "";
+            } else {
+                cards[i].style.display = "none";
             }
         }
-    </script>
-</body>
-</html>
+    }
+</script>
+{% endblock %}

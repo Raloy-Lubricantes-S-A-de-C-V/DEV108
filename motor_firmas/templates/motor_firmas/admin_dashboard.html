@@ -1,273 +1,200 @@
-<!DOCTYPE html><html class="light" lang="es" style=""><head>
-<meta charset="utf-8">
-<meta content="width=device-width, initial-scale=1.0" name="viewport">
-<title>Panel de Administración - Raloy</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    colors: {
-                        "primary": "#162839", // Deep Navy
-                        "secondary": "#fed023", // Yellow
-                        "surface": "#ffffff",
-                        "background": "#ffffff",
-                        "on-surface-variant": "#43474c",
-                        "outline-variant": "#e1e3e4",
-                    },
-                    fontFamily: {
-                        "sans": ["Inter", "sans-serif"],
-                        "display": ["Hanken Grotesk", "sans-serif"],
-                    },
-                    boxShadow: {
-                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
-                    }
-                },
-            },
-        }
-    </script>
+{% extends "motor_firmas/base.html" %}
+
+{% block title %}Panel de Administración - Raloy{% endblock %}
+{% block body_class %}bg-background min-h-screen text-text-main{% endblock %}
+
+{% block extra_head %}
 <style>
-        body { font-family: 'Inter', sans-serif; background-color: #ffffff; color: #1a1a1a; }
-        .glass-header {
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border-bottom: 1px solid rgba(225, 227, 228, 0.5);
-            position: sticky;
-            top: 0;
-            z-index: 50;
-        }
-        .card {
-            background: #ffffff;
-            border: 1px solid #e1e3e4;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
-            transition: transform 0.2s ease;
-        }
-        .table-container { overflow-x: auto; }
-        table { width: 100%; border-collapse: separate; border-spacing: 0; }
-        th {
-            background: #f8f9fa;
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            letter-spacing: 0.05em;
-            padding: 16px;
-            color: #43474c;
-            border-bottom: 1px solid #e1e3e4;
-        }
-        td { padding: 16px; border-bottom: 1px solid #f1f3f4; font-size: 0.875rem; }
-        .btn-primary {
-            background-color: #162839;
-            color: white;
-            transition: all 0.2s;
-        }
-        .btn-primary:hover { background-color: #2c3e50; }
-        .btn-secondary {
-            background-color: #fed023;
-            color: #162839;
-            font-weight: 600;
-        }
-        .btn-secondary:hover { background-color: #eec209; }
-        .badge {
-            padding: 4px 10px;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        .bg-processing { background: #fff9db; color: #8a6d3b; }
-        .bg-completed { background: #d3f9d8; color: #2b8a3e; }
-        .bg-cancelled { background: #ffe3e3; color: #c92a2a; }
+    .admin-table-wrap { overflow-x: auto; border: 1px solid #c4c6cd; border-radius: 0.75rem; }
+    .admin-table { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; }
+    .admin-table th { background: #f8f9fa; padding: 1rem; text-align: left; font-size: 0.75rem; text-transform: uppercase; color: #43474c; border-bottom: 1px solid #c4c6cd; white-space: nowrap; }
+    .admin-table td { padding: 1rem; border-bottom: 1px solid #edeeef; font-size: 0.875rem; vertical-align: middle; }
+    .admin-table tbody tr:hover { background: #f8f9fa; }
+    .admin-group-row td { background: #f3f4f5; color: #162839; font-weight: 700; border-left: 4px solid #162839; }
+</style>
+{% endblock %}
 
-        /* Custom scrollbar */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
-
-        .group-header {
-            background: #f8f9fa;
-            color: #162839;
-            font-weight: 700;
-            font-size: 0.8rem;
-        }
-    </style>
-</head>
-<body class="bg-background">
-<header class="bg-[#0f172a] text-white px-8 py-4 mb-8 sticky top-0 z-50 shadow-lg">
-<div class="max-w-[1600px] mx-auto flex justify-between items-center">
-<div class="flex items-center gap-4">
-<img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAv7dgWWtMZ7QYIUxIsHThvENIEYYKjdtqHYNpn_97j5lZfnK8P64gn-D-SOr_AktwS6a8pKRpe-GJefkzUeHB_13fv12SRbvNQPFWsKJjeDWFVydC7GJjPf2HmrUmDOv6VjG92DBUnzYA_b-QqPlW_dgHW_UN_YmTxmFrk3w_dZSTm0dy_U8xE2vAcm93y0voc4M8Aknp3TtWaQswbyL_w7GD2-8_zNp1PDFSXKtG8vgZrFZgShe1GbKnxyiXq-SGa8suM4hYOr9c" alt="Raloy Logo" class="w-8 h-8 object-contain">
-<h1 class="text-xl font-display font-bold text-white tracking-tight">Panel de Administración Global</h1>
-</div>
-<div class="flex items-center gap-6">
-<div class="text-right">
-<p class="text-xs text-slate-400 font-medium">Administrador</p>
-<p class="text-sm font-semibold text-white">{{ admin_email }}</p>
-</div>
-<a class="px-4 py-2 text-sm font-bold text-white bg-red-600/80 hover:bg-red-600 rounded-lg transition-all border border-red-500/50" href="{% url 'admin_logout' %}">
+{% block content %}
+<header class="bg-primary text-white sticky top-0 z-50 shadow-lg">
+    <div class="max-w-[1600px] mx-auto px-4 md:px-8 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="flex items-center gap-4">
+            <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuBftRUZynfLhwgIch9GbKWlTRvQslu8IF5wlJyvZh3zxG5BylXg8wFGJJSS1uCmXkl8pWN9vtDFLfM0B9FkK7d7ycQ-AMz9AheoS0LWj90ImgwsKKlnbCh5kKRrW_7UKxBwZWfKL1FKPqReRboT9JnDV8thlhh1o3J8-QvefpjuDId6za30FSSAGEWj16VSGQvWFmfDRB-nzDc20oSQB8a0L7Cva-Si9EKqIp1ebPgeFOxQ-1kNi9fimGbsi8a6LhCsGC5t44iHSLk" alt="Raloy Logo" class="w-10 h-auto">
+            <h1 class="text-xl font-bold">Panel de Administración Global</h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="text-right">
+                <p class="text-xs text-primary-fixed-dim font-medium">Administrador</p>
+                <p class="text-sm font-semibold">{{ admin_email }}</p>
+            </div>
+            <a class="px-4 py-2 text-sm font-bold text-white bg-status-danger rounded-lg hover:opacity-90 transition-opacity" href="{% url 'admin_logout' %}">
                 Cerrar Sesión
             </a>
-</div>
-</div>
+        </div>
+    </div>
 </header>
-<main class="max-w-[1600px] mx-auto px-8 pb-12">
-<div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-<!-- Main Content Area -->
-<div class="lg:col-span-3 space-y-8">
-<div class="card p-6">
-<div class="flex items-center justify-between mb-8 border-b border-outline-variant pb-4">
-<div class="flex items-center gap-3">
-<span class="material-symbols-outlined text-primary">description</span>
-<h3 class="text-lg font-display font-bold text-primary uppercase tracking-wide">Visor de Documentos</h3>
-</div>
-<button class="btn-primary px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2" onclick="guardarDiseno()">
-<span class="material-symbols-outlined text-[18px]">save</span>
-                        Guardar Diseño
-                    </button>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-8 bg-slate-50 p-6 rounded-xl border border-slate-100">
-<div class="flex flex-col gap-1.5">
-<label class="text-xs font-bold text-on-surface-variant uppercase">Agrupar por</label>
-<select class="form-select text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2.5" id="selGroup">
-<option value="none">Sin agrupación</option>
-<option value="dominio">Dominio Empresarial</option>
-<option value="owner_email">Usuario (Dueño)</option>
-<option value="reference_id">Folio</option>
-</select>
-</div>
-<div class="flex flex-col gap-1.5">
-<label class="text-xs font-bold text-on-surface-variant uppercase">Folio</label>
-<input class="form-input text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2.5" id="filFolio" placeholder="Ej. CONTRATO-001" type="text">
-</div>
-<div class="flex flex-col gap-1.5">
-<label class="text-xs font-bold text-on-surface-variant uppercase">Dominio</label>
-<select class="form-select text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2.5" id="filDominio">
-<option value="all">Todos</option>
-</select>
-</div>
-<div class="flex flex-col gap-1.5">
-<label class="text-xs font-bold text-on-surface-variant uppercase">Desde</label>
-<input class="form-input text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2.5" id="filFechaIni" type="date">
-</div>
-<div class="flex flex-col gap-1.5">
-<label class="text-xs font-bold text-on-surface-variant uppercase">Hasta</label>
-<input class="form-input text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2.5" id="filFechaFin" type="date">
-</div>
-</div>
-<div class="table-container border border-outline-variant rounded-xl overflow-hidden">
-<table id="docTable">
-<thead>
-<tr>
-<th class="">Folio</th>
-<th class="">Creador</th>
-<th class="">Dominio</th>
-<th class="">Fecha</th>
-<th class="">Progreso</th>
-<th class="">Estado</th>
-<th class="">Acciones</th>
-</tr>
-</thead>
-<tbody id="tableBody">
-<!-- Dynamic Content -->
-</tbody>
-</table>
-</div>
-</div>
-</div>
-<!-- Sidebar Actions -->
-<div class="space-y-6">
-<!-- Templates Card -->
-<div class="card p-6 border-l-4 border-l-primary">
-<div class="flex items-center gap-2 mb-4">
-<span class="material-symbols-outlined text-primary">dynamic_form</span>
-<h3 class="font-display font-bold text-primary">Gestión de Plantillas</h3>
-</div>
-<p class="text-xs text-on-surface-variant mb-6 leading-relaxed">Crea flujos documentales y formularios dinámicos a partir de Google Docs.</p>
-<a class="btn-secondary w-full py-3 rounded-lg flex items-center justify-center gap-2 mb-6" href="{% url 'admin_crear_plantilla' %}">
-<span class="material-symbols-outlined">add_circle</span>
+
+<main class="max-w-[1600px] mx-auto px-4 md:px-8 py-8">
+    <div class="grid grid-cols-1 xl:grid-cols-4 gap-8">
+        <section class="xl:col-span-3 bg-white rounded-xl border border-outline-variant shadow-sm p-5 md:p-6">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 border-b border-outline-variant pb-4">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-primary">description</span>
+                    <h2 class="text-xl font-bold text-primary">Visor de Documentos</h2>
+                </div>
+                <button class="bg-primary hover:bg-primary-container text-white px-5 py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors" onclick="guardarDiseno()">
+                    <span class="material-symbols-outlined text-[18px]">save</span>
+                    Guardar Diseño
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-6 bg-surface-container-low p-5 rounded-xl border border-outline-variant">
+                <div>
+                    <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Agrupar por</label>
+                    <select class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-3" id="selGroup">
+                        <option value="none">Sin agrupación</option>
+                        <option value="dominio">Dominio Empresarial</option>
+                        <option value="owner_email">Usuario (Dueño)</option>
+                        <option value="reference_id">Folio</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Folio</label>
+                    <input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-3" id="filFolio" placeholder="Ej. CONTRATO-001" type="text">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Dominio</label>
+                    <select class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-3" id="filDominio">
+                        <option value="all">Todos</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Desde</label>
+                    <input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-3" id="filFechaIni" type="date">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Hasta</label>
+                    <input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-3" id="filFechaFin" type="date">
+                </div>
+            </div>
+
+            <div class="admin-table-wrap">
+                <table class="admin-table" id="docTable">
+                    <thead>
+                    <tr>
+                        <th>Folio</th>
+                        <th>Creador</th>
+                        <th>Dominio</th>
+                        <th>Fecha</th>
+                        <th>Progreso</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <aside class="space-y-6">
+            <section class="bg-white rounded-xl border border-outline-variant shadow-sm p-5 border-l-4 border-l-primary">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="material-symbols-outlined text-primary">dynamic_form</span>
+                    <h2 class="font-bold text-primary">Gestión de Plantillas</h2>
+                </div>
+                <p class="text-xs text-text-muted mb-5 leading-relaxed">Crea flujos documentales y formularios dinámicos a partir de Google Docs.</p>
+                <a class="bg-secondary-container hover:bg-secondary-fixed-dim text-primary w-full py-3 rounded-lg flex items-center justify-center gap-2 mb-5 font-bold transition-colors" href="{% url 'admin_crear_plantilla' %}">
+                    <span class="material-symbols-outlined">add_circle</span>
                     Nuevo Formulario
                 </a>
-<h4 class="text-xs font-bold text-on-surface-variant uppercase mb-4 pb-2 border-b border-outline-variant">Plantillas Creadas</h4>
-<div class="max-height-[300px] space-y-3 overflow-y-auto pr-1">
+                <h3 class="text-xs font-bold text-on-surface-variant uppercase mb-3 pb-2 border-b border-outline-variant">Plantillas Creadas</h3>
+                <div class="max-h-[300px] space-y-3 overflow-y-auto pr-1">
                     {% for p in plantillas %}
-                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 hover:border-primary/20 transition-all">
-<strong class="block text-sm text-primary mb-1">{{ p.nombre }}</strong>
-<div class="flex flex-col gap-1 mb-4">
-<span class="text-[10px] text-on-surface-variant font-medium">ID: {{ p.doc_id|slice:":12" }}...</span>
-<span class="text-[10px] text-on-surface-variant font-medium">Por: {{ p.owner_email }}</span>
-</div>
-<div class="flex justify-between items-center border-t border-slate-200 pt-3">
-<a class="text-[11px] font-bold text-primary flex items-center gap-1 hover:underline" href="{% url 'admin_editar_plantilla' p.id %}">
-<span class="material-symbols-outlined text-[14px]">edit</span> Editar
+                        <div class="bg-surface-container-low p-4 rounded-xl border border-outline-variant">
+                            <strong class="block text-sm text-primary mb-1">{{ p.nombre }}</strong>
+                            <div class="flex flex-col gap-1 mb-4">
+                                <span class="text-[10px] text-on-surface-variant font-medium">ID: {{ p.doc_id|slice:":12" }}...</span>
+                                <span class="text-[10px] text-on-surface-variant font-medium">Por: {{ p.owner_email }}</span>
+                            </div>
+                            <div class="flex justify-between items-center border-t border-outline-variant pt-3">
+                                <a class="text-xs font-bold text-primary flex items-center gap-1 hover:underline" href="{% url 'admin_editar_plantilla' p.id %}">
+                                    <span class="material-symbols-outlined text-[14px]">edit</span> Editar
                                 </a>
-<a class="text-[11px] font-bold text-red-500 flex items-center gap-1 hover:underline" href="javascript:void(0);" onclick="eliminarPlantilla('{{ p.id }}')">
-<span class="material-symbols-outlined text-[14px]">delete</span> Eliminar
+                                <a class="text-xs font-bold text-status-danger flex items-center gap-1 hover:underline" href="javascript:void(0);" onclick="eliminarPlantilla('{{ p.id }}')">
+                                    <span class="material-symbols-outlined text-[14px]">delete</span> Eliminar
                                 </a>
-</div>
-</div>
+                            </div>
+                        </div>
                     {% empty %}
-                        <p class="text-xs text-center text-slate-400 py-4">No hay plantillas creadas.</p>
+                        <p class="text-xs text-center text-outline py-4">No hay plantillas creadas.</p>
                     {% endfor %}
                 </div>
-</div>
-<!-- Domain Folders Card -->
-<div class="card p-6 border-l-4 border-l-secondary">
-<div class="flex items-center gap-2 mb-4">
-<span class="material-symbols-outlined text-primary">folder_shared</span>
-<h3 class="font-display font-bold text-primary">Carpetas por Dominio</h3>
-</div>
-<div class="space-y-4 mb-6">
-<div class="space-y-1">
-<label class="text-[11px] font-bold text-on-surface-variant uppercase">Dominio</label>
-<input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-2.5" id="inpDominio" list="listaDominios" placeholder="Ej. raloy.com.mx" type="text">
-<datalist id="listaDominios"></datalist>
-</div>
-<div class="space-y-1">
-<label class="text-[11px] font-bold text-on-surface-variant uppercase">ID Google Drive</label>
-<input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-2.5" id="inpDriveDom" placeholder="1bDP1Q..." type="text">
-</div>
-<button class="btn-primary w-full py-3 rounded-lg text-sm font-bold" onclick="guardarCarpetaDominio()">Guardar Carpeta</button>
-</div>
-<h4 class="text-xs font-bold text-on-surface-variant uppercase mb-4 pb-2 border-b border-outline-variant">Configuraciones Activas</h4>
-<div class="max-h-[200px] overflow-y-auto space-y-3 pr-1" id="listCarpetasDominio">
-<!-- Dynamic -->
-</div>
-</div>
-<!-- Invitations Card -->
-<div class="card p-6">
-<div class="flex items-center gap-2 mb-4">
-<span class="material-symbols-outlined text-primary">mail</span>
-<h3 class="font-display font-bold text-primary">Invitar a Firma</h3>
-</div>
-<div class="space-y-4">
-<input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-2.5" id="invMail" placeholder="correo@ejemplo.com" type="email">
-<button class="btn-primary w-full py-3 rounded-lg text-sm font-bold" onclick="ejecutarAccion('invitar_registro', {email: document.getElementById('invMail').value})">Enviar Invitación</button>
-</div>
-</div>
-<!-- Access Management Card -->
-<div class="card p-6 border-l-4 border-l-emerald-500">
-<div class="flex items-center gap-2 mb-4">
-<span class="material-symbols-outlined text-primary">group</span>
-<h3 class="font-display font-bold text-primary">Gestión de Accesos</h3>
-</div>
-<div class="space-y-3">
-<a class="w-full py-3 rounded-lg bg-emerald-50 text-emerald-700 text-sm font-bold flex items-center justify-center gap-2 hover:bg-emerald-100 transition-colors" href="{% url 'admin_usuarios' %}">
-<span class="material-symbols-outlined">person</span> Usuarios Enrolados
+            </section>
+
+            <section class="bg-white rounded-xl border border-outline-variant shadow-sm p-5 border-l-4 border-l-secondary-container">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="material-symbols-outlined text-primary">folder_shared</span>
+                    <h2 class="font-bold text-primary">Carpetas por Dominio</h2>
+                </div>
+                <div class="space-y-4 mb-5">
+                    <div>
+                        <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Dominio</label>
+                        <input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="inpDominio" list="listaDominios" placeholder="Ej. raloy.com.mx" type="text">
+                        <datalist id="listaDominios"></datalist>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">ID Google Drive</label>
+                        <input class="no-uppercase w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="inpDriveDom" placeholder="1bDP1Q..." type="text">
+                    </div>
+                    <button class="bg-primary hover:bg-primary-container text-white w-full py-3 rounded-lg text-sm font-bold transition-colors" onclick="guardarCarpetaDominio()">Guardar Carpeta</button>
+                </div>
+                <h3 class="text-xs font-bold text-on-surface-variant uppercase mb-3 pb-2 border-b border-outline-variant">Configuraciones Activas</h3>
+                <div class="max-h-[200px] overflow-y-auto space-y-3 pr-1" id="listCarpetasDominio"></div>
+            </section>
+
+            <section class="bg-white rounded-xl border border-outline-variant shadow-sm p-5">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="material-symbols-outlined text-primary">mail</span>
+                    <h2 class="font-bold text-primary">Invitar a Firma</h2>
+                </div>
+                <div class="space-y-4">
+                    <input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="invMail" placeholder="correo@ejemplo.com" type="email">
+                    <button class="bg-primary hover:bg-primary-container text-white w-full py-3 rounded-lg text-sm font-bold transition-colors" onclick="ejecutarAccion('invitar_registro', {email: document.getElementById('invMail').value})">Enviar Invitación</button>
+                </div>
+            </section>
+
+            <section class="bg-white rounded-xl border border-outline-variant shadow-sm p-5 border-l-4 border-l-status-success">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="material-symbols-outlined text-primary">group</span>
+                    <h2 class="font-bold text-primary">Gestión de Accesos</h2>
+                </div>
+                <div class="space-y-3">
+                    <a class="w-full py-3 rounded-lg bg-status-success/10 text-status-success text-sm font-bold flex items-center justify-center gap-2 hover:bg-status-success/20 transition-colors" href="{% url 'admin_usuarios' %}">
+                        <span class="material-symbols-outlined">person</span> Usuarios Enrolados
                     </a>
                     {% if es_superadmin %}
-                    <a class="w-full py-3 rounded-lg bg-amber-50 text-amber-700 text-sm font-bold flex items-center justify-center gap-2 hover:bg-amber-100 transition-colors" href="{% url 'admin_administradores' %}">
-<span class="material-symbols-outlined">security</span> Superadministradores
+                    <a class="w-full py-3 rounded-lg bg-secondary-container/20 text-on-secondary-container text-sm font-bold flex items-center justify-center gap-2 hover:bg-secondary-container/30 transition-colors" href="{% url 'admin_administradores' %}">
+                        <span class="material-symbols-outlined">security</span> Superadministradores
                     </a>
                     {% endif %}
                 </div>
-</div>
-</div>
-</div>
+            </section>
+        </aside>
+    </div>
 </main>
+
+<footer class="border-t border-outline-variant bg-white py-8 mt-12">
+    <div class="max-w-[1600px] mx-auto px-4 md:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
+        <p class="text-sm text-on-surface-variant font-medium">© 2026 Raloy Lubricantes. Todos los derechos reservados.</p>
+        <div class="flex gap-6">
+            <a href="#" class="text-xs text-outline hover:text-primary transition-colors">Términos y Condiciones</a>
+            <a href="#" class="text-xs text-outline hover:text-primary transition-colors">Aviso de Privacidad</a>
+            <a href="#" class="text-xs text-outline hover:text-primary transition-colors">Soporte Técnico</a>
+        </div>
+    </div>
+</footer>
+{% endblock %}
+
+{% block scripts %}
 <script>
     const rawData = {{ docs_json|safe }};
     const savedConfig = {{ saved_config|safe }};
@@ -314,16 +241,16 @@
         container.innerHTML = '';
 
         if (carpetasDominio.length === 0) {
-            container.innerHTML = '<p class="text-[11px] text-slate-400 text-center py-4 italic">No hay carpetas configuradas.</p>';
+            container.innerHTML = '<p class="text-xs text-outline text-center py-4 italic">No hay carpetas configuradas.</p>';
             return;
         }
 
         carpetasDominio.forEach(c => {
             container.innerHTML += `
-                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 relative group">
+                <div class="bg-surface-container-low p-3 rounded-xl border border-outline-variant relative group">
                     <strong class="block text-xs text-primary mb-1">@${c.dominio}</strong>
-                    <span class="text-[10px] text-slate-500 break-all block pr-6">ID: ${c.drive_folder_id}</span>
-                    <button onclick="eliminarCarpetaDominio(${c.id})" class="absolute top-3 right-3 text-red-400 hover:text-red-600">
+                    <span class="text-[10px] text-on-surface-variant break-all block pr-6">ID: ${c.drive_folder_id}</span>
+                    <button onclick="eliminarCarpetaDominio(${c.id})" class="absolute top-3 right-3 text-status-danger hover:opacity-80">
                         <span class="material-symbols-outlined text-[16px]">close</span>
                     </button>
                 </div>
@@ -375,8 +302,8 @@
 
             for (const [groupName, items] of Object.entries(groups)) {
                 const trGroup = document.createElement('tr');
-                trGroup.className = 'group-header';
-                trGroup.innerHTML = `<td colspan="7" class="py-3 px-4 border-l-4 border-primary">Grupo: ${groupName} <span class="ml-2 font-normal text-slate-500">(${items.length} docs)</span></td>`;
+                trGroup.className = 'admin-group-row';
+                trGroup.innerHTML = `<td colspan="7">Grupo: ${groupName} <span class="ml-2 font-normal text-on-surface-variant">(${items.length} docs)</span></td>`;
                 tableBody.appendChild(trGroup);
 
                 items.forEach(doc => tableBody.appendChild(crearFila(doc)));
@@ -386,7 +313,6 @@
 
     function crearFila(doc) {
         const tr = document.createElement('tr');
-        tr.className = 'hover:bg-slate-50 transition-colors';
 
         let badgeClass = 'bg-processing'; let statusText = 'En Proceso';
         if(doc.status === 'COMPLETED') { badgeClass = 'bg-completed'; statusText = 'Completado'; }
@@ -394,7 +320,7 @@
 
         let cancelBtn = '';
         if(doc.status === 'PROCESSING') {
-            cancelBtn = `<button class="text-red-500 hover:text-red-700 text-[11px] font-bold underline" onclick="cancelarDoc('${doc.token}')">Cancelar</button>`;
+            cancelBtn = `<button class="text-status-danger hover:underline text-xs font-bold" onclick="cancelarDoc('${doc.token}')">Cancelar</button>`;
         }
 
         tr.innerHTML = `
@@ -403,10 +329,10 @@
             <td class="text-on-surface-variant font-medium text-xs">@${doc.dominio}</td>
             <td class="text-on-surface-variant text-xs">${doc.fecha}</td>
             <td class="text-primary font-semibold text-xs">${doc.progreso} Firmas</td>
-            <td><span class="badge ${badgeClass}">${statusText}</span></td>
+            <td><span class="status-badge ${badgeClass}">${statusText}</span></td>
             <td>
                 <div class="flex items-center gap-4">
-                    <a href="/trazabilidad/${doc.token}/" target="_blank" class="text-primary font-bold text-[11px] hover:underline flex items-center gap-1">
+                    <a href="/trazabilidad/${doc.token}/" target="_blank" class="text-primary font-bold text-xs hover:underline flex items-center gap-1">
                         <span class="material-symbols-outlined text-[16px]">visibility</span> Ver
                     </a>
                     ${cancelBtn}
@@ -463,31 +389,4 @@
 
     init();
 </script>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<footer class="border-t border-outline-variant bg-white py-8 mt-12">
-    <div class="max-w-[1600px] mx-auto px-8 flex flex-col md:flex-row justify-between items-center gap-4">
-        <p class="text-sm text-on-surface-variant font-medium">
-            © 2026 Raloy Lubricantes. Todos los derechos reservados.
-        </p>
-        <div class="flex gap-6">
-            <a href="#" class="text-xs text-slate-400 hover:text-primary transition-colors">Términos y Condiciones</a>
-            <a href="#" class="text-xs text-slate-400 hover:text-primary transition-colors">Aviso de Privacidad</a>
-            <a href="#" class="text-xs text-slate-400 hover:text-primary transition-colors">Soporte Técnico</a>
-        </div>
-    </div>
-</footer>
-
-</body></html>
+{% endblock %}

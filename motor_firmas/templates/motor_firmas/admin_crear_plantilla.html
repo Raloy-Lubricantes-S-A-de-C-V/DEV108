@@ -1,92 +1,122 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Generador de Formulario de Firma</title>
-    <style>
-        body { font-family: Arial, sans-serif; background: #ecf0f1; padding: 30px; }
-        .wizard-card { background: white; padding: 30px; border-radius: 8px; max-width: 800px; margin: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        .step { display: none; }
-        .step.active { display: block; }
-        h2 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px;}
-        .form-group { margin-bottom: 15px; }
-        label { font-weight: bold; display: block; margin-bottom: 5px; font-size: 0.9rem;}
-        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        .btn { background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .btn-success { background: #27ae60; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #eee; padding: 10px; text-align: left;}
-        th { background: #f8f9fa; }
+{% extends "motor_firmas/base.html" %}
 
-        /* MAYÚSCULAS VISUALES - EXCEPTUANDO LOS IDS DE GOOGLE y CORREOS */
-        input:not([type="email"]):not([type="password"]):not(#doc_id):not(#p_drive):not(#p_usuarios) { text-transform: uppercase; }
+{% block title %}Generador de Formulario de Firma{% endblock %}
+{% block body_class %}bg-background min-h-screen text-text-main py-8 px-4{% endblock %}
 
-        /* Estilos para el Drag and Drop */
-        .drag-handle { cursor: grab; color: #94a3b8; margin-right: 10px; font-size: 1.2rem; user-select: none; }
-        .drag-handle:active { cursor: grabbing; }
-        #tbodyFirmas tr { transition: background-color 0.2s; background-color: white; }
-        #tbodyFirmas tr.dragging { opacity: 0.5; }
-    </style>
-</head>
-<body>
+{% block extra_head %}
+<style>
+    .config-table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #c4c6cd; border-radius: 0.75rem; overflow: hidden; }
+    .config-table th { background: #f8f9fa; color: #43474c; text-align: left; font-size: 0.75rem; text-transform: uppercase; padding: 0.85rem; border-bottom: 1px solid #c4c6cd; }
+    .config-table td { padding: 0.85rem; border-bottom: 1px solid #edeeef; vertical-align: middle; }
+    .config-table tr:last-child td { border-bottom: 0; }
+    #tbodyFirmas tr { transition: background-color 0.2s; background: #fff; }
+</style>
+{% endblock %}
 
-<div class="wizard-card">
-    <h2 id="stepTitle">Paso 1: Configuración Inicial</h2>
+{% block content %}
+<main class="max-w-4xl mx-auto bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden">
+    <header class="bg-primary text-white p-6 md:p-8">
+        <a href="/admin-portal/dashboard/" class="inline-flex items-center gap-2 text-primary-fixed-dim hover:text-white text-sm font-semibold mb-6 transition-colors">
+            <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+            Volver al Panel de Administración
+        </a>
+        <h1 class="text-2xl md:text-3xl font-bold" id="stepTitle">Paso 1: Configuración Inicial</h1>
+    </header>
 
-    <div id="step1" class="step active">
-        <div class="form-group"><label>1. ID del Documento de Google Docs</label><input type="text" id="doc_id" placeholder="19U1b55WEqvPtQ6jAtn5..."></div>
-        <div class="form-group"><label>2. Correo del Propietario</label><input type="email" id="owner" value="{{ admin_email }}"></div>
-        <button class="btn" onclick="analizarDoc()">Analizar Documento con IA ➔</button>
+    <div class="p-6 md:p-8">
+        <section id="step1" class="step active space-y-5">
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-on-surface-variant">1. ID del Documento de Google Docs</label>
+                <input class="no-uppercase w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="text" id="doc_id" placeholder="19U1b55WEqvPtQ6jAtn5...">
+            </div>
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-on-surface-variant">2. Correo del Propietario</label>
+                <input class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="email" id="owner" value="{{ admin_email }}">
+            </div>
+            <button class="bg-primary hover:bg-primary-container text-white font-bold py-3 px-5 rounded-lg transition-colors flex items-center gap-2" id="btnAnalizarDoc" onclick="analizarDoc()">
+                <span class="material-symbols-outlined">psychology</span>
+                Analizar Documento con IA
+            </button>
+        </section>
+
+        <section id="step2" class="step space-y-8">
+            <div class="bg-status-success/10 border border-status-success/20 rounded-xl p-5">
+                <h2 class="text-xl font-bold text-status-success mb-3">Análisis Completado</h2>
+                <p class="mb-2"><strong>Contexto:</strong> <span id="txtContexto"></span></p>
+                <p><strong>Intención:</strong> <span id="txtIntencion"></span></p>
+            </div>
+
+            <div class="space-y-3">
+                <h2 class="text-lg font-bold text-primary">Variables del Documento a Llenar</h2>
+                <div class="overflow-x-auto">
+                    <table class="config-table">
+                        <thead><tr><th>Título</th><th>Llave</th><th>Tipo</th><th>Responsable de Llenar</th></tr></thead>
+                        <tbody id="tbodyVars"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <h2 class="text-lg font-bold text-primary">Orden de Firmantes</h2>
+                <p class="text-sm text-text-muted">Arrastra las filas para cambiar el orden en que se solicitarán las firmas.</p>
+                <div class="overflow-x-auto">
+                    <table class="config-table">
+                        <thead><tr><th>Orden</th><th>Llave de Firma</th><th>Correo Sugerido</th></tr></thead>
+                        <tbody id="tbodyFirmas"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <button class="bg-primary hover:bg-primary-container text-white font-bold py-3 px-5 rounded-lg transition-colors flex items-center gap-2" onclick="nextStep(3)">
+                <span class="material-symbols-outlined">arrow_forward</span>
+                Continuar Configuración
+            </button>
+        </section>
+
+        <section id="step3" class="step space-y-5">
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-on-surface-variant">5. Nombre de la Plantilla</label>
+                <input class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="text" id="p_nombre" placeholder="CONTRATO DE EQUIPO 2026">
+            </div>
+
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-on-surface-variant">5.1. Formato o Prefijo de Folio</label>
+                <input class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="text" id="p_folio" placeholder="Ej. CONTRATO-RALOY-2026-">
+                <p class="text-xs text-text-muted">Si lo dejas vacío, se autogenerará con fecha y hora al usarlo.</p>
+            </div>
+
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-on-surface-variant">6. ID de Carpeta Drive (Resguardo)</label>
+                <input class="no-uppercase w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="text" id="p_drive" placeholder="1bDP1Q-4wRK6c5Bdx...">
+            </div>
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-on-surface-variant">7. Formato de Vista para Firmantes</label>
+                <select class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" id="p_view">
+                    <option value="file">Archivo PDF Completo</option>
+                    <option value="summary">Extracto Resumen por IA</option>
+                </select>
+            </div>
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-on-surface-variant">8. Correos que pueden usar esta plantilla (separados por coma)</label>
+                <input class="no-uppercase w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="text" id="p_usuarios" placeholder="usuario@raloy.com.mx, otro@raloy.com.mx">
+            </div>
+
+            <button class="w-full bg-primary hover:bg-primary-container text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2" onclick="guardarPlantilla()">
+                <span class="material-symbols-outlined">save</span>
+                Finalizar y Guardar Plantilla
+            </button>
+        </section>
     </div>
+</main>
+{% endblock %}
 
-    <div id="step2" class="step">
-        <h3 style="color:#27ae60;">Análisis Completado</h3>
-        <p><strong>Contexto:</strong> <span id="txtContexto"></span></p>
-        <p><strong>Intención:</strong> <span id="txtIntencion"></span></p>
-
-        <h4>Variables del Documento a Llenar</h4>
-        <table>
-            <thead><tr><th>Título (Sugerido)</th><th>Llave</th><th>Tipo</th><th>Responsable de Llenar (Correo)</th></tr></thead>
-            <tbody id="tbodyVars"></tbody>
-        </table>
-
-        <h4>Orden de Firmantes</h4>
-        <p style="font-size: 0.85rem; color:#666;">Arrastra las filas (☰) para cambiar el orden en que se solicitarán las firmas.</p>
-        <table>
-            <thead><tr><th>Orden</th><th>Llave de Firma</th><th>Correo Sugerido</th></tr></thead>
-            <tbody id="tbodyFirmas"></tbody>
-        </table>
-
-        <button class="btn btn-success" style="margin-top:20px;" onclick="nextStep(3)">Continuar Configuración ➔</button>
-    </div>
-
-    <div id="step3" class="step">
-        <div class="form-group"><label>5. Nombre de la Plantilla</label><input type="text" id="p_nombre" placeholder="CONTRATO DE EQUIPO 2026"></div>
-
-        <div class="form-group">
-            <label>5.1. Formato o Prefijo de Folio</label>
-            <input type="text" id="p_folio" placeholder="Ej. CONTRATO-RALOY-2026-">
-            <small style="color:#666; font-size:0.75rem;">Si lo dejas vacío, se autogenerará con fecha y hora al usarlo.</small>
-        </div>
-
-        <div class="form-group"><label>6. ID de Carpeta Drive (Resguardo)</label><input type="text" id="p_drive" placeholder="1bDP1Q-4wRK6c5Bdx..."></div>
-        <div class="form-group">
-            <label>7. Formato de Vista para Firmantes</label>
-            <select id="p_view"><option value="file">Archivo PDF Completo</option><option value="summary">Extracto Resumen por IA</option></select>
-        </div>
-        <div class="form-group"><label>8. Correos que pueden usar esta plantilla (separados por coma)</label><input type="text" id="p_usuarios" placeholder="usuario@raloy.com.mx, otro@raloy.com.mx"></div>
-
-        <button class="btn btn-success" onclick="guardarPlantilla()">Finalizar y Guardar Plantilla</button>
-    </div>
-</div>
-
+{% block scripts %}
 <script>
-    // FORZAR MAYÚSCULAS REALES EN DATA (Omitiendo IDs de Google y Emails)
     document.addEventListener('input', function (e) {
         if (e.target.tagName === 'INPUT') {
             const type = e.target.type.toLowerCase();
             const id = e.target.id;
-            const excluidos = ['doc_id', 'p_drive', 'p_usuarios']; // Protegemos los IDs
+            const excluidos = ['doc_id', 'p_drive', 'p_usuarios'];
             if (type !== 'email' && type !== 'password' && !excluidos.includes(id)) {
                 const start = e.target.selectionStart;
                 const end = e.target.selectionEnd;
@@ -109,8 +139,8 @@
         const owner = document.getElementById('owner').value;
         if(!doc_id || !owner) return alert("Completa los campos.");
 
-        const btn = event.target;
-        btn.innerText = "Analizando con IA...";
+        const btn = document.getElementById('btnAnalizarDoc');
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Analizando con IA...';
         btn.disabled = true;
 
         fetch('/api/admin-action/analizar_plantilla/', {
@@ -119,7 +149,7 @@
         }).then(r => r.json()).then(resp => {
             if(resp.status !== 'success') {
                 alert("Error al analizar el documento.");
-                btn.innerText = "Analizar Documento con IA ➔";
+                btn.innerHTML = '<span class="material-symbols-outlined">psychology</span> Analizar Documento con IA';
                 btn.disabled = false;
                 return;
             }
@@ -158,7 +188,7 @@
                 if(rawData.variables && Array.isArray(rawData.variables)) {
                     rawData.variables.forEach(v => {
                         if(!v.key.includes("FIRMA_")) {
-                            tbV.innerHTML += `<tr><td>${v.label}</td><td>${v.key}</td><td>${v.type}</td><td><input type="email" class="var-email" data-key="${v.key}" value="${owner}"></td></tr>`;
+                            tbV.innerHTML += `<tr><td>${v.label}</td><td><code>${v.key}</code></td><td>${v.type}</td><td><input type="email" class="var-email w-full rounded-lg border-outline-variant" data-key="${v.key}" value="${owner}"></td></tr>`;
                         }
                     });
                 }
@@ -173,19 +203,19 @@
                     if (encontradas) {
                         rawData.firmas = [...new Set(encontradas)].sort();
                     } else {
-                        rawData.firmas = ["{{FIRMA_1}}"];
+                        rawData.firmas = ["{% templatetag openvariable %}FIRMA_1{% templatetag closevariable %}"];
                     }
                 }
 
                 if(rawData.firmas && Array.isArray(rawData.firmas)) {
                     rawData.firmas.forEach((f, idx) => {
                         tbF.innerHTML += `<tr draggable="true">
-                            <td style="width: 80px;">
+                            <td style="width: 100px;">
                                 <span class="drag-handle">☰</span>
                                 <span class="orden-num" style="font-weight:bold;">${idx+1}</span>
                             </td>
-                            <td><input type="text" class="firma-key" value="${f}" disabled></td>
-                            <td><input type="email" class="firma-default-email" value="${owner}"></td>
+                            <td><input type="text" class="firma-key w-full rounded-lg border-outline-variant" value="${f}" disabled></td>
+                            <td><input type="email" class="firma-default-email w-full rounded-lg border-outline-variant" value="${owner}"></td>
                         </tr>`;
                     });
 
@@ -197,14 +227,14 @@
             } catch (err) {
                 console.error("Error parseando respuesta:", err, resp.data);
                 alert("Hubo un error interpretando los datos de la IA. Revisa la Consola (F12) para detalles.");
-                btn.innerText = "Analizar Documento con IA ➔";
+                btn.innerHTML = '<span class="material-symbols-outlined">psychology</span> Analizar Documento con IA';
                 btn.disabled = false;
             }
 
         }).catch(err => {
             console.error("Error de conexión:", err);
             alert("Ocurrió un error de red o tiempo de espera.");
-            btn.innerText = "Analizar Documento con IA ➔";
+            btn.innerHTML = '<span class="material-symbols-outlined">psychology</span> Analizar Documento con IA';
             btn.disabled = false;
         });
     }
@@ -236,7 +266,7 @@
             row.addEventListener('dragenter', function (e) {
                 e.preventDefault();
                 if (this !== draggedRow) {
-                    this.style.background = '#f1f5f9';
+                    this.style.background = '#f3f4f5';
                 }
             });
 
@@ -314,5 +344,4 @@
         });
     }
 </script>
-</body>
-</html>
+{% endblock %}

@@ -1,79 +1,87 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Editar Plantilla - Raloy</title>
-    <style>
-        body { font-family: Arial, sans-serif; background: #ecf0f1; padding: 30px; }
-        .card { background: white; padding: 30px; border-radius: 8px; max-width: 800px; margin: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        .section { margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
-        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem;}
-        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 10px; box-sizing: border-box; }
-        .btn { background: #3498db; color: white; padding: 12px; border: none; border-radius: 4px; cursor: pointer; width: 100%; font-size:1.1rem; font-weight:bold;}
-        .btn-success { background: #27ae60; }
+{% extends "motor_firmas/base.html" %}
 
-        /* MAYÚSCULAS VISUALES */
-        input:not([type="email"]):not([type="password"]):not(#p_drive):not(#p_usuarios) { text-transform: uppercase; }
-    </style>
-</head>
-<body>
+{% block title %}Editar Plantilla - Raloy{% endblock %}
+{% block body_class %}bg-background min-h-screen text-text-main py-8 px-4{% endblock %}
 
-<div class="card">
-    <a href="/admin-portal/dashboard/" style="color:#666; text-decoration:none; margin-bottom:15px; display:inline-block;">⬅ Volver al Panel de Administración</a>
-    <h2 style="color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px;">Editar Plantilla Maestra</h2>
+{% block content %}
+<main class="max-w-4xl mx-auto bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden">
+    <header class="bg-primary text-white p-6 md:p-8">
+        <a href="/admin-portal/dashboard/" class="inline-flex items-center gap-2 text-primary-fixed-dim hover:text-white text-sm font-semibold mb-6 transition-colors">
+            <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+            Volver al Panel de Administración
+        </a>
+        <h1 class="text-2xl md:text-3xl font-bold">Editar Plantilla Maestra</h1>
+    </header>
 
-    <div class="section">
-        <label>Nombre de la Plantilla</label>
-        <input type="text" id="p_nombre" value="{{ plantilla.nombre }}">
-
-        <label>Formato o Prefijo de Folio</label>
-        <input type="text" id="p_folio" value="{{ plantilla.formato_folio }}">
-
-        <label>ID de Carpeta Drive (Resguardo)</label>
-        <input type="text" id="p_drive" value="{{ plantilla.drive_folder_id }}">
-
-        <label>Formato de Vista para Firmantes</label>
-        <select id="p_view">
-            <option value="file" {% if plantilla.view_info == 'file' %}selected{% endif %}>Archivo PDF Completo</option>
-            <option value="summary" {% if plantilla.view_info == 'summary' %}selected{% endif %}>Extracto Resumen por IA</option>
-        </select>
-
-        <label>Correos permitidos (separados por coma)</label>
-        <input type="text" id="p_usuarios" value="{{ plantilla.usuarios_permitidos|join:', ' }}">
-    </div>
-
-    <div class="section">
-        <h3>Correos Predeterminados para Variables</h3>
-        {% for var in plantilla.variables %}
-            <div style="display:flex; gap:10px; align-items:center; margin-bottom:5px;">
-                <span style="width: 250px; font-size:0.9rem;"><strong>{{ var.label }}</strong> ({{ var.key }})</span>
-                <input type="email" class="var-map" data-key="{{ var.key }}" data-label="{{ var.label }}" data-type="{{ var.type }}" value="{{ var.default_email }}" style="margin-bottom:0;">
+    <div class="p-6 md:p-8 space-y-8">
+        <section class="space-y-5">
+            <h2 class="text-lg font-bold text-primary border-b border-outline-variant pb-2">Datos Generales</h2>
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-on-surface-variant">Nombre de la Plantilla</label>
+                <input class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="text" id="p_nombre" value="{{ plantilla.nombre }}">
             </div>
-        {% endfor %}
-    </div>
 
-    <div class="section">
-        <h3>Correos Predeterminados para Firmantes</h3>
-        <div id="firmantesContainer">
-            {% for firma in plantilla.firmantes_config %}
-                <div style="display:flex; gap:10px; background:#f9f9f9; padding:10px; margin-bottom:5px; align-items: center;">
-                    <span style="font-weight:bold; width: 150px;">{{ firma.key }}:</span>
-                    <input type="email" class="firma-email" data-key="{{ firma.key }}" value="{{ firma.default_email }}" style="margin-bottom: 0;">
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-on-surface-variant">Formato o Prefijo de Folio</label>
+                <input class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="text" id="p_folio" value="{{ plantilla.formato_folio }}">
+            </div>
+
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-on-surface-variant">ID de Carpeta Drive (Resguardo)</label>
+                <input class="no-uppercase w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="text" id="p_drive" value="{{ plantilla.drive_folder_id }}">
+            </div>
+
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-on-surface-variant">Formato de Vista para Firmantes</label>
+                <select class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" id="p_view">
+                    <option value="file" {% if plantilla.view_info == 'file' %}selected{% endif %}>Archivo PDF Completo</option>
+                    <option value="summary" {% if plantilla.view_info == 'summary' %}selected{% endif %}>Extracto Resumen por IA</option>
+                </select>
+            </div>
+
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-on-surface-variant">Correos permitidos (separados por coma)</label>
+                <input class="no-uppercase w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="text" id="p_usuarios" value="{{ plantilla.usuarios_permitidos|join:', ' }}">
+            </div>
+        </section>
+
+        <section class="space-y-4">
+            <h2 class="text-lg font-bold text-primary border-b border-outline-variant pb-2">Correos Predeterminados para Variables</h2>
+            {% for var in plantilla.variables %}
+                <div class="grid grid-cols-1 md:grid-cols-[minmax(0,250px)_1fr] gap-3 items-center bg-surface-container-low border border-outline-variant rounded-lg p-4">
+                    <span class="text-sm"><strong class="text-primary">{{ var.label }}</strong> <span class="text-text-muted">({{ var.key }})</span></span>
+                    <input type="email" class="var-map w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" data-key="{{ var.key }}" data-label="{{ var.label }}" data-type="{{ var.type }}" value="{{ var.default_email }}">
                 </div>
             {% endfor %}
-        </div>
+        </section>
+
+        <section class="space-y-4">
+            <h2 class="text-lg font-bold text-primary border-b border-outline-variant pb-2">Correos Predeterminados para Firmantes</h2>
+            <div id="firmantesContainer" class="space-y-3">
+                {% for firma in plantilla.firmantes_config %}
+                    <div class="grid grid-cols-1 md:grid-cols-[minmax(0,180px)_1fr] gap-3 items-center bg-surface-container-low border border-outline-variant rounded-lg p-4">
+                        <span class="font-bold text-primary">{{ firma.key }}:</span>
+                        <input type="email" class="firma-email w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" data-key="{{ firma.key }}" value="{{ firma.default_email }}">
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <button class="w-full bg-primary hover:bg-primary-container text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2" id="btnGuardarEdicion" onclick="guardarEdicion()">
+            <span class="material-symbols-outlined">save</span>
+            Guardar Cambios en Plantilla
+        </button>
     </div>
+</main>
+{% endblock %}
 
-    <button class="btn btn-success" onclick="guardarEdicion()">Guardar Cambios en Plantilla</button>
-</div>
-
+{% block scripts %}
 <script>
-    // FORZAR MAYÚSCULAS REALES EN DATA
     document.addEventListener('input', function (e) {
         if (e.target.tagName === 'INPUT') {
             const type = e.target.type.toLowerCase();
             const id = e.target.id;
-            const excluidos = ['p_drive', 'p_usuarios']; // Protegemos los IDs
+            const excluidos = ['p_drive', 'p_usuarios'];
             if (type !== 'email' && type !== 'password' && !excluidos.includes(id)) {
                 const start = e.target.selectionStart;
                 const end = e.target.selectionEnd;
@@ -84,7 +92,9 @@
     });
 
     function guardarEdicion() {
-        const btn = event.target; btn.disabled = true; btn.innerText = "Guardando...";
+        const btn = document.getElementById('btnGuardarEdicion');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Guardando...';
 
         let varsMap = [];
         document.querySelectorAll('.var-map').forEach(inp => {
@@ -112,9 +122,12 @@
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         }).then(r => r.json()).then(res => {
             if(res.status === 'success') { alert(res.msg); window.location.href = '/admin-portal/dashboard/'; }
-            else { alert("Error al guardar: " + res.error); btn.disabled = false; btn.innerText = "Guardar Cambios en Plantilla"; }
+            else {
+                alert("Error al guardar: " + res.error);
+                btn.disabled = false;
+                btn.innerHTML = '<span class="material-symbols-outlined">save</span> Guardar Cambios en Plantilla';
+            }
         });
     }
 </script>
-</body>
-</html>
+{% endblock %}

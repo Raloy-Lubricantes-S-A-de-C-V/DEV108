@@ -1,50 +1,43 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Usuarios Enrolados - Raloy</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px; color: #334155; }
-        .container { max-width: 1200px; margin: auto; }
-        .topbar { background: #0f172a; color: white; padding: 15px 30px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .topbar h1 { margin: 0; font-size: 1.3rem; }
-        .topbar .user-info { font-size: 0.9rem; color: #94a3b8; display: flex; align-items: center; gap: 15px;}
-        .btn-nav { background: #3b82f6; color: white; padding: 7px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 0.85rem; }
-        .btn-nav:hover { background: #2563eb; }
-        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
-        h2 { margin-top: 0; color: #1e293b; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border-bottom: 1px solid #e2e8f0; padding: 15px; text-align: left; }
-        th { background: #f8fafc; font-weight: 600; color: #475569; font-size: 0.85rem; text-transform: uppercase; }
-        td { font-size: 0.95rem; }
-        .btn-action { background: #10b981; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 0.85rem; }
-        .btn-action:hover { background: #059669; }
-        .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
-        .badge-super { background: #f59e0b; color: white; }
-        .badge-normal { background: #cbd5e1; color: #334155; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="topbar">
-            <h1>Gestión de Usuarios Enrolados</h1>
-            <div class="user-info">
-                <span>Sesión Admin: <strong>{{ admin_email }}</strong></span>
-                <a href="{% url 'admin_dashboard' %}" class="btn-nav">⬅ Volver al Dashboard</a>
-            </div>
+{% extends "motor_firmas/base.html" %}
+
+{% block title %}Usuarios Enrolados - Raloy{% endblock %}
+{% block body_class %}bg-background min-h-screen text-text-main py-8 px-4 md:px-8{% endblock %}
+
+{% block extra_head %}
+<style>
+    .data-table-wrap { overflow-x: auto; border: 1px solid #c4c6cd; border-radius: 0.75rem; }
+    .data-table { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; }
+    .data-table th { background: #f8f9fa; padding: 1rem; text-align: left; font-size: 0.75rem; text-transform: uppercase; color: #43474c; border-bottom: 1px solid #c4c6cd; white-space: nowrap; }
+    .data-table td { padding: 1rem; border-bottom: 1px solid #edeeef; font-size: 0.9rem; }
+    .data-table tr:last-child td { border-bottom: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <header class="bg-primary text-white rounded-xl px-6 py-5 mb-8 shadow-soft flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+            <h1 class="text-xl md:text-2xl font-bold">Gestión de Usuarios Enrolados</h1>
+            <p class="text-sm text-primary-fixed-dim">Sesión Admin: <strong>{{ admin_email }}</strong></p>
         </div>
+        <a href="{% url 'admin_dashboard' %}" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-surface-slate text-white font-bold text-sm hover:bg-primary-container transition-colors">
+            <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+            Volver al Dashboard
+        </a>
+    </header>
 
-        <div class="card">
-            <h2>Lista de Empleados</h2>
-            <p style="color: #64748b; font-size: 0.9rem;">
-                {% if es_superadmin %}
-                Al ser <strong>Superadministrador</strong>, puedes ver a todos los empleados de la empresa.
-                {% else %}
-                Solo puedes ver y editar a los empleados que están bajo tu cargo como técnico asignado.
-                {% endif %}
-            </p>
+    <section class="bg-white rounded-xl border border-outline-variant shadow-sm p-5 md:p-6">
+        <h2 class="text-xl font-bold text-primary mb-2">Lista de Empleados</h2>
+        <p class="text-sm text-text-muted mb-6">
+            {% if es_superadmin %}
+            Al ser <strong>Superadministrador</strong>, puedes ver a todos los empleados de la empresa.
+            {% else %}
+            Solo puedes ver y editar a los empleados que están bajo tu cargo como técnico asignado.
+            {% endif %}
+        </p>
 
-            <table>
+        <div class="data-table-wrap">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Nombre</th>
@@ -58,11 +51,11 @@
                 <tbody>
                     {% for u in usuarios %}
                     <tr>
-                        <td><strong>{{ u.nombre }}</strong></td>
+                        <td><strong class="text-primary">{{ u.nombre }}</strong></td>
                         <td>{{ u.email }}</td>
                         <td>
                             {% if u.tecnico == 'Sin asignar' %}
-                                <span style="color:#e74c3c;">{{ u.tecnico }}</span>
+                                <span class="text-status-danger font-semibold">{{ u.tecnico }}</span>
                             {% else %}
                                 {{ u.tecnico }}
                             {% endif %}
@@ -70,17 +63,20 @@
                         <td>{{ u.ultima_act }}</td>
                         <td>{{ u.tot_docs }} docs</td>
                         <td>
-                            <a href="{% url 'admin_usuarios_detalle' u.id %}" class="btn-action">Configurar ⚙️</a>
+                            <a href="{% url 'admin_usuarios_detalle' u.id %}" class="inline-flex items-center gap-1 bg-primary hover:bg-primary-container text-white px-3 py-2 rounded-lg font-bold text-xs transition-colors">
+                                <span class="material-symbols-outlined text-[16px]">settings</span>
+                                Configurar
+                            </a>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" style="text-align: center; color: #94a3b8; padding: 30px;">No hay usuarios asignados a tu cuenta.</td>
+                        <td colspan="6" class="text-center text-outline py-10">No hay usuarios asignados a tu cuenta.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
-    </div>
-</body>
-</html>
+    </section>
+</div>
+{% endblock %}

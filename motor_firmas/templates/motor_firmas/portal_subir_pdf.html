@@ -1,58 +1,58 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Subir PDF Libre - Raloy</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1f5f9; padding: 30px; color: #334155; }
-        .wizard-card { background: white; padding: 30px; border-radius: 8px; max-width: 800px; margin: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        .step { display: none; }
-        .step.active { display: block; }
-        h2 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px;}
-        .form-group { margin-bottom: 15px; }
-        label { font-weight: bold; display: block; margin-bottom: 5px; font-size: 0.9rem;}
-        input[type="file"] { width: 100%; padding: 12px; border: 1px dashed #cbd5e1; border-radius: 4px; box-sizing: border-box; background: #f8fafc; cursor: pointer;}
-        .btn { background: #3b82f6; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1rem; width: 100%;}
-        .btn:hover { background: #2563eb; }
-        .btn-success { background: #10b981; }
-        .btn-success:hover { background: #059669; }
-        .instruction-box { background: #f8fafc; padding: 15px; border-left: 4px solid #3b82f6; margin-bottom: 20px; border-radius: 0 5px 5px 0;}
-    </style>
-</head>
-<body>
+{% extends "motor_firmas/base.html" %}
 
-<div class="wizard-card">
-    <a href="/portal/mis-pdfs/" style="color:#64748b; text-decoration:none; margin-bottom:15px; display:inline-block;">⬅ Cancelar y volver</a>
-    <h2 id="stepTitle">Alta de PDF Libre</h2>
+{% block title %}Subir PDF Libre - Raloy{% endblock %}
+{% block body_class %}bg-background min-h-screen text-text-main py-8 px-4{% endblock %}
 
-    <div id="step1" class="step active">
-        <div class="instruction-box">
-            <strong>Instrucciones:</strong>
-            <ol style="margin-bottom:0;">
-                <li>Selecciona el archivo PDF desde tu computadora.</li>
-                <li>El sistema lo subirá automáticamente al repositorio seguro de tu empresa.</li>
-            </ol>
-        </div>
+{% block content %}
+<main class="max-w-3xl mx-auto bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden">
+    <header class="bg-primary text-white p-6 md:p-8">
+        <a href="/portal/mis-pdfs/" class="inline-flex items-center gap-2 text-primary-fixed-dim hover:text-white text-sm font-semibold mb-6 transition-colors">
+            <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+            Cancelar y volver
+        </a>
+        <h1 class="text-2xl md:text-3xl font-bold" id="stepTitle">Alta de PDF Libre</h1>
+    </header>
 
-        <div class="form-group">
-            <label>Seleccionar Archivo PDF:</label>
-            <input type="file" id="pdfFile" accept="application/pdf" required>
-        </div>
-        <button class="btn" onclick="subirPdf()">Subir y Conectar ➔</button>
+    <div class="p-6 md:p-8">
+        <section id="step1" class="step active space-y-6">
+            <div class="bg-tertiary-fixed text-on-tertiary-fixed-variant p-4 rounded-lg border border-on-tertiary-fixed-variant/10 flex gap-3">
+                <span class="material-symbols-outlined shrink-0">info</span>
+                <ol class="list-decimal ml-4 text-sm space-y-1">
+                    <li>Selecciona el archivo PDF desde tu computadora.</li>
+                    <li>El sistema lo subirá automáticamente al repositorio seguro de tu empresa.</li>
+                </ol>
+            </div>
+
+            <div class="space-y-2">
+                <label class="block text-sm font-semibold text-on-surface-variant">Seleccionar Archivo PDF</label>
+                <input class="w-full px-4 py-4 border-2 border-dashed border-outline-variant rounded-xl bg-surface-bright cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-white file:font-semibold" type="file" id="pdfFile" accept="application/pdf" required>
+            </div>
+
+            <button class="w-full bg-primary hover:bg-primary-container text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2" id="btnSubirPdf" onclick="subirPdf()">
+                <span class="material-symbols-outlined">cloud_upload</span>
+                Subir y Conectar
+            </button>
+        </section>
+
+        <section id="step2" class="step text-center space-y-6">
+            <div class="inline-flex items-center justify-center w-20 h-20 bg-status-success/10 rounded-full">
+                <span class="material-symbols-outlined text-status-success text-5xl">check_circle</span>
+            </div>
+            <div>
+                <h2 class="text-2xl font-bold text-primary mb-2">Documento Subido con Éxito</h2>
+                <p class="text-text-muted">Nombre del archivo: <strong id="docName" class="text-primary"></strong></p>
+            </div>
+
+            <button class="w-full bg-primary hover:bg-primary-container text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2" id="btnSiguientePaso">
+                <span class="material-symbols-outlined">edit_document</span>
+                Solicitar Firma
+            </button>
+        </section>
     </div>
+</main>
+{% endblock %}
 
-    <div id="step2" class="step">
-        <div style="text-align: center; margin-bottom: 20px;">
-            <span style="font-size: 3rem; color: #10b981;">✅</span>
-            <h3 style="color: #10b981; margin-top: 10px;">¡Documento Subido con Éxito!</h3>
-            <p>Nombre del archivo: <strong id="docName" style="color:#333;"></strong></p>
-        </div>
-
-        <button class="btn btn-success" id="btnSiguientePaso">SOLICITAR FIRMA ➔</button>
-    </div>
-</div>
-
+{% block scripts %}
 <script>
     function subirPdf() {
         const fileInput = document.getElementById('pdfFile');
@@ -61,8 +61,9 @@
         const file = fileInput.files[0];
         if(file.type !== "application/pdf") return alert("Solo se permiten archivos en formato PDF.");
 
-        const btn = event.target;
-        btn.disabled = true; btn.innerText = "Subiendo archivo a Drive de forma segura...";
+        const btn = document.getElementById('btnSubirPdf');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Subiendo archivo a Drive de forma segura...';
 
         const formData = new FormData();
         formData.append('pdf_file', file);
@@ -76,20 +77,19 @@
                 document.getElementById('step1').classList.remove('active');
                 document.getElementById('step2').classList.add('active');
 
-                // MAGIA APLICADA AQUÍ: Redirigimos usando el ID real que nos dio la base de datos
                 document.getElementById('btnSiguientePaso').onclick = function() {
                     window.location.href = `/portal/configurar-pdf/${res.id}/`;
                 };
-
             } else {
                 alert(res.error);
-                btn.disabled = false; btn.innerText = "Subir y Conectar ➔";
+                btn.disabled = false;
+                btn.innerHTML = '<span class="material-symbols-outlined">cloud_upload</span> Subir y Conectar';
             }
         }).catch(err => {
             alert("Error de red.");
-            btn.disabled = false; btn.innerText = "Subir y Conectar ➔";
+            btn.disabled = false;
+            btn.innerHTML = '<span class="material-symbols-outlined">cloud_upload</span> Subir y Conectar';
         });
     }
 </script>
-</body>
-</html>
+{% endblock %}

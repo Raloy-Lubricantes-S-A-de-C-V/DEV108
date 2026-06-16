@@ -1,242 +1,140 @@
-<!DOCTYPE html><html lang="es"><head>
-<meta charset="utf-8">
-<meta content="width=device-width, initial-scale=1.0" name="viewport">
-<title>Trazabilidad - {{ proceso.reference_id }}</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" rel="stylesheet">
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    "colors": {
-                        "surface-container-low": "#f3f4f5",
-                        "status-danger": "#e74c3c",
-                        "text-muted": "#666666",
-                        "error": "#ba1a1a",
-                        "on-tertiary-fixed": "#001d31",
-                        "surface-bright": "#f8f9fa",
-                        "on-tertiary-container": "#51aef3",
-                        "outline-variant": "#c4c6cd",
-                        "text-main": "#1a1a1a",
-                        "on-secondary-container": "#6f5900",
-                        "outline": "#74777d",
-                        "surface-dim": "#d9dadb",
-                        "primary-fixed": "#d1e4fb",
-                        "on-primary": "#ffffff",
-                        "primary": "#162839",
-                        "primary-container": "#2c3e50",
-                        "inverse-on-surface": "#f0f1f2",
-                        "background": "#f8f9fa",
-                        "secondary-fixed-dim": "#eec209",
-                        "tertiary-fixed-dim": "#92ccff",
-                        "on-surface-variant": "#43474c",
-                        "inverse-surface": "#2e3132",
-                        "surface-container": "#edeeef",
-                        "surface-slate": "#34495e",
-                        "secondary-fixed": "#ffe084",
-                        "tertiary-container": "#004063",
-                        "background-pure": "#ffffff",
-                        "on-secondary": "#ffffff",
-                        "surface": "#f8f9fa",
-                        "tertiary": "#002942",
-                        "tertiary-fixed": "#cce5ff",
-                        "on-primary-fixed-variant": "#36485b",
-                        "secondary": "#735c00",
-                        "on-background": "#191c1d",
-                        "status-success": "#27ae60",
-                        "on-tertiary-fixed-variant": "#004b73",
-                        "error-container": "#ffdad6",
-                        "primary-fixed-dim": "#b5c8df",
-                        "surface-container-highest": "#e1e3e4",
-                        "on-tertiary": "#ffffff",
-                        "on-primary-container": "#96a9be",
-                        "surface-container-high": "#e7e8e9",
-                        "on-error-container": "#93000a",
-                        "surface-tint": "#4e6073",
-                        "inverse-primary": "#b5c8df",
-                        "on-error": "#ffffff",
-                        "on-secondary-fixed-variant": "#574500",
-                        "on-primary-fixed": "#091d2e",
-                        "surface-variant": "#e1e3e4",
-                        "on-secondary-fixed": "#231b00",
-                        "on-surface": "#191c1d",
-                        "secondary-container": "#fed023"
-                    },
-                    "fontFamily": {
-                        "body": ["Inter", "sans-serif"],
-                        "display": ["Hanken Grotesk", "sans-serif"]
-                    }
-                }
-            }
-        }
-    </script>
-<style>
-        body { font-family: 'Inter', sans-serif; }
-        h1, h2, h3, h4 { font-family: 'Hanken Grotesk', sans-serif; }
-        .timeline-line::before {
-            content: '';
-            position: absolute;
-            left: 20px;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background-color: #e5e7eb;
-            z-index: 0;
-        }
-    </style>
-</head>
-<body class="bg-background min-h-screen py-12 px-4 flex justify-center">
-<div class="w-full max-w-3xl bg-background-pure rounded-xl shadow-sm border border-outline-variant/30 overflow-hidden">
-<!-- Header -->
-<div class="px-8 py-8 border-b border-outline-variant/30 bg-surface-bright">
-<div class="mb-[40px] flex justify-center w-full">
-    <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuCY8H5_y4VwwP-D2AD7dKhpZzCwLRWbLEjLuvyIQWBflDUPVKYDhxu9Bsas9vnvYeQtL6oHehfTs8A6W8zX2dwD-wXexv_xWWJc7dajIUZYhLMsnk3FDvN_fle96dILuHAGiC4kZmbA_JGE5pH2W-mzvYW2oJQcoF5VIWYya_YkrgllR7Rg4fjRJunlkwpuDLtGZKIHERzogdBCOkbTcAJoR6l_URdi13pl01NcOrw8PsPcN0UnGMg-c5bhtLJxb6fmc1Z8lj0tcMM" alt="Logo Raloy Lubricantes" class="h-12 w-auto object-contain">
-</div><h2 class="text-2xl font-bold text-primary mb-2">Trazabilidad del Documento</h2>
-<div class="flex items-center gap-2">
-<span class="text-caption font-medium text-text-muted uppercase tracking-wider">Folio:</span>
-<span class="px-3 py-1 bg-primary-fixed text-on-primary-fixed rounded-full text-sm font-semibold">{{ proceso.reference_id }}</span>
-</div>
-</div>
-<!-- Timeline Content -->
-<div class="px-8 py-10 relative timeline-line">
-<ul class="space-y-12">
-<!-- Step 1: Document Generated -->
-<li class="relative flex gap-6 z-10">
-<div class="flex-none">
-<div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/20 ring-4 ring-white">
-<div class="w-6 h-6"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6">
-  <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" stroke="#0f172a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-  <path d="M14 2V8H20" stroke="#0f172a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-  <path d="M16 13L11 18L8 15" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-</svg></div>
-</div>
-</div>
-<div class="flex-grow pt-1">
-<div class="bg-surface-container-low p-5 rounded-lg border border-outline-variant/20">
-<h4 class="text-headline-md text-primary mb-1">Documento Generado y Enviado</h4>
-<p class="text-sm text-text-muted flex items-center gap-1">
-<span class="material-symbols-outlined text-[14px]">calendar_today</span>
+{% extends "motor_firmas/base.html" %}
+
+{% block title %}Trazabilidad - {{ proceso.reference_id }}{% endblock %}
+{% block body_class %}bg-background min-h-screen py-12 px-4 flex justify-center text-text-main{% endblock %}
+
+{% block content %}
+<div class="w-full max-w-3xl bg-background-pure rounded-xl shadow-sm border border-outline-variant overflow-hidden">
+    <header class="px-6 md:px-8 py-8 border-b border-outline-variant bg-surface-bright">
+        <div class="mb-8 flex justify-center w-full">
+            <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuBftRUZynfLhwgIch9GbKWlTRvQslu8IF5wlJyvZh3zxG5BylXg8wFGJJSS1uCmXkl8pWN9vtDFLfM0B9FkK7d7ycQ-AMz9AheoS0LWj90ImgwsKKlnbCh5kKRrW_7UKxBwZWfKL1FKPqReRboT9JnDV8thlhh1o3J8-QvefpjuDId6za30FSSAGEWj16VSGQvWFmfDRB-nzDc20oSQB8a0L7Cva-Si9EKqIp1ebPgeFOxQ-1kNi9fimGbsi8a6LhCsGC5t44iHSLk" alt="Raloy Logo" class="h-12 w-auto object-contain">
+        </div>
+        <h1 class="text-2xl md:text-3xl font-bold text-primary mb-3">Trazabilidad del Documento</h1>
+        <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold text-text-muted uppercase">Folio:</span>
+            <span class="px-3 py-1 bg-primary-fixed text-on-primary-fixed rounded-full text-sm font-semibold">{{ proceso.reference_id }}</span>
+        </div>
+    </header>
+
+    <section class="px-6 md:px-8 py-10 relative timeline-line">
+        <ul class="space-y-12">
+            <li class="relative flex gap-6 z-10">
+                <div class="flex-none">
+                    <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/20 ring-4 ring-white">
+                        <span class="material-symbols-outlined text-white text-[20px]">description</span>
+                    </div>
+                </div>
+                <div class="flex-grow pt-1">
+                    <div class="bg-surface-container-low p-5 rounded-lg border border-outline-variant">
+                        <h2 class="text-lg font-bold text-primary mb-1">Documento Generado y Enviado</h2>
+                        <p class="text-sm text-text-muted flex items-center gap-1">
+                            <span class="material-symbols-outlined text-[14px]">calendar_today</span>
                             {{ proceso.created_at|date:"d/m/Y H:i:s" }}
                         </p>
-</div>
-</div>
-</li>
-<!-- Steps for Signers -->
+                    </div>
+                </div>
+            </li>
+
             {% for firmante in proceso.firmantes %}
             <li class="relative flex gap-6 z-10">
-<div class="flex-none">
+                <div class="flex-none">
                     {% if firmante.fecha_firma %}
                         <div class="w-10 h-10 rounded-full bg-status-success flex items-center justify-center shadow-lg shadow-status-success/20 ring-4 ring-white">
-<span class="material-symbols-outlined text-white text-[20px]">draw</span>
-</div>
+                            <span class="material-symbols-outlined text-white text-[20px]">draw</span>
+                        </div>
                     {% else %}
                         <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center ring-4 ring-white border-2 border-outline-variant">
-<span class="material-symbols-outlined text-text-muted text-[20px]">pending</span>
-</div>
+                            <span class="material-symbols-outlined text-text-muted text-[20px]">pending</span>
+                        </div>
                     {% endif %}
                 </div>
-<div class="flex-grow pt-1">
-<div class="bg-surface-container-low p-5 rounded-lg border-l-4 {% if firmante.fecha_firma %}border-status-success{% else %}border-secondary-container{% endif %} border-y border-r border-y-outline-variant/20 border-r-outline-variant/20">
-<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-<h4 class="text-headline-md text-primary">
+                <div class="flex-grow pt-1">
+                    <div class="bg-surface-container-low p-5 rounded-lg border-l-4 {% if firmante.fecha_firma %}border-status-success{% else %}border-secondary-container{% endif %} border-y border-r border-y-outline-variant border-r-outline-variant">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                            <h2 class="text-lg font-bold text-primary">
                                 {% if firmante.fecha_firma %}Firma recolectada{% else %}Pendiente de firma{% endif %}: {{ firmante.nombre }}
-                            </h4>
+                            </h2>
                             {% if firmante.fecha_firma %}
-                                <span class="text-caption px-2 py-0.5 bg-status-success/10 text-status-success rounded border border-status-success/20 w-fit">Completado</span>
+                                <span class="status-badge bg-completed w-fit">Completado</span>
                             {% else %}
-                                <span class="text-caption px-2 py-0.5 bg-secondary-container/10 text-on-secondary-container rounded border border-secondary-container/20 w-fit">En espera</span>
+                                <span class="status-badge bg-processing w-fit">En espera</span>
                             {% endif %}
                         </div>
-<div class="space-y-1">
-<div class="text-sm text-on-surface-variant flex items-center gap-1">
-<span class="material-symbols-outlined text-[14px]">mail</span>
+                        <div class="space-y-1">
+                            <div class="text-sm text-on-surface-variant flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[14px]">mail</span>
                                 {{ firmante.email }}
                             </div>
                             {% if firmante.fecha_firma %}
                                 <div class="text-sm font-medium text-text-main flex items-center gap-1">
-<span class="material-symbols-outlined text-[14px]">event_available</span>
+                                    <span class="material-symbols-outlined text-[14px]">event_available</span>
                                     Firmado el: {{ firmante.fecha_firma }}
                                 </div>
                             {% else %}
                                 <div class="text-sm italic text-text-muted flex items-center gap-1">
-<span class="material-symbols-outlined text-[14px]">hourglass_empty</span>
+                                    <span class="material-symbols-outlined text-[14px]">hourglass_empty</span>
                                     Esperando acción del usuario...
                                 </div>
                             {% endif %}
                         </div>
-</div>
-</div>
-</li>
+                    </div>
+                </div>
+            </li>
             {% endfor %}
 
-            <!-- Final Step -->
-<li class="relative flex gap-6 z-10">
-<div class="flex-none">
+            <li class="relative flex gap-6 z-10">
+                <div class="flex-none">
                     {% if proceso.status == 'COMPLETED' %}
                         <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30 ring-4 ring-white">
-<span class="material-symbols-outlined text-white text-[20px]">verified</span>
-</div>
+                            <span class="material-symbols-outlined text-white text-[20px]">verified</span>
+                        </div>
                     {% else %}
                         <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center ring-4 ring-white border-2 border-outline-variant">
-<span class="material-symbols-outlined text-text-muted text-[20px]">lock_clock</span>
-</div>
+                            <span class="material-symbols-outlined text-text-muted text-[20px]">lock_clock</span>
+                        </div>
                     {% endif %}
                 </div>
-<div class="flex-grow pt-1">
-<div class="p-5 rounded-lg border {% if proceso.status == 'COMPLETED' %}bg-primary-container text-white border-primary-container{% else %}bg-surface-container-low border-outline-variant/20{% endif %}">
-<h4 class="text-headline-md mb-1 {% if proceso.status == 'COMPLETED' %}text-on-tertiary-container{% else %}text-primary{% endif %}">Cierre del Documento</h4>
-<p class="text-sm {% if proceso.status == 'COMPLETED' %}text-white/80{% else %}text-text-muted{% endif %}">
+                <div class="flex-grow pt-1">
+                    <div class="p-5 rounded-lg border {% if proceso.status == 'COMPLETED' %}bg-primary-container text-white border-primary-container{% else %}bg-surface-container-low border-outline-variant{% endif %}">
+                        <h2 class="text-lg font-bold mb-1 {% if proceso.status == 'COMPLETED' %}text-white{% else %}text-primary{% endif %}">Cierre del Documento</h2>
+                        <p class="text-sm {% if proceso.status == 'COMPLETED' %}text-white/80{% else %}text-text-muted{% endif %}">
                             {% if proceso.status == 'COMPLETED' %}
                                 Proceso finalizado con éxito. Todas las firmas han sido recolectadas.
                             {% else %}
                                 A la espera de firmas restantes para el cierre oficial.
                             {% endif %}
                         </p>
-</div>
-</div>
-</li>
-</ul>
-</div>
-<!-- Certification View (Only for Completed) -->
+                    </div>
+                </div>
+            </li>
+        </ul>
+    </section>
+
     {% if proceso.status == 'COMPLETED' %}
-    <div class="px-8 py-10 border-t border-outline-variant/30 bg-surface-container-lowest">
-<div class="flex items-center gap-3 mb-6">
-<div class="w-10 h-10 rounded-full bg-status-success/10 flex items-center justify-center">
-<span class="material-symbols-outlined text-status-success">check_circle</span>
-</div>
-<div>
-<h3 class="text-headline-md text-primary">Documento Certificado</h3>
-<p class="text-sm text-text-muted">El proceso ha concluido. Puede visualizar y descargar el documento final.</p>
-</div>
-</div>
-<div class="space-y-4">
-<a class="flex items-center justify-center gap-2 w-full py-4 bg-primary hover:bg-primary-container text-white font-bold rounded-lg transition-colors shadow-md" href="{{ pdf_url }}" target="_blank">
-<span class="material-symbols-outlined">file_download</span>
+    <section class="px-6 md:px-8 py-10 border-t border-outline-variant bg-surface-container-lowest">
+        <div class="flex items-center gap-3 mb-6">
+            <div class="w-10 h-10 rounded-full bg-status-success/10 flex items-center justify-center">
+                <span class="material-symbols-outlined text-status-success">check_circle</span>
+            </div>
+            <div>
+                <h2 class="text-lg font-bold text-primary">Documento Certificado</h2>
+                <p class="text-sm text-text-muted">El proceso ha concluido. Puede visualizar y descargar el documento final.</p>
+            </div>
+        </div>
+        <div class="space-y-4">
+            <a class="flex items-center justify-center gap-2 w-full py-4 bg-primary hover:bg-primary-container text-white font-bold rounded-lg transition-colors shadow-md" href="{{ pdf_url }}" target="_blank">
+                <span class="material-symbols-outlined">file_download</span>
                 Abrir PDF en Nueva Pestaña
             </a>
-<div class="rounded-xl border border-outline-variant/40 overflow-hidden shadow-inner bg-white">
-<iframe class="w-full h-[500px] border-none" src="{{ pdf_url }}"></iframe>
-</div>
-</div>
-</div>
+            <div class="rounded-xl border border-outline-variant overflow-hidden shadow-inner bg-white">
+                <iframe class="document-frame h-[500px]" src="{{ pdf_url }}"></iframe>
+            </div>
+        </div>
+    </section>
     {% endif %}
 
-    <div class="px-8 py-6 text-center border-t border-outline-variant/20">
-<p class="text-caption text-text-muted">© 2026 Raloy Lubricantes. Todos los derechos reservados.</p>
+    <footer class="px-8 py-6 text-center border-t border-outline-variant">
+        <p class="text-xs text-text-muted">© 2026 Raloy Lubricantes. Todos los derechos reservados.</p>
+    </footer>
 </div>
-</div>
-
-
-
-
-
-
-
-
-
-
-
-
-</body></html>
+{% endblock %}

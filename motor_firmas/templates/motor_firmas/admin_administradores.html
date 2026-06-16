@@ -1,54 +1,46 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Gestión de Administradores - Raloy</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 20px; color: #334155; }
-        .container { max-width: 1000px; margin: auto; }
-        .topbar { background: #0f172a; color: white; padding: 15px 30px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .topbar h1 { margin: 0; font-size: 1.3rem; }
-        .btn-nav { background: #3b82f6; color: white; padding: 7px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 0.85rem; }
-        .btn-nav:hover { background: #2563eb; }
-        
-        .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; margin-bottom: 20px;}
-        h2 { margin-top: 0; color: #1e293b; }
-        
-        .form-group { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; }
-        input[type="email"] { flex: 1; padding: 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.95rem; }
-        .btn-add { background: #10b981; color: white; border: none; padding: 10px 20px; border-radius: 4px; font-weight: bold; cursor: pointer; }
-        .btn-add:hover { background: #059669; }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border-bottom: 1px solid #e2e8f0; padding: 15px; text-align: left; }
-        th { background: #f8fafc; font-weight: 600; color: #475569; font-size: 0.85rem; text-transform: uppercase; }
-        
-        .toggle-switch { position: relative; display: inline-block; width: 50px; height: 24px; }
-        .toggle-switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 24px; }
-        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background-color: #f59e0b; }
-        input:checked + .slider:before { transform: translateX(26px); }
-        
-        .btn-delete { background: none; border: none; color: #ef4444; font-size: 1.2rem; cursor: pointer; }
-        .btn-delete:hover { color: #b91c1c; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="topbar">
-            <h1>Gestión de Administradores (Superadmin)</h1>
-            <a href="{% url 'admin_dashboard' %}" class="btn-nav">⬅ Volver al Dashboard</a>
+{% extends "motor_firmas/base.html" %}
+
+{% block title %}Gestión de Administradores - Raloy{% endblock %}
+{% block body_class %}bg-background min-h-screen text-text-main py-8 px-4 md:px-8{% endblock %}
+
+{% block extra_head %}
+<style>
+    .data-table-wrap { overflow-x: auto; border: 1px solid #c4c6cd; border-radius: 0.75rem; }
+    .data-table { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; }
+    .data-table th { background: #f8f9fa; padding: 1rem; text-align: left; font-size: 0.75rem; text-transform: uppercase; color: #43474c; border-bottom: 1px solid #c4c6cd; white-space: nowrap; }
+    .data-table td { padding: 1rem; border-bottom: 1px solid #edeeef; font-size: 0.9rem; }
+    .data-table tr:last-child td { border-bottom: 0; }
+    .toggle-switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; inset: 0; background-color: #c4c6cd; transition: .25s; border-radius: 9999px; }
+    .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 4px; bottom: 4px; background-color: white; transition: .25s; border-radius: 50%; }
+    input:checked + .slider { background-color: #fed023; }
+    input:checked + .slider:before { transform: translateX(24px); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <header class="bg-primary text-white rounded-xl px-6 py-5 mb-8 shadow-soft flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <h1 class="text-xl md:text-2xl font-bold">Gestión de Administradores</h1>
+        <a href="{% url 'admin_dashboard' %}" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-surface-slate text-white font-bold text-sm hover:bg-primary-container transition-colors">
+            <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+            Volver al Dashboard
+        </a>
+    </header>
+
+    <section class="bg-white rounded-xl border border-outline-variant shadow-sm p-5 md:p-6">
+        <h2 class="text-xl font-bold text-primary mb-5">Agregar Nuevo Administrador</h2>
+        <div class="flex flex-col md:flex-row gap-3 mb-6">
+            <input class="flex-1 px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="email" id="newAdminEmail" placeholder="correo@raloy.com.mx">
+            <button class="bg-primary hover:bg-primary-container text-white px-5 py-3 rounded-lg font-bold transition-colors flex items-center justify-center gap-2" onclick="agregarAdmin()">
+                <span class="material-symbols-outlined">person_add</span>
+                Añadir Administrador
+            </button>
         </div>
 
-        <div class="card">
-            <h2>Agregar Nuevo Administrador</h2>
-            <div class="form-group">
-                <input type="email" id="newAdminEmail" placeholder="correo@raloy.com.mx">
-                <button class="btn-add" onclick="agregarAdmin()">➕ Añadir Administrador</button>
-            </div>
-            
-            <table id="adminsTable">
+        <div class="data-table-wrap">
+            <table class="data-table" id="adminsTable">
                 <thead>
                     <tr>
                         <th>Email del Administrador</th>
@@ -59,7 +51,7 @@
                 <tbody>
                     {% for a in admins %}
                     <tr>
-                        <td><strong>{{ a.email }}</strong></td>
+                        <td><strong class="text-primary">{{ a.email }}</strong></td>
                         <td>
                             <label class="toggle-switch">
                                 <input type="checkbox" onchange="toggleSuperAdmin({{ a.id }}, this.checked)" {% if a.es_superadmin %}checked{% endif %} {% if a.email == 'pjimenezb@raloy.com.mx' %}disabled{% endif %}>
@@ -68,7 +60,10 @@
                         </td>
                         <td>
                             {% if a.email != 'pjimenezb@raloy.com.mx' %}
-                            <button class="btn-delete" onclick="eliminarAdmin({{ a.id }}, '{{ a.email }}')" title="Eliminar Administrador">🗑️</button>
+                            <button class="inline-flex items-center gap-1 text-status-danger font-bold hover:underline" onclick="eliminarAdmin({{ a.id }}, '{{ a.email }}')" title="Eliminar Administrador">
+                                <span class="material-symbols-outlined text-[18px]">delete</span>
+                                Eliminar
+                            </button>
                             {% endif %}
                         </td>
                     </tr>
@@ -76,47 +71,49 @@
                 </tbody>
             </table>
         </div>
-    </div>
+    </section>
+</div>
+{% endblock %}
 
-    <script>
-        function agregarAdmin() {
-            const email = document.getElementById('newAdminEmail').value;
-            if(!email) return alert("Ingresa un correo.");
-            fetch('/api/admin-action/agregar_admin/', {
+{% block scripts %}
+<script>
+    function agregarAdmin() {
+        const email = document.getElementById('newAdminEmail').value;
+        if(!email) return alert("Ingresa un correo.");
+        fetch('/api/admin-action/agregar_admin/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email })
+        }).then(r => r.json()).then(res => {
+            if(res.status === 'success') location.reload();
+            else alert("Error: " + res.error);
+        });
+    }
+
+    function toggleSuperAdmin(id, isSuper) {
+        fetch('/api/admin-action/actualizar_admin/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id, es_superadmin: isSuper })
+        }).then(r => r.json()).then(res => {
+            if(res.status !== 'success') {
+                alert("Error: " + res.error);
+                location.reload();
+            }
+        });
+    }
+
+    function eliminarAdmin(id, email) {
+        if(confirm(`¿Estás seguro de que deseas eliminar al administrador ${email}?`)) {
+            fetch('/api/admin-action/eliminar_admin/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: email })
+                body: JSON.stringify({ id: id })
             }).then(r => r.json()).then(res => {
                 if(res.status === 'success') location.reload();
                 else alert("Error: " + res.error);
             });
         }
-
-        function toggleSuperAdmin(id, isSuper) {
-            fetch('/api/admin-action/actualizar_admin/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: id, es_superadmin: isSuper })
-            }).then(r => r.json()).then(res => {
-                if(res.status !== 'success') {
-                    alert("Error: " + res.error);
-                    location.reload();
-                }
-            });
-        }
-
-        function eliminarAdmin(id, email) {
-            if(confirm(`¿Estás seguro de que deseas eliminar al administrador ${email}?`)) {
-                fetch('/api/admin-action/eliminar_admin/', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: id })
-                }).then(r => r.json()).then(res => {
-                    if(res.status === 'success') location.reload();
-                    else alert("Error: " + res.error);
-                });
-            }
-        }
-    </script>
-</body>
-</html>
+    }
+</script>
+{% endblock %}

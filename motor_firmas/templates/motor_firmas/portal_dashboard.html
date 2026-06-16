@@ -1,464 +1,376 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mi Portal de Documentos - Raloy</title>
-    <style>
-        /* Modal API Tester */
-        .api-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.75); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
-        .api-modal { background: #fff; width: 900px; max-width: 95%; height: 85vh; border-radius: 12px; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); overflow: hidden; }
-        .api-header { background: #0f172a; color: #fff; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
-        .api-header h2 { margin: 0; font-size: 1.25rem; font-weight: 600; display: flex; align-items: center; gap: 10px; }
-        .api-header button { background: none; border: none; color: #cbd5e1; cursor: pointer; font-size: 1.5rem; transition: color 0.2s; }
-        .api-header button:hover { color: #fff; }
-        .api-body { display: flex; flex: 1; overflow: hidden; }
-        .api-col { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
-        .api-col:first-child { border-right: 1px solid #e2e8f0; background: #f8fafc; }
-        .api-label { font-size: 0.85rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; }
-        .api-textarea { width: 100%; flex: 1; font-family: 'Courier New', Courier, monospace; font-size: 0.9rem; padding: 15px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; resize: none; background: #1e293b; color: #e2e8f0; outline: none; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); }
-        .api-textarea:focus { border-color: #3b82f6; }
-        .api-btn-send { background: #10b981; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-weight: 600; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; margin-top: 10px; }
-        .api-btn-send:hover { background: #059669; }
-        .api-btn-send:disabled { background: #94a3b8; cursor: not-allowed; }
-        .api-response { flex: 1; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 15px; overflow-y: auto; font-family: 'Courier New', Courier, monospace; font-size: 0.85rem; color: #334155; margin: 0; white-space: pre-wrap; word-break: break-all; }
-        .api-method-badge { background: #3b82f6; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
-        .api-url { font-family: monospace; font-size: 0.9rem; color: #64748b; background: #e2e8f0; padding: 6px 12px; border-radius: 6px; margin-bottom: 10px; word-break: break-all; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1f5f9; padding: 30px 15px; margin: 0; color: #334155; }
+{% extends "motor_firmas/base.html" %}
 
-        /* Topbar */
-        .topbar { background: #0f172a; color: white; padding: 15px 30px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); max-width: 1200px; margin-left: auto; margin-right: auto;}
-        .topbar h1 { margin: 0; font-size: 1.3rem; letter-spacing: 0.5px; }
-        .topbar .user-info { font-size: 0.9rem; color: #94a3b8; display: flex; align-items: center; gap: 15px;}
-        .btn-logout { background: #e74c3c; color: white; padding: 7px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 0.85rem; transition: background 0.2s;}
-        .btn-logout:hover { background: #c0392b; }
+{% block title %}Mi Portal de Documentos - Raloy{% endblock %}
+{% block body_class %}bg-background min-h-screen text-text-main py-8 px-4 md:px-8{% endblock %}
 
-        .container { max-width: 1200px; margin: auto; }
+{% block extra_head %}
+<style>
+    .doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.25rem; }
+    .doc-card { background: #fff; border: 1px solid #c4c6cd; border-radius: 0.75rem; overflow: hidden; display: flex; flex-direction: column; border-top: 4px solid #162839; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+    .doc-card.completed { border-top-color: #27ae60; }
+    .doc-card.cancelled { border-top-color: #e74c3c; opacity: 0.92; }
+    .doc-card-head { padding: 1.25rem; border-bottom: 1px solid #e1e3e4; display: flex; justify-content: space-between; gap: 0.75rem; align-items: flex-start; }
+    .doc-card-title { margin: 0; font-size: 1.05rem; color: #162839; font-weight: 700; word-break: break-word; line-height: 1.3; }
+    .doc-card-body { padding: 1.25rem; flex: 1; display: flex; flex-direction: column; gap: 1rem; }
+    .doc-card-footer { padding: 1rem 1.25rem; background: #f8f9fa; border-top: 1px solid #e1e3e4; }
+    .progress-wrapper { background: #f3f4f5; padding: 1rem; border-radius: 0.5rem; border: 1px solid #e1e3e4; }
+    .progress-header { display: flex; justify-content: space-between; margin-bottom: 0.65rem; font-size: 0.85rem; font-weight: 700; color: #162839; }
+    .progress-container { width: 100%; background: #d9dadb; border-radius: 9999px; height: 8px; overflow: hidden; }
+    .progress-bar { height: 100%; background: #162839; border-radius: 9999px; transition: width 0.3s ease; }
+    .progress-bar.completed { background: #27ae60; }
+    .group-header { grid-column: 1 / -1; margin-top: 0.5rem; padding-bottom: 0.5rem; border-bottom: 2px solid #e1e3e4; color: #162839; font-size: 1.05rem; font-weight: 700; display: flex; justify-content: space-between; align-items: flex-end; }
+    .group-header span { font-size: 0.8rem; background: #edeeef; padding: 0.2rem 0.65rem; border-radius: 9999px; color: #43474c; }
+    .api-method-badge { background: #fed023; color: #162839; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 800; }
+    .api-url { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 0.85rem; color: #43474c; background: #edeeef; padding: 0.5rem 0.75rem; border-radius: 0.5rem; word-break: break-all; }
+    .api-btn-send { background: #162839; color: white; border: none; padding: 0.85rem 1rem; border-radius: 0.5rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+    .api-btn-send:disabled { background: #74777d; cursor: not-allowed; }
+</style>
+{% endblock %}
 
-        /* Barra de Acciones y Herramientas */
-        .actions-bar { display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 25px; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; gap: 20px;}
-        .actions-info h2 { margin: 0 0 8px 0; color: #1e293b; font-size: 1.3rem;}
-        .actions-info p { margin: 0; color: #475569; font-size: 0.95rem; line-height: 1.5;}
-
-        /* Contenedor de Botones de Herramientas */
-        .tools-container { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; width: 100%; }
-        .tool-btn { 
-            display: inline-flex; align-items: center; gap: 8px; 
-            padding: 12px 24px; text-decoration: none; border-radius: 6px; 
-            font-weight: 700; font-size: 0.95rem; color: white; border: none; cursor: pointer; 
-            transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); 
-            text-transform: uppercase;
-        }
-        .tool-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15); }
-        .tool-btn:active { transform: translateY(0); }
-        
-        .tool-api { background-color: #f59e0b; }
-        .tool-api:hover { background-color: #d97706; }
-        
-        .tool-pdf { background-color: #9b59b6; }
-        .tool-pdf:hover { background-color: #8e44ad; }
-        
-        .tool-template { background-color: #2ecc71; }
-        .tool-template:hover { background-color: #27ae60; }
-
-        /* Contenedor de Filtros */
-        .filters-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); border: 1px solid #e2e8f0; margin-bottom: 25px; display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; }
-        .filter-group { flex: 1; min-width: 180px; }
-        .filter-group label { display: block; font-size: 0.85rem; font-weight: bold; color: #475569; margin-bottom: 6px; }
-        .filter-group input, .filter-group select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; background: #f8fafc; outline: none; box-sizing: border-box; transition: border-color 0.2s; }
-        .filter-group input:focus, .filter-group select:focus { border-color: #3b82f6; background: white; }
-        .btn-limpiar { background: #e2e8f0; color: #475569; padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background 0.2s; height: 40px;}
-        .btn-limpiar:hover { background: #cbd5e1; }
-
-        /* Grid de Documentos */
-        .doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
-
-        /* Encabezado de Agrupación */
-        .group-header { grid-column: 1 / -1; margin-top: 10px; padding-bottom: 5px; border-bottom: 2px solid #e2e8f0; color: #1e293b; font-size: 1.2rem; display: flex; justify-content: space-between; align-items: flex-end;}
-        .group-header span { font-size: 0.9rem; background: #e2e8f0; padding: 3px 10px; border-radius: 12px; color: #475569; }
-
-        /* Tarjeta Individual */
-        .doc-card { background: white; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 5px rgba(0,0,0,0.02); overflow: hidden; display: flex; flex-direction: column; transition: transform 0.2s, box-shadow 0.2s; border-top: 4px solid #3b82f6; }
-        .doc-card:hover { transform: translateY(-3px); box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
-        .doc-card.completed { border-top-color: #10b981; }
-        .doc-card.cancelled { border-top-color: #ef4444; opacity: 0.9;}
-
-        .card-header { padding: 20px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;}
-        .card-title { margin: 0; font-size: 1.1rem; color: #1e293b; font-weight: 700; word-break: break-word; line-height: 1.3;}
-
-        /* Badges */
-        .status-badge { font-size: 0.75rem; padding: 5px 10px; border-radius: 20px; font-weight: bold; white-space: nowrap; letter-spacing: 0.5px;}
-        .bg-processing { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe;}
-        .bg-completed { background: #d1fae5; color: #047857; border: 1px solid #a7f3d0;}
-        .bg-cancelled { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca;}
-
-        .card-body { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 15px;}
-        .info-line { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; color: #475569; }
-        .info-icon { font-size: 1.1rem; color: #94a3b8; width: 20px; text-align: center;}
-
-        /* Barra de progreso */
-        .progress-wrapper { background: #f8fafc; padding: 15px; border-radius: 6px; border: 1px solid #e2e8f0;}
-        .progress-header { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.85rem; font-weight: 600; color: #334155;}
-        .progress-container { width: 100%; background-color: #e2e8f0; border-radius: 10px; height: 8px; overflow: hidden;}
-        .progress-bar { height: 100%; background-color: #3b82f6; transition: width 0.3s ease; border-radius: 10px;}
-        .progress-bar.completed { background-color: #10b981; }
-
-        .card-footer { padding: 15px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; }
-        .btn-ver { display: flex; align-items: center; justify-content: center; gap: 8px; background-color: white; border: 1px solid #cbd5e1; color: #334155; padding: 10px; text-decoration: none; border-radius: 6px; font-weight: 600; transition: all 0.2s; font-size: 0.9rem;}
-        .btn-ver:hover { background-color: #f1f5f9; border-color: #94a3b8; }
-
-        .empty-state { text-align: center; padding: 60px 20px; background: white; border-radius: 8px; border: 1px solid #e2e8f0; color: #64748b; }
-    </style>
-</head>
-<body>
-
-    <div class="topbar">
-        <h1>Mi Portal de Documentos</h1>
-        <div class="user-info">
-            <span>Sesión: <strong>{{ owner_email }}</strong></span>
-            <a href="{% url 'portal_logout' %}" class="btn-logout">Cerrar Sesión</a>
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <header class="bg-primary text-white rounded-xl px-6 py-5 mb-8 shadow-soft flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+            <h1 class="text-xl md:text-2xl font-bold">Mi Portal de Documentos</h1>
+            <p class="text-sm text-primary-fixed-dim">Sesión: <strong>{{ owner_email }}</strong></p>
         </div>
-    </div>
+        <a href="{% url 'portal_logout' %}" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-status-danger text-white font-bold text-sm hover:opacity-90 transition-opacity">
+            <span class="material-symbols-outlined text-[18px]">logout</span>
+            Cerrar Sesión
+        </a>
+    </header>
 
-    <div class="container">
+    <section class="bg-white rounded-xl border border-outline-variant p-6 mb-6 shadow-sm space-y-5">
+        <div>
+            <h2 class="text-xl font-bold text-primary mb-1">Seguimiento de Firmas</h2>
+            <p class="text-sm text-text-muted">Monitorea el progreso de los documentos que has enviado.</p>
+            <p class="text-xs text-status-danger mt-2">* Si necesitas cancelar un documento en proceso, acércate a TI o RH.</p>
+        </div>
 
-        <div class="actions-bar">
-            <div class="actions-info">
-                <h2>Seguimiento de Firmas</h2>
-                <p>Monitorea el progreso de los documentos que has enviado.</p>
-                <p style="color: #ef4444; font-size: 0.8rem; margin-top: 5px;">* Si necesitas cancelar un documento en proceso, acércate a TI o RH.</p>
-            </div>
+        <div class="flex flex-wrap gap-3">
+            {% if 'api_tester' in permisos %}
+            <button onclick="openApiTester()" class="inline-flex items-center gap-2 bg-secondary-container text-primary px-5 py-3 rounded-lg font-bold hover:bg-secondary-fixed-dim transition-colors">
+                <span class="material-symbols-outlined">bolt</span>
+                Probar API (Webhook)
+            </button>
+            {% endif %}
 
-            <div class="tools-container">
-                {% if 'api_tester' in permisos %}
-                <button onclick="openApiTester()" class="tool-btn tool-api">
-                    <span>⚡</span> PROBAR API (WEBHOOK)
+            <a href="{% url 'portal_pdfs_usuario' %}" class="inline-flex items-center gap-2 bg-primary text-white px-5 py-3 rounded-lg font-bold hover:bg-primary-container transition-colors">
+                <span class="material-symbols-outlined">picture_as_pdf</span>
+                Trabajar PDF para Firma
+            </a>
+
+            {% if 'plantillas' in permisos %}
+            <a href="{% url 'portal_plantillas' %}" class="inline-flex items-center gap-2 bg-status-success text-white px-5 py-3 rounded-lg font-bold hover:opacity-90 transition-opacity">
+                <span class="material-symbols-outlined">dynamic_form</span>
+                Usar Plantilla
+            </a>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="bg-white rounded-xl border border-outline-variant p-5 mb-6 shadow-sm grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4 items-end">
+        <div class="xl:col-span-2">
+            <label class="block text-sm font-bold text-primary mb-2">Buscar por Folio</label>
+            <input class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="text" id="filFolio" placeholder="Ej. CONTRATO...">
+        </div>
+
+        <div>
+            <label class="block text-sm font-bold text-primary mb-2">Estado</label>
+            <select class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" id="filEstado">
+                <option value="all">Todos</option>
+                <option value="PROCESSING">En Proceso</option>
+                <option value="COMPLETED">Completados</option>
+                <option value="CANCELLED">Cancelados</option>
+            </select>
+        </div>
+
+        <div>
+            <label class="block text-sm font-bold text-primary mb-2">Agrupar por</label>
+            <select class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" id="selGroup">
+                <option value="none">Sin Agrupación</option>
+                <option value="status">Estado</option>
+                <option value="mes">Mes de Envío</option>
+                <option value="total_firmas">Total de Firmantes</option>
+            </select>
+        </div>
+
+        <div>
+            <label class="block text-sm font-bold text-primary mb-2">Desde</label>
+            <input class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="date" id="filFechaIni">
+        </div>
+
+        <div>
+            <label class="block text-sm font-bold text-primary mb-2">Hasta</label>
+            <input class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="date" id="filFechaFin">
+        </div>
+
+        <button class="xl:col-span-6 justify-self-start inline-flex items-center gap-2 bg-surface-container-high text-primary px-4 py-2 rounded-lg font-bold hover:bg-surface-dim transition-colors" onclick="limpiarFiltros()" title="Limpiar Filtros">
+            <span class="material-symbols-outlined text-[18px]">restart_alt</span>
+            Limpiar filtros
+        </button>
+    </section>
+
+    <section class="doc-grid" id="gridContainer"></section>
+</div>
+
+<div class="api-modal-overlay" id="apiModalOverlay">
+    <div class="api-modal">
+        <div class="bg-primary text-white px-5 py-4 flex justify-between items-center">
+            <h2 class="text-lg font-bold flex items-center gap-2"><span class="api-method-badge">POST</span> /webhook/request-signature</h2>
+            <button onclick="closeApiTester()" class="text-primary-fixed-dim hover:text-white text-2xl leading-none">×</button>
+        </div>
+        <div class="api-body">
+            <div class="api-col">
+                <div class="api-url">https://n8n.raloy.com.mx/webhook/request-signature</div>
+                <label class="api-label">Payload JSON (Editable)</label>
+                <textarea class="api-textarea" id="apiPayload" spellcheck="false"></textarea>
+                <button class="api-btn-send" id="apiBtnSend" onclick="sendApiRequest()">
+                    <span class="material-symbols-outlined text-[18px]">play_arrow</span>
+                    Ejecutar Petición
                 </button>
-                {% endif %}
-                
-                <a href="{% url 'portal_pdfs_usuario' %}" class="tool-btn tool-pdf">
-                    <span>📄</span> TRABAJAR PDF PARA FIRMA
-                </a>
-
-                {% if 'plantillas' in permisos %}
-                <a href="{% url 'portal_plantillas' %}" class="tool-btn tool-template">
-                    <span>➕</span> USAR PLANTILLA
-                </a>
-                {% endif %}
+            </div>
+            <div class="api-col bg-white">
+                <label class="api-label">Respuesta del Servidor</label>
+                <pre class="api-response" id="apiResponse">Presiona "Ejecutar Petición" para ver el resultado...</pre>
             </div>
         </div>
-
-        <div class="filters-container">
-            <div class="filter-group">
-                <label>Buscar por Folio</label>
-                <input type="text" id="filFolio" placeholder="Ej. CONTRATO...">
-            </div>
-
-            <div class="filter-group">
-                <label>Filtrar por Estado</label>
-                <select id="filEstado">
-                    <option value="all">Todos los estados</option>
-                    <option value="PROCESSING">En Proceso</option>
-                    <option value="COMPLETED">Completados</option>
-                    <option value="CANCELLED">Cancelados</option>
-                </select>
-            </div>
-
-            <div class="filter-group">
-                <label>Agrupar vista por</label>
-                <select id="selGroup">
-                    <option value="none">Sin Agrupación (Vista Plana)</option>
-                    <option value="status">Estado del Documento</option>
-                    <option value="mes">Mes de Envío</option>
-                    <option value="total_firmas">Total de Firmantes Requeridos</option>
-                </select>
-            </div>
-
-            <div class="filter-group" style="min-width: 130px;">
-                <label>Periodo (Desde)</label>
-                <input type="date" id="filFechaIni">
-            </div>
-
-            <div class="filter-group" style="min-width: 130px;">
-                <label>Periodo (Hasta)</label>
-                <input type="date" id="filFechaFin">
-            </div>
-
-            <button class="btn-limpiar" onclick="limpiarFiltros()" title="Limpiar Filtros">↺</button>
-        </div>
-
-        <div class="doc-grid" id="gridContainer">
-            </div>
-
     </div>
+</div>
+{% endblock %}
 
-    <script>
-        // Carga de datos crudos desde Django usando Jinja
-        const rawData = [
-            {% for item in documentos %}
-            {
-                reference_id: "{{ item.proceso.reference_id }}",
-                token: "{{ item.proceso.token_acceso }}",
-                status: "{{ item.proceso.status }}",
-                fecha_iso: "{{ item.proceso.created_at|date:'Y-m-d' }}",
-                fecha_formato: "{{ item.proceso.created_at|date:'d/m/Y H:i' }}",
-                mes: "{{ item.proceso.created_at|date:'F Y' }}",
-                total_firmas: {{ item.total_firmas }},
-                firmas_hechas: {{ item.firmas_hechas }},
-                porcentaje: {{ item.porcentaje }}
-            }{% if not forloop.last %},{% endif %}
-            {% endfor %}
-        ];
+{% block scripts %}
+<script>
+    const rawData = [
+        {% for item in documentos %}
+        {
+            reference_id: "{{ item.proceso.reference_id }}",
+            token: "{{ item.proceso.token_acceso }}",
+            status: "{{ item.proceso.status }}",
+            fecha_iso: "{{ item.proceso.created_at|date:'Y-m-d' }}",
+            fecha_formato: "{{ item.proceso.created_at|date:'d/m/Y H:i' }}",
+            mes: "{{ item.proceso.created_at|date:'F Y' }}",
+            total_firmas: {{ item.total_firmas }},
+            firmas_hechas: {{ item.firmas_hechas }},
+            porcentaje: {{ item.porcentaje }}
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
 
-        function renderGrid() {
-            let docs = [...rawData];
+    function renderGrid() {
+        let docs = [...rawData];
 
-            const fFolio = document.getElementById('filFolio').value.toLowerCase();
-            const fEstado = document.getElementById('filEstado').value;
-            const fIni = document.getElementById('filFechaIni').value;
-            const fFin = document.getElementById('filFechaFin').value;
-            const groupProp = document.getElementById('selGroup').value;
+        const fFolio = document.getElementById('filFolio').value.toLowerCase();
+        const fEstado = document.getElementById('filEstado').value;
+        const fIni = document.getElementById('filFechaIni').value;
+        const fFin = document.getElementById('filFechaFin').value;
+        const groupProp = document.getElementById('selGroup').value;
 
-            if (fFolio) docs = docs.filter(d => d.reference_id.toLowerCase().includes(fFolio));
-            if (fEstado !== 'all') docs = docs.filter(d => d.status === fEstado);
-            if (fIni) docs = docs.filter(d => d.fecha_iso >= fIni);
-            if (fFin) docs = docs.filter(d => d.fecha_iso <= fFin);
+        if (fFolio) docs = docs.filter(d => d.reference_id.toLowerCase().includes(fFolio));
+        if (fEstado !== 'all') docs = docs.filter(d => d.status === fEstado);
+        if (fIni) docs = docs.filter(d => d.fecha_iso >= fIni);
+        if (fFin) docs = docs.filter(d => d.fecha_iso <= fFin);
 
-            const container = document.getElementById('gridContainer');
-            container.innerHTML = '';
+        const container = document.getElementById('gridContainer');
+        container.innerHTML = '';
 
-            if (docs.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state" style="grid-column: 1 / -1;">
-                        <span style="font-size: 3rem; display: block; margin-bottom: 15px;">📭</span>
-                        <h3 style="color: #334155; margin: 0 0 10px 0;">No se encontraron documentos</h3>
-                        <p style="margin: 0;">Intenta ajustar los filtros de búsqueda para ver más resultados.</p>
-                    </div>`;
-                return;
-            }
-
-            if (groupProp === 'none') {
-                docs.forEach(doc => container.appendChild(crearTarjeta(doc)));
-            } else {
-                const groups = {};
-                docs.forEach(d => {
-                    const key = d[groupProp];
-                    if(!groups[key]) groups[key] = [];
-                    groups[key].push(d);
-                });
-
-                for (const [groupName, items] of Object.entries(groups)) {
-                    const headerDiv = document.createElement('div');
-                    headerDiv.className = 'group-header';
-                    headerDiv.innerHTML = `
-                        <div>Agrupación: <strong>${formatearNombreGrupo(groupProp, groupName)}</strong></div>
-                        <span>${items.length} docs</span>
-                    `;
-                    container.appendChild(headerDiv);
-                    items.forEach(doc => container.appendChild(crearTarjeta(doc)));
-                }
-            }
+        if (docs.length === 0) {
+            container.innerHTML = `
+                <div class="text-center p-12 bg-white rounded-xl border border-outline-variant text-text-muted" style="grid-column: 1 / -1;">
+                    <span class="material-symbols-outlined text-5xl text-outline mb-4">drafts</span>
+                    <h3 class="text-lg font-bold text-primary mb-2">No se encontraron documentos</h3>
+                    <p>Intenta ajustar los filtros de búsqueda para ver más resultados.</p>
+                </div>`;
+            return;
         }
 
-        function formatearNombreGrupo(tipo, valor) {
-            if (tipo === 'status') {
-                if(valor === 'COMPLETED') return '🟢 Completados';
-                if(valor === 'CANCELLED') return '🔴 Cancelados';
-                return '🔵 En Proceso';
+        if (groupProp === 'none') {
+            docs.forEach(doc => container.appendChild(crearTarjeta(doc)));
+        } else {
+            const groups = {};
+            docs.forEach(d => {
+                const key = d[groupProp];
+                if(!groups[key]) groups[key] = [];
+                groups[key].push(d);
+            });
+
+            for (const [groupName, items] of Object.entries(groups)) {
+                const headerDiv = document.createElement('div');
+                headerDiv.className = 'group-header';
+                headerDiv.innerHTML = `
+                    <div>Agrupación: <strong>${formatearNombreGrupo(groupProp, groupName)}</strong></div>
+                    <span>${items.length} docs</span>
+                `;
+                container.appendChild(headerDiv);
+                items.forEach(doc => container.appendChild(crearTarjeta(doc)));
             }
-            if (tipo === 'total_firmas') {
-                return `${valor} Personas Firmantes Requeridas`;
-            }
-            return valor;
         }
+    }
 
-        function crearTarjeta(doc) {
-            const div = document.createElement('div');
+    function formatearNombreGrupo(tipo, valor) {
+        if (tipo === 'status') {
+            if(valor === 'COMPLETED') return 'Completados';
+            if(valor === 'CANCELLED') return 'Cancelados';
+            return 'En Proceso';
+        }
+        if (tipo === 'total_firmas') {
+            return `${valor} Personas Firmantes Requeridas`;
+        }
+        return valor;
+    }
 
-            let badgeClass = 'bg-processing'; let statusText = 'EN PROCESO'; let colorProgress = '#2563eb';
-            if(doc.status === 'COMPLETED') { badgeClass = 'bg-completed'; statusText = 'COMPLETADO'; colorProgress = '#10b981'; }
-            if(doc.status === 'CANCELLED') { badgeClass = 'bg-cancelled'; statusText = 'CANCELADO'; }
+    function crearTarjeta(doc) {
+        const div = document.createElement('div');
 
-            div.className = `doc-card ${doc.status === 'COMPLETED' ? 'completed' : ''} ${doc.status === 'CANCELLED' ? 'cancelled' : ''}`;
+        let badgeClass = 'bg-processing'; let statusText = 'EN PROCESO'; let colorProgress = '#162839';
+        if(doc.status === 'COMPLETED') { badgeClass = 'bg-completed'; statusText = 'COMPLETADO'; colorProgress = '#27ae60'; }
+        if(doc.status === 'CANCELLED') { badgeClass = 'bg-cancelled'; statusText = 'CANCELADO'; }
 
-            let progressHTML = '';
-            if (doc.status !== 'CANCELLED') {
-                progressHTML = `
-                    <div class="progress-wrapper">
-                        <div class="progress-header">
-                            <span>Progreso de Firmas</span>
-                            <span style="color: ${colorProgress};">${doc.firmas_hechas} / ${doc.total_firmas}</span>
-                        </div>
-                        <div class="progress-container">
-                            <div class="progress-bar ${doc.status === 'COMPLETED' ? 'completed' : ''}" style="width: ${doc.porcentaje}%;"></div>
-                        </div>
+        div.className = `doc-card ${doc.status === 'COMPLETED' ? 'completed' : ''} ${doc.status === 'CANCELLED' ? 'cancelled' : ''}`;
+
+        let progressHTML = '';
+        if (doc.status !== 'CANCELLED') {
+            progressHTML = `
+                <div class="progress-wrapper">
+                    <div class="progress-header">
+                        <span>Progreso de Firmas</span>
+                        <span style="color: ${colorProgress};">${doc.firmas_hechas} / ${doc.total_firmas}</span>
                     </div>
-                `;
-            } else {
-                progressHTML = `
-                    <div class="progress-wrapper" style="background: #fee2e2; border-color: #fecaca; text-align: center;">
-                        <span style="font-size: 0.85rem; color: #b91c1c; font-weight: bold;">Proceso Detenido</span>
+                    <div class="progress-container">
+                        <div class="progress-bar ${doc.status === 'COMPLETED' ? 'completed' : ''}" style="width: ${doc.porcentaje}%;"></div>
                     </div>
-                `;
-            }
-
-            div.innerHTML = `
-                <div class="card-header">
-                    <h3 class="card-title">${doc.reference_id}</h3>
-                    <span class="status-badge ${badgeClass}">${statusText}</span>
-                </div>
-                <div class="card-body">
-                    <div class="info-line">
-                        <span class="info-icon">📅</span>
-                        <span>Enviado: <strong>${doc.fecha_formato}</strong></span>
-                    </div>
-                    ${progressHTML}
-                </div>
-                <div class="card-footer">
-                    <a href="/trazabilidad/${doc.token}/" target="_blank" class="btn-ver">
-                        <span>👁️</span> Ver Trazabilidad y Documento
-                    </a>
                 </div>
             `;
-            return div;
-        }
-
-        function limpiarFiltros() {
-            document.getElementById('filFolio').value = '';
-            document.getElementById('filEstado').value = 'all';
-            document.getElementById('filFechaIni').value = '';
-            document.getElementById('filFechaFin').value = '';
-            document.getElementById('selGroup').value = 'none';
-            renderGrid();
-        }
-
-        document.addEventListener("DOMContentLoaded", () => {
-            document.getElementById('filFolio').addEventListener('keyup', renderGrid);
-            document.getElementById('filEstado').addEventListener('change', renderGrid);
-            document.getElementById('selGroup').addEventListener('change', renderGrid);
-            document.getElementById('filFechaIni').addEventListener('change', renderGrid);
-            document.getElementById('filFechaFin').addEventListener('change', renderGrid);
-            renderGrid();
-        });
-    </script>
-
-    <!-- API TESTER MODAL -->
-    <div class="api-modal-overlay" id="apiModalOverlay">
-        <div class="api-modal">
-            <div class="api-header">
-                <h2><span class="api-method-badge">POST</span> /webhook/request-signature</h2>
-                <button onclick="closeApiTester()">×</button>
-            </div>
-            <div class="api-body">
-                <!-- Request Column -->
-                <div class="api-col">
-                    <div class="api-url">https://n8n.raloy.com.mx/webhook/request-signature</div>
-                    <label class="api-label">Payload JSON (Editable)</label>
-                    <textarea class="api-textarea" id="apiPayload" spellcheck="false"></textarea>
-                    <button class="api-btn-send" id="apiBtnSend" onclick="sendApiRequest()">
-                        <span>▶</span> Ejecutar Petición
-                    </button>
+        } else {
+            progressHTML = `
+                <div class="progress-wrapper" style="background: #ffdad6; border-color: #f7b9b4; text-align: center;">
+                    <span style="font-size: 0.85rem; color: #93000a; font-weight: bold;">Proceso Detenido</span>
                 </div>
-                <!-- Response Column -->
-                <div class="api-col" style="background: white;">
-                    <label class="api-label">Respuesta del Servidor</label>
-                    <pre class="api-response" id="apiResponse">Presiona "Ejecutar Petición" para ver el resultado...</pre>
-                </div>
+            `;
+        }
+
+        div.innerHTML = `
+            <div class="doc-card-head">
+                <h3 class="doc-card-title">${doc.reference_id}</h3>
+                <span class="status-badge ${badgeClass}">${statusText}</span>
             </div>
-        </div>
-    </div>
+            <div class="doc-card-body">
+                <div class="text-sm text-on-surface-variant flex items-center gap-2">
+                    <span class="material-symbols-outlined text-outline text-[18px]">event</span>
+                    <span>Enviado: <strong>${doc.fecha_formato}</strong></span>
+                </div>
+                ${progressHTML}
+            </div>
+            <div class="doc-card-footer">
+                <a href="/trazabilidad/${doc.token}/" target="_blank" class="flex items-center justify-center gap-2 border border-outline-variant bg-white hover:bg-surface-container text-primary py-3 px-4 rounded-lg font-bold transition-colors text-sm">
+                    <span class="material-symbols-outlined text-[18px]">visibility</span>
+                    Ver Trazabilidad y Documento
+                </a>
+            </div>
+        `;
+        return div;
+    }
 
-    <script>
-        const defaultPayload = {
-          "reference_id": "CONTRATO-RALOY-2026-007",
-          "template_id": "19U1b55WEqvPtQ6jAtn5_OrpMj_y8SgFGdKAk1N8HwqI",
-          "document_variables": {
-            "NOMBRE_EMPLEADO": "Alejandro Lopez Guzmán",
-            "ID_NOMINA": "0000456",
-            "MODELO_EQUIPO": "MacBook Air (M2, 2022)",
-            "NUMERO_SERIE": "QW4RT5Y6U7I8",
-            "FECHA_ENTREGA": "01 de Marzo de 2026"
-          },
-          "firmantes": [
-            {
-              "nombre": "Pedro Jimenez Blanquel",
-              "email": "pjimenezb@raloy.com.mx"
-            },
-            {
-              "nombre": "Alejandro Lopez Guzman",
-              "email": "apps@raloy.com.mx"
-            }
-          ]
-        };
+    function limpiarFiltros() {
+        document.getElementById('filFolio').value = '';
+        document.getElementById('filEstado').value = 'all';
+        document.getElementById('filFechaIni').value = '';
+        document.getElementById('filFechaFin').value = '';
+        document.getElementById('selGroup').value = 'none';
+        renderGrid();
+    }
 
-        function openApiTester() {
-            document.getElementById('apiPayload').value = JSON.stringify(defaultPayload, null, 2);
-            document.getElementById('apiResponse').innerText = 'Esperando petición...';
-            document.getElementById('apiResponse').style.color = '#334155';
-            document.getElementById('apiResponse').style.backgroundColor = '#f1f5f9';
-            document.getElementById('apiModalOverlay').style.display = 'flex';
+    document.addEventListener("DOMContentLoaded", () => {
+        document.getElementById('filFolio').addEventListener('keyup', renderGrid);
+        document.getElementById('filEstado').addEventListener('change', renderGrid);
+        document.getElementById('selGroup').addEventListener('change', renderGrid);
+        document.getElementById('filFechaIni').addEventListener('change', renderGrid);
+        document.getElementById('filFechaFin').addEventListener('change', renderGrid);
+        renderGrid();
+    });
+
+    const defaultPayload = {
+      "reference_id": "CONTRATO-RALOY-2026-007",
+      "template_id": "19U1b55WEqvPtQ6jAtn5_OrpMj_y8SgFGdKAk1N8HwqI",
+      "document_variables": {
+        "NOMBRE_EMPLEADO": "Alejandro Lopez Guzmán",
+        "ID_NOMINA": "0000456",
+        "MODELO_EQUIPO": "MacBook Air (M2, 2022)",
+        "NUMERO_SERIE": "QW4RT5Y6U7I8",
+        "FECHA_ENTREGA": "01 de Marzo de 2026"
+      },
+      "firmantes": [
+        { "nombre": "Pedro Jimenez Blanquel", "email": "pjimenezb@raloy.com.mx" },
+        { "nombre": "Alejandro Lopez Guzman", "email": "apps@raloy.com.mx" }
+      ]
+    };
+
+    function openApiTester() {
+        document.getElementById('apiPayload').value = JSON.stringify(defaultPayload, null, 2);
+        document.getElementById('apiResponse').innerText = 'Esperando petición...';
+        document.getElementById('apiResponse').style.color = '#191c1d';
+        document.getElementById('apiResponse').style.backgroundColor = '#f3f4f5';
+        document.getElementById('apiModalOverlay').style.display = 'flex';
+    }
+
+    function closeApiTester() {
+        document.getElementById('apiModalOverlay').style.display = 'none';
+    }
+
+    async function sendApiRequest() {
+        const btn = document.getElementById('apiBtnSend');
+        const responseBox = document.getElementById('apiResponse');
+        let payloadStr = document.getElementById('apiPayload').value;
+        let payloadObj;
+
+        try {
+            payloadObj = JSON.parse(payloadStr);
+        } catch(e) {
+            responseBox.innerText = "Error: El JSON no es válido.\n\n" + e.message;
+            responseBox.style.color = '#93000a';
+            responseBox.style.backgroundColor = '#ffdad6';
+            return;
         }
 
-        function closeApiTester() {
-            document.getElementById('apiModalOverlay').style.display = 'none';
-        }
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[18px]">sync</span> Enviando...';
+        responseBox.innerText = "Ejecutando petición hacia N8N...";
+        responseBox.style.color = '#191c1d';
+        responseBox.style.backgroundColor = '#f3f4f5';
 
-        async function sendApiRequest() {
-            const btn = document.getElementById('apiBtnSend');
-            const responseBox = document.getElementById('apiResponse');
-            let payloadStr = document.getElementById('apiPayload').value;
-            let payloadObj;
+        try {
+            const res = await fetch('https://n8n.raloy.com.mx/webhook/request-signature', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payloadObj)
+            });
 
+            const text = await res.text();
+            let jsonRes;
             try {
-                payloadObj = JSON.parse(payloadStr);
+                jsonRes = JSON.parse(text);
+                responseBox.innerText = JSON.stringify(jsonRes, null, 2);
             } catch(e) {
-                responseBox.innerText = "Error: El JSON no es válido.\n\n" + e.message;
-                responseBox.style.color = '#b91c1c';
-                responseBox.style.backgroundColor = '#fee2e2';
-                return;
+                responseBox.innerText = text;
             }
 
-            btn.disabled = true;
-            btn.innerHTML = '<span>⏳</span> Enviando...';
-            responseBox.innerText = "Ejecutando petición hacia N8N...";
-            responseBox.style.color = '#334155';
-            responseBox.style.backgroundColor = '#f8fafc';
-
-            try {
-                const res = await fetch('https://n8n.raloy.com.mx/webhook/request-signature', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payloadObj)
-                });
-                
-                const text = await res.text();
-                let jsonRes;
-                try { 
-                    jsonRes = JSON.parse(text); 
-                    responseBox.innerText = JSON.stringify(jsonRes, null, 2);
-                } catch(e) { 
-                    responseBox.innerText = text; 
-                }
-
-                if(res.ok) {
-                    responseBox.style.color = '#047857';
-                    responseBox.style.backgroundColor = '#d1fae5';
-                    // Refrescar el grid del dashboard si la peticion tuvo exito
-                    setTimeout(() => { if(typeof renderGrid === 'function') renderGrid(); }, 1500);
-                } else {
-                    responseBox.style.color = '#b91c1c';
-                    responseBox.style.backgroundColor = '#fee2e2';
-                    responseBox.innerText = `HTTP Error ${res.status}\n\n${responseBox.innerText}`;
-                }
-            } catch(error) {
-                responseBox.innerText = "Error de conexión o de red.\n\n" + error.message;
-                responseBox.style.color = '#b91c1c';
-                responseBox.style.backgroundColor = '#fee2e2';
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<span>▶</span> Ejecutar Petición';
+            if(res.ok) {
+                responseBox.style.color = '#1f7a44';
+                responseBox.style.backgroundColor = '#d3f9d8';
+                setTimeout(() => { if(typeof renderGrid === 'function') renderGrid(); }, 1500);
+            } else {
+                responseBox.style.color = '#93000a';
+                responseBox.style.backgroundColor = '#ffdad6';
+                responseBox.innerText = `HTTP Error ${res.status}\n\n${responseBox.innerText}`;
             }
+        } catch(error) {
+            responseBox.innerText = "Error de conexión o de red.\n\n" + error.message;
+            responseBox.style.color = '#93000a';
+            responseBox.style.backgroundColor = '#ffdad6';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">play_arrow</span> Ejecutar Petición';
         }
-    </script>
-</body>
-</html>
+    }
+</script>
+{% endblock %}

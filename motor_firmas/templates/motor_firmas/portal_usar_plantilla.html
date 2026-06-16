@@ -1,122 +1,91 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Usar Plantilla - Raloy</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1f5f9; margin: 0; padding: 30px 15px; color: #334155; }
-        .main-container { background: #ffffff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); max-width: 850px; margin: auto; overflow: hidden; }
+{% extends "motor_firmas/base.html" %}
 
-        .header { background-color: #0f172a; color: white; padding: 25px 30px; }
-        .header h2 { margin: 0 0 5px 0; font-size: 1.5rem; letter-spacing: 0.5px;}
-        .header p { margin: 0; color: #94a3b8; font-size: 0.95rem; }
-        .back-link { color: #cbd5e1; text-decoration: none; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 15px; transition: color 0.2s;}
-        .back-link:hover { color: white; }
+{% block title %}Usar Plantilla - Raloy{% endblock %}
+{% block body_class %}bg-background min-h-screen text-text-main py-8 px-4{% endblock %}
 
-        .content-body { padding: 30px; }
-
-        .step-box { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
-        .step-header { background: #f8fafc; padding: 15px 20px; border-bottom: 1px solid #e2e8f0; border-radius: 8px 8px 0 0; display: flex; align-items: center; gap: 10px; }
-        .step-number { background: #2563eb; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 0.9rem; }
-        .step-header h3 { margin: 0; color: #1e293b; font-size: 1.1rem; }
-        .step-content { padding: 25px; }
-
-        .form-group { margin-bottom: 20px; }
-        .form-group:last-child { margin-bottom: 0; }
-        .form-group label { display: block; font-weight: 600; color: #475569; margin-bottom: 8px; font-size: 0.9rem; }
-        .form-group input { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 0.95rem; background: #f8fafc; transition: all 0.2s;}
-        .form-group input:focus { border-color: #2563eb; background: white; outline: none; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-
-        /* MAYÚSCULAS VISUALES */
-        input:not([type="email"]):not([type="password"]) { text-transform: uppercase; }
-
-        .help-text { font-size: 0.8rem; color: #64748b; margin-top: 6px; display: block; }
-
-        .signer-row { display: flex; gap: 15px; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 15px; align-items: center; flex-wrap: wrap; }
-        .signer-row:last-child { margin-bottom: 0; }
-        .signer-label { font-weight: 700; color: #1e293b; width: 100px; display: flex; align-items: center; gap: 5px;}
-        .signer-inputs { flex: 1; display: flex; gap: 10px; min-width: 300px;}
-        .signer-inputs input { margin-bottom: 0; flex: 1; }
-
-        .btn-submit { background-color: #10b981; color: white; padding: 14px 24px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%; font-size: 1.05rem; transition: background 0.2s; display: flex; justify-content: center; align-items: center; gap: 10px;}
-        .btn-submit:hover { background-color: #059669; }
-        .btn-submit:disabled { background-color: #94a3b8; cursor: not-allowed; }
-    </style>
-</head>
-<body>
-
-<div class="main-container">
-    <div class="header">
-        <a href="/portal/plantillas/" class="back-link">← Volver a Mis Plantillas</a>
-        <h2>📄 Usar Template: {{ plantilla.nombre }}</h2>
-        <p>Configura los datos y envía la solicitud de firmas.</p>
-    </div>
-
-    <div class="content-body">
-
-        <div class="step-box">
-            <div class="step-header">
-                <div class="step-number">1</div>
-                <h3>Identificación del Documento</h3>
-            </div>
-            <div class="step-content">
-                <div class="form-group">
-                    <label>Folio Asignado</label>
-                    <input type="text" id="folio_id" value="{{ plantilla.formato_folio|default:'' }}" placeholder="Ej. CONTRATO-RALOY-2026-">
-                    <span class="help-text">Si lo dejas vacío o incompleto, el sistema autogenerará un número único.</span>
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <main class="bg-white rounded-xl shadow-sm border border-outline-variant overflow-hidden">
+        <header class="bg-primary text-white p-6 md:p-8">
+            <a href="/portal/plantillas/" class="inline-flex items-center gap-2 text-primary-fixed-dim hover:text-white text-sm font-semibold mb-6 transition-colors">
+                <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+                Volver a Mis Plantillas
+            </a>
+            <div class="flex items-start gap-4">
+                <span class="material-symbols-outlined text-secondary-container text-4xl">dynamic_form</span>
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-bold">Usar Template: {{ plantilla.nombre }}</h1>
+                    <p class="text-primary-fixed-dim text-sm mt-2">Configura los datos y envía la solicitud de firmas.</p>
                 </div>
             </div>
-        </div>
+        </header>
 
-        {% if plantilla.variables %}
-        <div class="step-box">
-            <div class="step-header">
-                <div class="step-number">2</div>
-                <h3>Responsables de Llenar Datos</h3>
-            </div>
-            <div class="step-content">
-                <p style="margin-top:0; font-size:0.9rem; color:#64748b; margin-bottom: 20px;">Indica a qué correo electrónico se le solicitará llenar cada dato al momento de que abra el documento para firmar.</p>
-                {% for var in plantilla.variables %}
-                    <div class="form-group">
-                        <label>📝 {{ var.label }} (<code>{{ var.key }}</code>)</label>
-                        <input type="email" class="var-map" data-key="{{ var.key }}" value="{{ var.default_email }}" required>
-                    </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
+        <div class="p-6 md:p-8 space-y-8">
+            <section>
+                <div class="flex items-center gap-4 mb-5">
+                    <span class="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white text-sm font-bold">1</span>
+                    <h2 class="text-xl font-bold text-primary">Identificación del Documento</h2>
+                </div>
+                <div class="bg-surface-container-low rounded-xl p-6 border border-outline-variant">
+                    <label class="block text-sm font-semibold text-on-surface-variant mb-2">Folio Asignado</label>
+                    <input class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="text" id="folio_id" value="{{ plantilla.formato_folio|default:'' }}" placeholder="Ej. CONTRATO-RALOY-2026-">
+                    <p class="text-xs text-text-muted mt-2">Si lo dejas vacío o incompleto, el sistema autogenerará un número único.</p>
+                </div>
+            </section>
 
-        <div class="step-box">
-            <div class="step-header">
-                <div class="step-number">{% if plantilla.variables %}3{% else %}2{% endif %}</div>
-                <h3>Asignación de Firmantes</h3>
-            </div>
-            <div class="step-content">
-                <p style="margin-top:0; font-size:0.9rem; color:#64748b; margin-bottom: 20px;">Configura en orden a las personas que deberán firmar este documento.</p>
-                <div id="firmantesContainer">
-                    {% for firma in plantilla.firmantes_config %}
-                        <div class="signer-row">
-                            <span class="signer-label">✍️ {{ firma.key }}:</span>
-                            <div class="signer-inputs">
-                                <input type="text" class="firma-nombre" placeholder="NOMBRE COMPLETO" required>
-                                <input type="email" class="firma-email" value="{{ firma.default_email }}" placeholder="Correo electrónico" required>
-                            </div>
+            {% if plantilla.variables %}
+            <section>
+                <div class="flex items-center gap-4 mb-5">
+                    <span class="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white text-sm font-bold">2</span>
+                    <h2 class="text-xl font-bold text-primary">Responsables de Llenar Datos</h2>
+                </div>
+                <div class="bg-surface-container-low rounded-xl p-6 border border-outline-variant space-y-5">
+                    <p class="text-sm text-text-muted">Indica a qué correo electrónico se le solicitará llenar cada dato al momento de que abra el documento para firmar.</p>
+                    {% for var in plantilla.variables %}
+                        <div>
+                            <label class="block text-sm font-semibold text-on-surface-variant mb-2">{{ var.label }} <code class="text-xs bg-white border border-outline-variant rounded px-1 py-0.5">{{ var.key }}</code></label>
+                            <input type="email" class="var-map w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" data-key="{{ var.key }}" value="{{ var.default_email }}" required>
                         </div>
                     {% endfor %}
                 </div>
-            </div>
+            </section>
+            {% endif %}
+
+            <section>
+                <div class="flex items-center gap-4 mb-5">
+                    <span class="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white text-sm font-bold">{% if plantilla.variables %}3{% else %}2{% endif %}</span>
+                    <h2 class="text-xl font-bold text-primary">Asignación de Firmantes</h2>
+                </div>
+                <div class="bg-surface-container-low rounded-xl p-6 border border-outline-variant space-y-5">
+                    <p class="text-sm text-text-muted">Configura en orden a las personas que deberán firmar este documento.</p>
+                    <div id="firmantesContainer" class="space-y-4">
+                        {% for firma in plantilla.firmantes_config %}
+                            <div class="rounded-lg border border-outline-variant bg-white p-4">
+                                <div class="flex items-center gap-2 mb-3 text-primary font-bold">
+                                    <span class="material-symbols-outlined text-[18px]">draw</span>
+                                    {{ firma.key }}
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <input type="text" class="firma-nombre w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" placeholder="NOMBRE COMPLETO" required>
+                                    <input type="email" class="firma-email w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" value="{{ firma.default_email }}" placeholder="Correo electrónico" required>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+
+            <button class="w-full bg-primary hover:bg-primary-container text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2" id="btnEnviarSolicitud" onclick="enviarSolicitud()">
+                <span class="material-symbols-outlined">send</span>
+                Enviar Solicitud a Firma
+            </button>
         </div>
-
-        <button class="btn-submit" onclick="enviarSolicitud()">
-            <span>✓</span> Enviar Solicitud a Firma
-        </button>
-
-    </div>
+    </main>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
-    // FORZAR MAYÚSCULAS REALES EN DATA
     document.addEventListener('input', function (e) {
         if (e.target.tagName === 'INPUT') {
             const type = e.target.type.toLowerCase();
@@ -130,9 +99,9 @@
     });
 
     function enviarSolicitud() {
-        const btn = event.target;
+        const btn = document.getElementById('btnEnviarSolicitud');
         btn.disabled = true;
-        btn.innerHTML = "<span>⏳</span> Procesando envío...";
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Procesando envío...';
 
         let docVars = {};
         document.querySelectorAll('.var-map').forEach(inp => { docVars[inp.dataset.key] = inp.value; });
@@ -168,9 +137,8 @@
         }).catch(err => {
             alert("Error al enviar.");
             btn.disabled = false;
-            btn.innerHTML = "<span>✓</span> Enviar Solicitud a Firma";
+            btn.innerHTML = '<span class="material-symbols-outlined">send</span> Enviar Solicitud a Firma';
         });
     }
 </script>
-</body>
-</html>
+{% endblock %}
