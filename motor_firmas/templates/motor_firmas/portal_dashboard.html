@@ -353,6 +353,26 @@
             `;
         }
 
+        const footerActions = doc.status === 'COMPLETED'
+            ? `
+                <div class="doc-actions">
+                    <a href="/trazabilidad/${doc.token}/" target="_blank" class="doc-action-btn">
+                        <span class="material-symbols-outlined text-[18px]">visibility</span>
+                        Ver trazabilidad
+                    </a>
+                    <button type="button" onclick="openQrWizard('${doc.token}')" class="doc-action-btn">
+                        <span class="material-symbols-outlined text-[18px]">qr_code_2</span>
+                        Compartir QR
+                    </button>
+                </div>
+            `
+            : `
+                <a href="/trazabilidad/${doc.token}/" target="_blank" class="doc-action-btn w-full">
+                    <span class="material-symbols-outlined text-[18px]">visibility</span>
+                    Ver trazabilidad
+                </a>
+            `;
+
         div.innerHTML = `
             <div class="doc-card-head">
                 <h3 class="doc-card-title">${doc.reference_id}</h3>
@@ -366,16 +386,7 @@
                 ${progressHTML}
             </div>
             <div class="doc-card-footer">
-                <div class="doc-actions">
-                    <a href="/trazabilidad/${doc.token}/" target="_blank" class="doc-action-btn">
-                        <span class="material-symbols-outlined text-[18px]">visibility</span>
-                        Ver trazabilidad
-                    </a>
-                    <button type="button" onclick="openQrWizard('${doc.token}')" class="doc-action-btn secondary">
-                        <span class="material-symbols-outlined text-[18px]">qr_code_2</span>
-                        Compartir QR
-                    </button>
-                </div>
+                ${footerActions}
             </div>
         `;
         return div;
