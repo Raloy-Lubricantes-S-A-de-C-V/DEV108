@@ -62,7 +62,7 @@
                 <p class="text-sm text-text-muted">Arrastra las filas para cambiar el orden en que se solicitarán las firmas.</p>
                 <div class="overflow-x-auto">
                     <table class="config-table">
-                        <thead><tr><th>Orden</th><th>Llave de Firma</th><th>Correo Sugerido</th></tr></thead>
+                        <thead><tr><th>Orden</th><th>Llave de Firma</th><th>Etiqueta del Solicitante</th><th>Correo Sugerido</th></tr></thead>
                         <tbody id="tbodyFirmas"></tbody>
                     </table>
                 </div>
@@ -129,6 +129,62 @@
 
     let rawData = {};
 
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, function (char) {
+            return {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char];
+        });
+    }
+
+    function normalizarFirmaKey(value) {
+        const text = String(value || '').trim();
+        const match = text.match(/\{\{\s*(FIRMA_\d+)\s*\}\}|^(FIRMA_\d+)$/i);
+        if (!match) return text;
+        return '{' + '{' + (match[1] || match[2]).toUpperCase() + '}' + '}';
+    }
+
+    function firmaKeyParaComparar(value) {
+        return normalizarFirmaKey(value).replace(/[{}]/g, '').trim().toUpperCase();
+    }
+
+    function numeroFirma(value) {
+        const match = firmaKeyParaComparar(value).match(/FIRMA_(\d+)/);
+        return match ? parseInt(match[1], 10) : Number.MAX_SAFE_INTEGER;
+    }
+
+    function extraerFirmaInfo(firma) {
+        if (firma && typeof firma === 'object' && !Array.isArray(firma)) {
+            const key = firma.key || firma.llave || firma.firma || firma.id || '';
+            const label = firma.label || firma.etiqueta || firma.solicitante || firma.descripcion || firma.nombre || '';
+            return { key: normalizarFirmaKey(key), label: String(label || '').trim() };
+        }
+        return { key: normalizarFirmaKey(firma), label: '' };
+    }
+
+    function obtenerLabelFirma(key) {
+        const comparableKey = firmaKeyParaComparar(key);
+        const variables = Array.isArray(rawData.variables) ? rawData.variables : [];
+        const variableFirma = variables.find(v => v && firmaKeyParaComparar(v.key) === comparableKey);
+        if (!variableFirma) return '';
+        return String(variableFirma.label || variableFirma.etiqueta || variableFirma.solicitante || '').trim();
+    }
+
+    function obtenerFirmasDesdeVariables() {
+        const variables = Array.isArray(rawData.variables) ? rawData.variables : [];
+        return variables
+            .filter(v => v && firmaKeyParaComparar(v.key).startsWith('FIRMA_'))
+            .map(v => ({
+                key: normalizarFirmaKey(v.key),
+                label: String(v.label || v.etiqueta || v.solicitante || '').trim()
+            }))
+            .sort((a, b) => numeroFirma(a.key) - numeroFirma(b.key));
+    }
+
     function nextStep(n) {
         document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
         document.getElementById('step'+n).classList.add('active');
@@ -188,13 +244,25 @@
                 const tbV = document.getElementById('tbodyVars'); tbV.innerHTML = '';
                 if(rawData.variables && Array.isArray(rawData.variables)) {
                     rawData.variables.forEach(v => {
-                        if(!v.key.includes("FIRMA_")) {
-                            tbV.innerHTML += `<tr><td>${v.label}</td><td><code>${v.key}</code></td><td>${v.type}</td><td><input type="email" class="var-email w-full rounded-lg border-outline-variant" data-key="${v.key}" value="${owner}"></td></tr>`;
+                        const varKey = String(v.key || '');
+                        if(!firmaKeyParaComparar(varKey).startsWith("FIRMA_")) {
+                            tbV.innerHTML += `<tr><td>${escapeHtml(v.label || '')}</td><td><code>${escapeHtml(varKey)}</code></td><td>${escapeHtml(v.type || '')}</td><td><input type="email" class="var-email w-full rounded-lg border-outline-variant" data-key="${escapeHtml(varKey)}" value="${escapeHtml(owner)}"></td></tr>`;
                         }
                     });
                 }
 
                 const tbF = document.getElementById('tbodyFirmas'); tbF.innerHTML = '';
+
+                if(rawData.firmas && !Array.isArray(rawData.firmas)) {
+                    rawData.firmas = [rawData.firmas];
+                }
+
+                if(!rawData.firmas || rawData.firmas.length === 0) {
+                    const firmasDesdeVariables = obtenerFirmasDesdeVariables();
+                    if (firmasDesdeVariables.length > 0) {
+                        rawData.firmas = firmasDesdeVariables;
+                    }
+                }
 
                 if(!rawData.firmas || rawData.firmas.length === 0) {
                     let strParaBuscar = cleanedJsonString || JSON.stringify(dataExtraida);
@@ -202,21 +270,27 @@
                     let encontradas = strParaBuscar.match(regexFirmas);
 
                     if (encontradas) {
-                        rawData.firmas = [...new Set(encontradas)].sort();
+                        rawData.firmas = [...new Set(encontradas)].sort((a, b) => numeroFirma(a) - numeroFirma(b));
                     } else {
                         rawData.firmas = ["{% templatetag openvariable %}FIRMA_1{% templatetag closevariable %}"];
                     }
                 }
 
                 if(rawData.firmas && Array.isArray(rawData.firmas)) {
-                    rawData.firmas.forEach((f, idx) => {
+                    rawData.firmas.forEach((firma, idx) => {
+                        const firmaInfo = extraerFirmaInfo(firma);
+                        const firmaKey = firmaInfo.key || `{% templatetag openvariable %}FIRMA_${idx + 1}{% templatetag closevariable %}`;
+                        const firmaLabel = firmaInfo.label || obtenerLabelFirma(firmaKey);
+                        const firmaLabelTexto = firmaLabel || 'Sin etiqueta';
+
                         tbF.innerHTML += `<tr draggable="true">
                             <td style="width: 100px;">
                                 <span class="drag-handle">☰</span>
                                 <span class="orden-num" style="font-weight:bold;">${idx+1}</span>
                             </td>
-                            <td><input type="text" class="firma-key w-full rounded-lg border-outline-variant" value="${f}" disabled></td>
-                            <td><input type="email" class="firma-default-email w-full rounded-lg border-outline-variant" value="${owner}"></td>
+                            <td><input type="text" class="firma-key w-full rounded-lg border-outline-variant" value="${escapeHtml(firmaKey)}" data-label="${escapeHtml(firmaLabel)}" disabled></td>
+                            <td><span class="firma-label block text-sm font-semibold text-on-surface-variant">${escapeHtml(firmaLabelTexto)}</span></td>
+                            <td><input type="email" class="firma-default-email w-full rounded-lg border-outline-variant" value="${escapeHtml(owner)}"></td>
                         </tr>`;
                     });
 
@@ -319,6 +393,7 @@
         for(let i=0; i < firmaKeys.length; i++) {
             firmasMap.push({
                 key: firmaKeys[i].value,
+                label: firmaKeys[i].dataset.label || '',
                 default_email: firmaEmails[i].value
             });
         }

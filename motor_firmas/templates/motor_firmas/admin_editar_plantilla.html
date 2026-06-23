@@ -60,9 +60,13 @@
             <h2 class="text-lg font-bold text-primary border-b border-outline-variant pb-2">Correos Predeterminados para Firmantes</h2>
             <div id="firmantesContainer" class="space-y-3">
                 {% for firma in plantilla.firmantes_config %}
-                    <div class="grid grid-cols-1 md:grid-cols-[minmax(0,180px)_1fr] gap-3 items-center bg-surface-container-low border border-outline-variant rounded-lg p-4">
+                    <div class="grid grid-cols-1 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)_minmax(0,1fr)] gap-3 items-center bg-surface-container-low border border-outline-variant rounded-lg p-4">
                         <span class="font-bold text-primary">{{ firma.key }}:</span>
-                        <input type="email" class="firma-email w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" data-key="{{ firma.key }}" value="{{ firma.default_email }}">
+                        <div>
+                            <span class="block text-xs font-semibold uppercase text-text-muted">Etiqueta del solicitante</span>
+                            <span class="block text-sm font-semibold text-on-surface-variant">{{ firma.label|default:"Sin etiqueta" }}</span>
+                        </div>
+                        <input type="email" class="firma-email w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" data-key="{{ firma.key }}" data-label="{{ firma.label|default:'' }}" value="{{ firma.default_email }}">
                     </div>
                 {% endfor %}
             </div>
@@ -106,7 +110,7 @@
 
         let firmasMap = [];
         document.querySelectorAll('.firma-email').forEach(inp => {
-            firmasMap.push({ key: inp.dataset.key, default_email: inp.value });
+            firmasMap.push({ key: inp.dataset.key, label: inp.dataset.label || '', default_email: inp.value });
         });
 
         const payload = {

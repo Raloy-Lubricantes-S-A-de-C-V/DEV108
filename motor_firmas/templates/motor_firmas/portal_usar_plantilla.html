@@ -64,7 +64,10 @@
                             <div class="rounded-lg border border-outline-variant bg-white p-4">
                                 <div class="flex items-center gap-2 mb-3 text-primary font-bold">
                                     <span class="material-symbols-outlined text-[18px]">draw</span>
-                                    {{ firma.key }}
+                                    <span>{{ firma.key }}</span>
+                                    {% if firma.label %}
+                                        <span class="text-sm font-semibold text-on-surface-variant">- {{ firma.label }}</span>
+                                    {% endif %}
                                 </div>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <input type="text" class="firma-nombre w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" placeholder="NOMBRE COMPLETO" required>
