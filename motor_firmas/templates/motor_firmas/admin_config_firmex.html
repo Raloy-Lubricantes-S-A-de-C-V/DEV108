@@ -1,0 +1,72 @@
+{% extends "motor_firmas/base.html" %}
+
+{% block title %}Configuración FIRMEX - Raloy{% endblock %}
+
+{% block content %}
+<header class="bg-primary text-white sticky top-0 z-50 shadow-lg">
+    <div class="max-w-[1600px] mx-auto px-4 md:px-8 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="flex items-center gap-4">
+            <img src="/static/motor_firmas/img/raloy-logo-inverted.svg" alt="Raloy Lubricantes" class="raloy-logo-sm shrink-0">
+            <h1 class="text-xl font-bold">Configuración FIRMEX</h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="text-right">
+                <p class="text-sm font-semibold">{{ admin_email }}</p>
+            </div>
+            <a class="px-4 py-2 text-sm font-bold text-primary bg-secondary-container rounded-lg hover:bg-secondary-fixed-dim transition-colors" href="{% url 'admin_dashboard' %}">
+                Volver al Panel
+            </a>
+        </div>
+    </div>
+</header>
+
+<main class="max-w-4xl mx-auto px-4 py-8">
+    <section class="bg-white rounded-xl border border-outline-variant shadow-sm p-6">
+        <h2 class="text-2xl font-bold text-primary mb-6">Catálogo de Áreas</h2>
+        
+        <form method="POST" class="mb-8 bg-surface-container-low p-4 rounded-lg border border-outline-variant">
+            {% csrf_token %}
+            <label class="block text-sm font-bold text-on-surface-variant mb-2">Nueva Área</label>
+            <div class="flex gap-3">
+                <input type="text" name="nombre_area" required class="flex-1 px-4 py-2 border border-outline-variant rounded-lg focus:ring-2 focus:ring-primary outline-none" placeholder="Ej. Legal, Recursos Humanos, etc.">
+                <button type="submit" class="bg-primary text-white px-6 py-2 rounded-lg font-bold hover:bg-primary-container transition-colors">
+                    Agregar
+                </button>
+            </div>
+        </form>
+
+        <div class="overflow-hidden border border-outline-variant rounded-lg">
+            <table class="w-full border-collapse">
+                <thead>
+                    <tr class="bg-surface-container-low">
+                        <th class="px-6 py-3 text-left text-xs font-bold text-on-surface-variant uppercase">Nombre del Área</th>
+                        <th class="px-6 py-3 text-right text-xs font-bold text-on-surface-variant uppercase">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant">
+                    {% for area in areas %}
+                    <tr class="hover:bg-surface-container-lowest transition-colors">
+                        <td class="px-6 py-4 text-sm text-on-surface">{{ area.nombre }}</td>
+                        <td class="px-6 py-4 text-right">
+                            <form method="POST" onsubmit="return confirm('¿Estás seguro de eliminar esta área?');" style="display:inline;">
+                                {% csrf_token %}
+                                <input type="hidden" name="delete_id" value="{{ area.id }}">
+                                <button type="submit" class="text-status-danger hover:text-red-700 transition-colors">
+                                    <span class="material-symbols-outlined">delete</span>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="2" class="px-6 py-8 text-center text-sm text-text-muted italic">
+                            No hay áreas registradas todavía.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+{% endblock %}

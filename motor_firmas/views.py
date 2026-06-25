@@ -18,7 +18,7 @@ from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.utils import timezone
 from django.contrib.auth.hashers import check_password, make_password
 from .models import ProcesoFirma, DirectorioFirmas, OTPLogin, AdministradorPortal, PlantillaFormulario, CarpetaDominio, \
-    DocumentoPDFUsuario
+    DocumentoPDFUsuario, AreaFirmex
 from .utils import estampar_firma_en_pdf, estampar_variables_en_pdf, crear_notificacion_firma, reubicar_firmas_en_pdf
 
 # WEBHOOKS DE N8N
@@ -1641,10 +1641,16 @@ def portal_firmx(request):
         return redirect('portal_login')
     if not _usuario_tiene_permiso(owner_email, 'firmx'):
         return HttpResponse("<h1>No tienes permisos para usar el módulo FIRMX.</h1>", status=403)
+
+    empresas = CarpetaDominio.objects.all().order_by('dominio')
+    areas = AreaFirmex.objects.all().order_by('nombre')
+
     return render(request, 'motor_firmas/portal_firmx.html', {
         'owner_email': owner_email,
         'firmx_base_url': getattr(settings, 'FIRMX_API_BASE_URL', ''),
         'es_admin_firmx': bool(request.session.get('admin_email')),
+        'empresas': empresas,
+        'areas': areas,
     })
 
 
@@ -1747,6 +1753,29 @@ def firmx_registrar_documento(request):
         "document_id": _extract_firmx_document_id(response_data),
         "firmx_response": response_data,
         **firmx_debug,
+    })
+
+
+def admin_config_firmex(request):
+    admin_email = request.session.get('admin_email')
+    if not admin_email:
+        return redirect('admin_login')
+
+    if request.method == 'POST':
+        nombre_area = request.POST.get('nombre_area')
+        if nombre_area:
+            AreaFirmex.objects.get_or_create(nombre=nombre_area.strip())
+
+        delete_id = request.POST.get('delete_id')
+        if delete_id:
+            AreaFirmex.objects.filter(id=delete_id).delete()
+
+        return redirect('admin_config_firmex')
+
+    areas = AreaFirmex.objects.all().order_by('nombre')
+    return render(request, 'motor_firmas/admin_config_firmex.html', {
+        'admin_email': admin_email,
+        'areas': areas
     })
 
 

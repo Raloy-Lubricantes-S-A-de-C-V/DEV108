@@ -248,9 +248,29 @@
                             <label class="block text-sm font-semibold text-on-surface-variant mb-2">Recordatorio</label>
                             <input id="firmxReminder" type="text" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" placeholder="Ej. cada 2 días">
                         </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-on-surface-variant mb-2">Etiquetas</label>
-                            <input id="firmxTags" type="text" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" placeholder="legal, raloy, contrato">
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-on-surface-variant mb-1">Empresa (Etiqueta 1)</label>
+                                <select id="firmxCompanyTag" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary outline-none">
+                                    <option value="">Selecciona Empresa</option>
+                                    {% for empresa in empresas %}
+                                    <option value="{{ empresa.dominio }}">{{ empresa.dominio }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-on-surface-variant mb-1">Área (Etiqueta 2)</label>
+                                <select id="firmxAreaTag" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary outline-none">
+                                    <option value="">Selecciona Área</option>
+                                    {% for area in areas %}
+                                    <option value="{{ area.nombre }}">{{ area.nombre }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-on-surface-variant mb-1">Fecha (Etiqueta 3)</label>
+                                <input id="firmxDateTag" type="text" readonly class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-surface-container-low text-text-muted outline-none" value="">
+                            </div>
                         </div>
                     </div>
 
@@ -492,10 +512,21 @@
     }
 
     function collectTags() {
-        return document.getElementById('firmxTags').value.split(',')
-            .map(tag => tag.trim())
-            .filter(Boolean)
-            .map(tag => ({ tag }));
+        const company = document.getElementById('firmxCompanyTag').value.trim();
+        const area = document.getElementById('firmxAreaTag').value.trim();
+        const date = document.getElementById('firmxDateTag').value.trim();
+        const tags = [];
+        if (company) tags.push({ tag: company });
+        if (area) tags.push({ tag: area });
+        if (date) tags.push({ tag: date });
+        return tags;
+    }
+
+    function setAutomaticDateTag() {
+        const now = new Date();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const yyyy = now.getFullYear();
+        document.getElementById('firmxDateTag').value = `${mm}-${yyyy}`;
     }
 
     function collectSigners(requireValid = false) {
@@ -823,8 +854,22 @@
         box.textContent = message;
     }
 
+    function validateStepThree() {
+        if (!document.getElementById('firmxCompanyTag').value) {
+            setFirmxStatus('La empresa es obligatoria para las etiquetas.', 'error');
+            document.getElementById('firmxCompanyTag').focus();
+            return false;
+        }
+        if (!document.getElementById('firmxAreaTag').value) {
+            setFirmxStatus('El área es obligatoria para las etiquetas.', 'error');
+            document.getElementById('firmxAreaTag').focus();
+            return false;
+        }
+        return true;
+    }
+
     async function registerFirmxDocument() {
-        if (!validateStepOne() || !validateStepTwo()) return;
+        if (!validateStepOne() || !validateStepTwo() || !validateStepThree()) return;
 
         const { signers } = collectSigners(true);
         const btn = document.getElementById('firmxSubmitButton');
@@ -908,6 +953,7 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('firmxDeadline').value = todayPlus(7);
+        setAutomaticDateTag();
         document.getElementById('firmxPdfFile').addEventListener('change', handleFirmxPdfFileChange);
         document.getElementById('firmxSubmitButton').addEventListener('click', registerFirmxDocument);
         document.getElementById('firmxQrButton').addEventListener('click', loadFirmxQr);
@@ -920,7 +966,8 @@
         });
         [
             'firmxDocumentName', 'firmxSignatureType', 'firmxDeadline', 'firmxMessage',
-            'firmxNotifySigners', 'firmxNotifyViewers', 'firmxReminder', 'firmxTags', 'firmxViewers'
+            'firmxNotifySigners', 'firmxNotifyViewers', 'firmxReminder', 'firmxCompanyTag', 
+            'firmxAreaTag', 'firmxViewers'
         ].forEach(id => {
             const el = document.getElementById(id);
             el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', updateSummaries);

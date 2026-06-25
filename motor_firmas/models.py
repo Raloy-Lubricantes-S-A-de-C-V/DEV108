@@ -100,6 +100,14 @@ class CarpetaDominio(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
 
 
+class AreaFirmex(models.Model):
+    nombre = models.CharField(max_length=100, unique=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        return self.nombre
+
+
 class DocumentoPDFUsuario(models.Model):
     id_documento = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     nombre = models.CharField(max_length=200)
