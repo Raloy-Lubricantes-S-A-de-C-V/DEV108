@@ -61,7 +61,7 @@
                     <p class="text-sm text-text-muted">Configura en orden a las personas que deberán firmar este documento.</p>
                     <div id="firmantesContainer" class="space-y-4">
                         {% for firma in plantilla.firmantes_config %}
-                            <div class="rounded-lg border border-outline-variant bg-white p-4">
+                            <div class="firmante-row rounded-lg border border-outline-variant bg-white p-4" data-key="{{ firma.key }}" data-label="{{ firma.label|default:'' }}">
                                 <div class="flex items-center gap-2 mb-3 text-primary font-bold">
                                     <span class="material-symbols-outlined text-[18px]">draw</span>
                                     <span>{{ firma.key }}</span>
@@ -111,11 +111,14 @@
         document.querySelectorAll('.var-map').forEach(inp => { docVars[inp.dataset.key] = inp.value; });
 
         let firmantesArr = [];
-        const nombres = document.querySelectorAll('.firma-nombre');
-        const correos = document.querySelectorAll('.firma-email');
-        for(let i=0; i<nombres.length; i++) {
-            firmantesArr.push({ nombre: nombres[i].value, email: correos[i].value });
-        }
+        document.querySelectorAll('.firmante-row').forEach(row => {
+            firmantesArr.push({
+                nombre: row.querySelector('.firma-nombre').value,
+                email: row.querySelector('.firma-email').value,
+                key: row.dataset.key || '',
+                label: row.dataset.label || ''
+            });
+        });
 
         let folio = document.getElementById('folio_id').value;
         if(!folio) folio = "DOC-" + Math.floor(Date.now() / 1000);

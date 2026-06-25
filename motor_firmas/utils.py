@@ -122,6 +122,48 @@ def _insertar_hash_firma(page, hash_firma, nombre_user, x, y):
     return rect_firma
 
 
+def _texto_una_linea(value, default='N/A'):
+    value = str(value or '').replace('\n', ' ').strip()
+    return value or default
+
+
+def _insertar_textbox(page, rect, text, fontsize=8, fontname="helv", color=(0, 0, 0), align=fitz.TEXT_ALIGN_LEFT):
+    page.insert_textbox(
+        rect,
+        str(text or ''),
+        fontsize=fontsize,
+        fontname=fontname,
+        color=color,
+        align=align,
+    )
+
+
+def _insertar_evidencia_en_rect(page, ajuste, rect):
+    nombre = ajuste.get('nombre') or 'Firmante'
+    firma_b64 = ajuste.get('firma_base64')
+    if firma_b64:
+        try:
+            img_data = base64.b64decode(_limpiar_firma_base64(firma_b64))
+            page.insert_image(rect, stream=img_data, keep_proportion=True)
+            return 'firma'
+        except Exception:
+            pass
+
+    hash_firma = str(ajuste.get('hash_firma') or '').strip()
+    if not hash_firma:
+        raise ValueError(f"No hay firma ni hash recuperable para {nombre}.")
+
+    page.draw_rect(rect, color=(0.08, 0.08, 0.08), fill=(1, 1, 1), width=0.6)
+    _insertar_textbox(
+        page,
+        fitz.Rect(rect.x0 + 4, rect.y0 + 5, rect.x1 - 4, rect.y1 - 4),
+        f"HASH FIRMA:\n{_hash_en_lineas(hash_firma, 26)}",
+        fontsize=5.3,
+        align=fitz.TEXT_ALIGN_CENTER,
+    )
+    return 'hash'
+
+
 def estampar_variables_en_pdf(pdf_path, variables_dict):
     doc = fitz.open(pdf_path)
     modificado = False
@@ -263,77 +305,78 @@ def estampar_firma_en_pdf(
 def reubicar_firmas_en_pdf(pdf_path, ajustes, actor_email='', actor_role=''):
     doc = fitz.open(pdf_path)
     nuevas_posiciones = {}
-    paginas_con_redaccion = set()
+    ajustes_ordenados = sorted(
+        ajustes,
+        key=lambda item: (
+            int(item.get('orden_nuevo') or item.get('orden_anterior') or 0),
+            int(item.get('orden_anterior') or 0),
+        ),
+    )
+    page_rect = doc[0].rect if len(doc) else fitz.paper_rect("letter")
+    width = page_rect.width
+    height = page_rect.height
+    margin = 42
+    gap = 14
+    columns = 2 if width >= 560 else 1
+    card_width = (width - (margin * 2) - (gap * (columns - 1))) / columns
+    card_height = 158
+    header_height = 108
+    footer_height = 34
+    cards_per_page = max(columns, int(((height - header_height - footer_height) // card_height) * columns))
+    cards_per_page = max(cards_per_page, columns)
+    fecha_utc = datetime.utcnow().isoformat() + "Z"
 
-    for ajuste in ajustes:
-        posicion_anterior = ajuste.get('posicion_anterior') or {}
-        try:
-            page_num = int(posicion_anterior.get('page', 0)) - 1
-        except (TypeError, ValueError):
-            page_num = -1
-        rect = None
-        if 0 <= page_num < len(doc):
-            rect = _rect_from_position(doc[page_num], posicion_anterior)
-        if not rect:
-            page_num, rect = _inferir_rect_firma_por_nombre(doc, ajuste.get('nombre'))
-        if not rect:
-            continue
-        doc[page_num].add_redact_annot(rect, fill=(1, 1, 1))
-        paginas_con_redaccion.add(page_num)
+    def nueva_hoja(numero_hoja):
+        page = doc.new_page(width=width, height=height)
+        page.insert_text((margin, 38), "HOJA DE CORRECCIÓN DE ORDEN DE FIRMAS", fontsize=14, fontname="hebo", color=(0, 0, 0))
+        _insertar_textbox(
+            page,
+            fitz.Rect(margin, 52, width - margin, 86),
+            "Esta hoja se anexa como constancia de corrección. Las páginas originales del documento se conservan sin nuevas redacciones ni reestampados.",
+            fontsize=8,
+            color=(0.18, 0.23, 0.28),
+        )
+        page.insert_text((margin, 96), f"Realizado por: {_texto_una_linea(actor_email)} ({_texto_una_linea(actor_role)})", fontsize=8, fontname="helv")
+        page.insert_text((width - 210, 96), f"Fecha UTC: {fecha_utc}", fontsize=8, fontname="helv")
+        page.draw_line(fitz.Point(margin, 106), fitz.Point(width - margin, 106), color=(0.75, 0.75, 0.75), width=0.8)
+        page.insert_text((margin, height - 24), f"Hoja de corrección {numero_hoja}", fontsize=8, fontname="helv", color=(0.35, 0.35, 0.35))
+        return page
 
-    for page_num in paginas_con_redaccion:
-        doc[page_num].apply_redactions()
+    page = None
+    for idx, ajuste in enumerate(ajustes_ordenados):
+        if idx % cards_per_page == 0:
+            page = nueva_hoja((idx // cards_per_page) + 1)
 
-    for ajuste in ajustes:
-        coords = ajuste.get('coordenadas') or {}
-        try:
-            page_num = int(coords.get('page', 1)) - 1
-        except (TypeError, ValueError):
-            page_num = 0
-        if page_num < 0 or page_num >= len(doc):
-            raise ValueError(f"Página inválida para {ajuste.get('nombre') or ajuste.get('email')}.")
+        slot = idx % cards_per_page
+        col = slot % columns
+        row = slot // columns
+        x0 = margin + col * (card_width + gap)
+        y0 = header_height + row * card_height
+        card = fitz.Rect(x0, y0, x0 + card_width, y0 + card_height - 10)
+        page.draw_rect(card, color=(0.78, 0.78, 0.78), fill=(1, 1, 1), width=0.7)
 
-        page = doc[page_num]
-        try:
-            x = float(coords.get('x')) * page.rect.width
-            y = float(coords.get('y')) * page.rect.height
-        except (TypeError, ValueError):
-            raise ValueError(f"Coordenadas inválidas para {ajuste.get('nombre') or ajuste.get('email')}.")
+        orden = ajuste.get('orden_nuevo') or idx + 1
+        orden_anterior = ajuste.get('orden_anterior') or 'N/A'
+        page.insert_text((card.x0 + 10, card.y0 + 18), f"Orden correcto: {orden}", fontsize=10, fontname="hebo", color=(0, 0, 0))
+        page.insert_text((card.x1 - 92, card.y0 + 18), f"Antes: {orden_anterior}", fontsize=7, fontname="helv", color=(0.35, 0.35, 0.35))
+        _insertar_textbox(page, fitz.Rect(card.x0 + 10, card.y0 + 26, card.x1 - 10, card.y0 + 46), _texto_una_linea(ajuste.get('nombre'), 'Firmante'), fontsize=8, fontname="hebo")
+        _insertar_textbox(page, fitz.Rect(card.x0 + 10, card.y0 + 45, card.x1 - 10, card.y0 + 62), _texto_una_linea(ajuste.get('email')), fontsize=7, color=(0.18, 0.23, 0.28))
+        etiqueta = ajuste.get('etiqueta') or ajuste.get('label') or ajuste.get('key')
+        _insertar_textbox(page, fitz.Rect(card.x0 + 10, card.y0 + 62, card.x1 - 10, card.y0 + 82), f"Etiqueta/Rol: {_texto_una_linea(etiqueta)}", fontsize=7, color=(0.18, 0.23, 0.28))
+        _insertar_textbox(page, fitz.Rect(card.x0 + 10, card.y0 + 80, card.x1 - 10, card.y0 + 97), f"Firmado: {_texto_una_linea(ajuste.get('fecha_firma'))}", fontsize=7, color=(0.18, 0.23, 0.28))
 
-        if ajuste.get('firma_base64'):
-            rect_estampa = _insertar_firma(page, ajuste.get('firma_base64'), ajuste.get('nombre') or 'Firmante', x, y)
-        else:
-            rect_estampa = _insertar_hash_firma(page, ajuste.get('hash_firma'), ajuste.get('nombre') or 'Firmante', x, y)
+        evidencia_rect = fitz.Rect(card.x0 + 10, card.y0 + 98, card.x1 - 10, card.y1 - 10)
+        metodo = _insertar_evidencia_en_rect(page, ajuste, evidencia_rect)
         nuevas_posiciones[ajuste['key']] = _crear_posicion_firma(
             page,
-            page_num,
-            x,
-            y,
-            width=rect_estampa.width,
-            height=rect_estampa.height,
-            origen='ajuste',
+            len(doc) - 1,
+            evidencia_rect.x0,
+            evidencia_rect.y0,
+            width=evidencia_rect.width,
+            height=evidencia_rect.height,
+            origen='hoja_correccion',
         )
-
-    audit_page = doc.new_page()
-    audit_page.insert_text((50, 40), "BITÁCORA DE AJUSTE DE FIRMAS", fontsize=14, fontname="hebo", color=(0, 0, 0))
-    audit_page.insert_text((50, 62), f"Realizado por: {actor_email or 'N/A'} ({actor_role or 'N/A'})", fontsize=9, fontname="helv")
-    audit_page.insert_text((50, 80), f"Fecha UTC: {datetime.utcnow().isoformat()}Z", fontsize=9, fontname="helv")
-    y = 115
-    for idx, ajuste in enumerate(ajustes, start=1):
-        if y > 760:
-            audit_page = doc.new_page()
-            y = 50
-        metodo = ajuste.get('metodo_reestampado') or ('firma' if ajuste.get('firma_base64') else 'hash')
-        respaldo_hash = ''
-        if metodo == 'hash' and ajuste.get('hash_firma'):
-            respaldo_hash = f" - hash {str(ajuste.get('hash_firma'))[:16]}"
-        audit_page.insert_text(
-            (50, y),
-            f"{idx}. {ajuste.get('nombre') or 'Firmante'} <{ajuste.get('email') or ''}> - orden {ajuste.get('orden_anterior')} -> {ajuste.get('orden_nuevo')} - {metodo}{respaldo_hash}",
-            fontsize=9,
-            fontname="helv",
-        )
-        y += 18
+        page.insert_text((card.x1 - 78, card.y1 - 14), f"Evidencia: {metodo}", fontsize=6.5, fontname="helv", color=(0.35, 0.35, 0.35))
 
     import shutil
     temp_path = pdf_path.replace(".pdf", f"_ajuste_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.pdf")

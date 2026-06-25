@@ -1,6 +1,9 @@
+import os
+import tempfile
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import fitz
 from django.test import SimpleTestCase
 
 from . import utils
@@ -222,3 +225,37 @@ class SignatureAdjustmentHelpersTest(SimpleTestCase):
         firmante = {'metadata': {'document_hash': 'b' * 64}}
 
         self.assertEqual(_obtener_hash_para_reestampado(firmante), 'b' * 64)
+
+
+class SignatureAdjustmentPdfTest(SimpleTestCase):
+    def test_adjustment_appends_correction_page_without_redacting_original(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = os.path.join(tmpdir, 'ajuste.pdf')
+            doc = fitz.open()
+            page = doc.new_page()
+            page.insert_text((72, 72), "CONTENIDO ORIGINAL", fontsize=12)
+            doc.save(pdf_path)
+            doc.close()
+
+            result = utils.reubicar_firmas_en_pdf(
+                pdf_path,
+                [{
+                    'key': 'firmante-1',
+                    'nombre': 'UNO',
+                    'email': 'uno@example.com',
+                    'etiqueta': 'Usuario solicitante',
+                    'fecha_firma': '25/06/2026 10:00',
+                    'hash_firma': 'a' * 64,
+                    'orden_anterior': 2,
+                    'orden_nuevo': 1,
+                }],
+                actor_email='admin@example.com',
+                actor_role='admin',
+            )
+
+            adjusted = fitz.open(pdf_path)
+            self.assertEqual(len(adjusted), 2)
+            self.assertIn("CONTENIDO ORIGINAL", adjusted[0].get_text("text"))
+            self.assertIn("HOJA DE CORRE", adjusted[1].get_text("text"))
+            self.assertIn('firmante-1', result['posiciones'])
+            adjusted.close()

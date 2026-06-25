@@ -508,6 +508,14 @@ def _orden_firmante(firmante, index):
         return index + 1
 
 
+def _etiqueta_firmante(firmante, fallback=''):
+    for field in ('label', 'etiqueta', 'rol', 'puesto_firma', 'firma_label', 'key', 'llave'):
+        value = str(firmante.get(field) or '').strip()
+        if value:
+            return value
+    return fallback
+
+
 def _datos_ajuste_firmantes(firmantes):
     datos = []
     for index, firmante in enumerate(firmantes):
@@ -527,6 +535,7 @@ def _datos_ajuste_firmantes(firmantes):
             'orden': _orden_firmante(firmante, index),
             'nombre': firmante.get('nombre') or 'Firmante',
             'email': firmante.get('email') or '',
+            'etiqueta': _etiqueta_firmante(firmante),
             'fecha_firma': firmante.get('fecha_firma') or '',
             'page': coords['page'],
             'x': coords['x'],
@@ -1324,22 +1333,26 @@ def guardar_ajuste_firmas(request, token):
             recibidos_por_key[key] = item
 
     if set(recibidos_por_key.keys()) != set(keys_actuales):
-        return JsonResponse({"error": "No se puede agregar ni borrar firmantes; solo cambiar orden o posición."}, status=400)
+        return JsonResponse({"error": "No se puede agregar ni borrar firmantes; solo cambiar el orden."}, status=400)
 
     registros = []
     errores = []
     for index, firmante in enumerate(firmantes_actuales):
         key = keys_actuales[index]
         item = recibidos_por_key[key]
-        coords = item.get('coordenadas') or {}
         try:
-            page = max(int(coords.get('page', 1)), 1)
-            x = _float_clamp(coords.get('x'), 0.08)
-            y = _float_clamp(coords.get('y'), 0.08)
             orden = max(int(item.get('orden', index + 1)), 1)
         except (TypeError, ValueError):
-            errores.append(f"Coordenadas inválidas para {firmante.get('nombre') or firmante.get('email')}.")
+            errores.append(f"Orden inválido para {firmante.get('nombre') or firmante.get('email')}.")
             continue
+        coords = item.get('coordenadas') if isinstance(item.get('coordenadas'), dict) else {}
+        page = 1
+        try:
+            page = max(int(coords.get('page', 1)), 1)
+        except (TypeError, ValueError):
+            page = 1
+        x = _float_clamp(coords.get('x'), 0.08)
+        y = _float_clamp(coords.get('y'), 0.08)
 
         firmado = bool(firmante.get('fecha_firma'))
         firma_b64 = _obtener_firma_base64_para_reestampado(firmante) if firmado else ''
@@ -1371,6 +1384,8 @@ def guardar_ajuste_firmas(request, token):
             'key': registro['key'],
             'nombre': firmante.get('nombre') or 'Firmante',
             'email': firmante.get('email') or '',
+            'etiqueta': _etiqueta_firmante(firmante, registro['key']),
+            'fecha_firma': firmante.get('fecha_firma') or '',
             'firma_base64': registro['firma_base64'],
             'hash_firma': registro['hash_firma'],
             'metodo_reestampado': registro['metodo_reestampado'],
@@ -1407,6 +1422,7 @@ def guardar_ajuste_firmas(request, token):
                 'rol': acceso['rol'],
                 'orden': registro['orden'],
                 'coordenadas': registro['coordenadas'],
+                'metodo_ajuste': 'hoja_correccion',
                 'metodo_reestampado': registro['metodo_reestampado'],
                 'hash_documento': resultado_pdf.get('hash'),
             }
