@@ -2272,17 +2272,57 @@ def admin_usuarios(request):
         usuarios = _mongo_find(DirectorioFirmas, {'tecnico_asignado': admin_email}, [('fecha_registro', -1)])
         
     lista_usrs = []
+    permisos_labels = {
+        'api_tester': 'API',
+        'plantillas': 'Plantillas',
+        'firmx': 'FIRMX',
+    }
+    ahora = timezone.now()
     for u in usuarios:
         tot_docs = _mongo_count(ProcesoFirma, {'owner_email': u.email})
         ultima_actividad = getattr(u, 'ultima_actividad', None)
-        # Calculate effectiveness simply as percentage of documents signed or created
+        ultima_compare = _datetime_for_compare(ultima_actividad) if hasattr(ultima_actividad, 'strftime') else None
+        if ultima_compare:
+            dias_inactivo = (ahora - ultima_compare).days
+            if dias_inactivo <= 7:
+                actividad_grupo = 'Reciente'
+            elif dias_inactivo <= 30:
+                actividad_grupo = 'Este mes'
+            else:
+                actividad_grupo = 'Inactivo +30d'
+            ultima_act = ultima_actividad.strftime("%d/%m/%Y %H:%M")
+        else:
+            dias_inactivo = ''
+            actividad_grupo = 'Sin actividad'
+            ultima_act = 'Nunca'
+
+        email_usuario = getattr(u, 'email', '') or ''
+        fecha_registro = getattr(u, 'fecha_registro', None)
+        if hasattr(fecha_registro, 'strftime'):
+            fecha_registro_label = fecha_registro.strftime("%d/%m/%Y")
+        else:
+            fecha_registro_label = str(fecha_registro) if fecha_registro else 'Sin fecha'
+        dominio = email_usuario.split('@', 1)[1].lower() if '@' in email_usuario else 'Sin dominio'
+        permisos = _json_or_default(getattr(u, 'permisos_portal', []), [])
+        permisos_legibles = [permisos_labels.get(permiso, permiso) for permiso in permisos]
         lista_usrs.append({
             'id': u.id,
             'nombre': getattr(u, 'nombre', ''),
-            'email': getattr(u, 'email', ''),
+            'email': email_usuario,
+            'puesto': getattr(u, 'puesto', '') or 'Sin puesto',
+            'iniciales': getattr(u, 'iniciales', '') or '',
+            'dominio': dominio,
             'tecnico': getattr(u, 'tecnico_asignado', None) or 'Sin asignar',
-            'ultima_act': ultima_actividad.strftime("%d/%m/%Y %H:%M") if ultima_actividad else 'Nunca',
-            'tot_docs': tot_docs
+            'ultima_act': ultima_act,
+            'actividad_grupo': actividad_grupo,
+            'dias_inactivo': dias_inactivo,
+            'fecha_registro': fecha_registro_label,
+            'tot_docs': tot_docs,
+            'docs_grupo': 'Sin documentos' if tot_docs == 0 else ('1-5 docs' if tot_docs <= 5 else '6+ docs'),
+            'permisos': permisos,
+            'permisos_label': ', '.join(permisos_legibles) if permisos_legibles else 'Sin permisos',
+            'notificar_celular': bool(getattr(u, 'notificar_celular', False)),
+            'notificar_label': 'App móvil activa' if getattr(u, 'notificar_celular', False) else 'Solo correo',
         })
         
     return render(request, 'motor_firmas/admin_usuarios.html', {

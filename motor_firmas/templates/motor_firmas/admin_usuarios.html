@@ -8,8 +8,12 @@
     .data-table-wrap { overflow-x: auto; border: 1px solid #c4c6cd; border-radius: 0.75rem; }
     .data-table { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; }
     .data-table th { background: #f8f9fa; padding: 1rem; text-align: left; font-size: 0.75rem; text-transform: uppercase; color: #43474c; border-bottom: 1px solid #c4c6cd; white-space: nowrap; }
-    .data-table td { padding: 1rem; border-bottom: 1px solid #edeeef; font-size: 0.9rem; }
+    .data-table td { padding: 1rem; border-bottom: 1px solid #edeeef; font-size: 0.9rem; vertical-align: top; }
     .data-table tr:last-child td { border-bottom: 0; }
+    .group-row td { background: #edeeef; color: #162839; font-size: 0.78rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0; }
+    .filter-input { width: 100%; border: 1px solid #c4c6cd; border-radius: 0.5rem; background: #fff; font-size: 0.9rem; padding: 0.75rem 0.9rem; }
+    .filter-label { display: block; color: #43474c; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; margin-bottom: 0.45rem; }
+    .badge { display: inline-flex; align-items: center; gap: 0.25rem; border-radius: 9999px; padding: 0.25rem 0.55rem; font-size: 0.72rem; font-weight: 800; white-space: nowrap; }
 </style>
 {% endblock %}
 
@@ -39,23 +43,117 @@
             {% endif %}
         </p>
 
+        <div class="bg-surface-container-low border border-outline-variant rounded-xl p-4 mb-5">
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div class="md:col-span-2">
+                    <label class="filter-label" for="filBusqueda">Buscar</label>
+                    <div class="relative">
+                        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
+                        <input id="filBusqueda" class="filter-input pl-10" type="search" placeholder="Nombre, correo, puesto, dominio o permiso">
+                    </div>
+                </div>
+                <div>
+                    <label class="filter-label" for="filTecnico">Técnico</label>
+                    <select id="filTecnico" class="filter-input">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="filter-label" for="filDominio">Dominio</label>
+                    <select id="filDominio" class="filter-input">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="filter-label" for="filPermiso">Permiso</label>
+                    <select id="filPermiso" class="filter-input">
+                        <option value="">Todos</option>
+                        <option value="api_tester">API</option>
+                        <option value="plantillas">Plantillas</option>
+                        <option value="firmx">FIRMX</option>
+                        <option value="sin_permisos">Sin permisos</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="filter-label" for="filNotificacion">Notificación</label>
+                    <select id="filNotificacion" class="filter-input">
+                        <option value="">Todas</option>
+                        <option value="app">App móvil activa</option>
+                        <option value="correo">Solo correo</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="filter-label" for="filActividad">Actividad</label>
+                    <select id="filActividad" class="filter-input">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="filter-label" for="selAgrupar">Agrupar por</label>
+                    <select id="selAgrupar" class="filter-input">
+                        <option value="">Sin agrupación</option>
+                        <option value="tecnico">Técnico asignado</option>
+                        <option value="dominio">Dominio</option>
+                        <option value="actividad">Actividad</option>
+                        <option value="permisos">Permisos</option>
+                        <option value="notificacion">Notificación</option>
+                        <option value="docs">Documentos</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mt-4 pt-4 border-t border-outline-variant">
+                <p class="text-sm font-semibold text-on-surface-variant">
+                    <span id="resultCount">{{ usuarios|length }}</span> de {{ usuarios|length }} usuarios visibles
+                </p>
+                <button type="button" id="btnLimpiarFiltros" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-white border border-outline-variant text-primary font-bold text-sm hover:bg-surface-container transition-colors">
+                    <span class="material-symbols-outlined text-[18px]">filter_alt_off</span>
+                    Limpiar filtros
+                </button>
+            </div>
+        </div>
+
         <div class="data-table-wrap">
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Nombre</th>
-                        <th>Email</th>
+                        <th>Usuario</th>
+                        <th>Correo / Dominio</th>
                         <th>Técnico Asignado</th>
+                        <th>Permisos</th>
+                        <th>Notificación</th>
                         <th>Última Actividad</th>
                         <th>Docs Totales</th>
                         <th>Acción</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="usuariosBody">
                     {% for u in usuarios %}
-                    <tr>
-                        <td><strong class="text-primary">{{ u.nombre }}</strong></td>
-                        <td>{{ u.email }}</td>
+                    <tr class="user-row"
+                        data-search="{{ u.nombre }} {{ u.email }} {{ u.puesto }} {{ u.tecnico }} {{ u.dominio }} {{ u.permisos_label }} {{ u.notificar_label }}"
+                        data-tecnico="{{ u.tecnico }}"
+                        data-dominio="{{ u.dominio }}"
+                        data-permisos="{{ u.permisos|join:',' }}"
+                        data-permisos-label="{{ u.permisos_label }}"
+                        data-notificacion="{% if u.notificar_celular %}app{% else %}correo{% endif %}"
+                        data-notificacion-label="{{ u.notificar_label }}"
+                        data-actividad="{{ u.actividad_grupo }}"
+                        data-docs="{{ u.docs_grupo }}"
+                        data-nombre="{{ u.nombre }}">
+                        <td>
+                            <div class="flex items-start gap-3">
+                                <span class="inline-flex items-center justify-center w-9 h-9 rounded-full bg-primary-fixed text-on-primary-fixed font-bold text-xs shrink-0">
+                                    {{ u.iniciales|default:"US" }}
+                                </span>
+                                <div>
+                                    <strong class="text-primary block">{{ u.nombre }}</strong>
+                                    <span class="text-xs text-text-muted">{{ u.puesto }}</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="font-semibold text-on-surface">{{ u.email }}</div>
+                            <span class="text-xs text-text-muted">{{ u.dominio }}</span>
+                        </td>
                         <td>
                             {% if u.tecnico == 'Sin asignar' %}
                                 <span class="text-status-danger font-semibold">{{ u.tecnico }}</span>
@@ -63,7 +161,30 @@
                                 {{ u.tecnico }}
                             {% endif %}
                         </td>
-                        <td>{{ u.ultima_act }}</td>
+                        <td>
+                            {% if u.permisos %}
+                                <span class="badge bg-secondary-container/20 text-on-secondary-container">{{ u.permisos_label }}</span>
+                            {% else %}
+                                <span class="badge bg-surface-container text-outline">Sin permisos</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if u.notificar_celular %}
+                                <span class="badge bg-status-success/10 text-status-success">
+                                    <span class="material-symbols-outlined text-[14px]">notifications_active</span>
+                                    App móvil
+                                </span>
+                            {% else %}
+                                <span class="badge bg-surface-container text-outline">
+                                    <span class="material-symbols-outlined text-[14px]">mail</span>
+                                    Correo
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="font-semibold">{{ u.ultima_act }}</div>
+                            <span class="text-xs text-text-muted">{{ u.actividad_grupo }}</span>
+                        </td>
                         <td>{{ u.tot_docs }} docs</td>
                         <td>
                             <a href="{% url 'admin_usuarios_detalle' u.id %}" class="inline-flex items-center gap-1 bg-primary hover:bg-primary-container text-white px-3 py-2 rounded-lg font-bold text-xs transition-colors">
@@ -73,13 +194,185 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr>
-                        <td colspan="6" class="text-center text-outline py-10">No hay usuarios asignados a tu cuenta.</td>
+                    <tr id="emptyUsersRow">
+                        <td colspan="8" class="text-center text-outline py-10">No hay usuarios asignados a tu cuenta.</td>
                     </tr>
                     {% endfor %}
+                    <tr id="noResultsRow" style="display:none;">
+                        <td colspan="8" class="text-center text-outline py-10">No hay usuarios que coincidan con los filtros.</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
     </section>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const filterStorageKey = 'adminUsuariosFiltros';
+    const userRows = Array.from(document.querySelectorAll('.user-row'));
+    const usuariosBody = document.getElementById('usuariosBody');
+    const noResultsRow = document.getElementById('noResultsRow');
+    const resultCount = document.getElementById('resultCount');
+    const controls = {
+        busqueda: document.getElementById('filBusqueda'),
+        tecnico: document.getElementById('filTecnico'),
+        dominio: document.getElementById('filDominio'),
+        permiso: document.getElementById('filPermiso'),
+        notificacion: document.getElementById('filNotificacion'),
+        actividad: document.getElementById('filActividad'),
+        agrupar: document.getElementById('selAgrupar')
+    };
+
+    function normalizeText(value) {
+        return String(value || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .trim();
+    }
+
+    function fillSelect(select, values) {
+        [...new Set(values.filter(Boolean))]
+            .sort((a, b) => a.localeCompare(b, 'es'))
+            .forEach(value => {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = value;
+                select.appendChild(option);
+            });
+    }
+
+    function permisosMatch(row, filtro) {
+        const permisos = (row.dataset.permisos || '').split(',').filter(Boolean);
+        if (!filtro) return true;
+        if (filtro === 'sin_permisos') return permisos.length === 0;
+        return permisos.includes(filtro);
+    }
+
+    function rowMatches(row) {
+        const search = normalizeText(controls.busqueda.value);
+        const hayTexto = !search || normalizeText(row.dataset.search).includes(search);
+        const hayTecnico = !controls.tecnico.value || row.dataset.tecnico === controls.tecnico.value;
+        const hayDominio = !controls.dominio.value || row.dataset.dominio === controls.dominio.value;
+        const hayPermiso = permisosMatch(row, controls.permiso.value);
+        const hayNotificacion = !controls.notificacion.value || row.dataset.notificacion === controls.notificacion.value;
+        const hayActividad = !controls.actividad.value || row.dataset.actividad === controls.actividad.value;
+        return hayTexto && hayTecnico && hayDominio && hayPermiso && hayNotificacion && hayActividad;
+    }
+
+    function groupValue(row) {
+        switch (controls.agrupar.value) {
+            case 'tecnico':
+                return row.dataset.tecnico || 'Sin asignar';
+            case 'dominio':
+                return row.dataset.dominio || 'Sin dominio';
+            case 'actividad':
+                return row.dataset.actividad || 'Sin actividad';
+            case 'permisos':
+                return row.dataset.permisosLabel || 'Sin permisos';
+            case 'notificacion':
+                return row.dataset.notificacionLabel || 'Solo correo';
+            case 'docs':
+                return row.dataset.docs || 'Sin documentos';
+            default:
+                return '';
+        }
+    }
+
+    function createGroupRow(label, count) {
+        const row = document.createElement('tr');
+        row.className = 'group-row';
+        row.innerHTML = `<td colspan="8">${label} <span class="text-outline normal-case font-semibold">(${count})</span></td>`;
+        return row;
+    }
+
+    function saveFilters() {
+        const state = Object.fromEntries(Object.entries(controls).map(([key, control]) => [key, control.value]));
+        try {
+            localStorage.setItem(filterStorageKey, JSON.stringify(state));
+        } catch (error) {}
+    }
+
+    function restoreFilters() {
+        try {
+            const state = JSON.parse(localStorage.getItem(filterStorageKey) || '{}');
+            Object.entries(state).forEach(([key, value]) => {
+                if (controls[key]) controls[key].value = value || '';
+            });
+        } catch (error) {
+            try {
+                localStorage.removeItem(filterStorageKey);
+            } catch (storageError) {}
+        }
+    }
+
+    function applyFilters() {
+        document.querySelectorAll('.group-row').forEach(row => row.remove());
+        if (noResultsRow) noResultsRow.remove();
+
+        const visibleRows = userRows.filter(rowMatches);
+        const visibleSet = new Set(visibleRows);
+        const grouped = controls.agrupar.value;
+
+        userRows.forEach(row => {
+            row.style.display = 'none';
+        });
+
+        if (grouped) {
+            const groups = new Map();
+            visibleRows.forEach(row => {
+                const label = groupValue(row);
+                if (!groups.has(label)) groups.set(label, []);
+                groups.get(label).push(row);
+            });
+
+            [...groups.entries()]
+                .sort(([a], [b]) => a.localeCompare(b, 'es'))
+                .forEach(([label, rows]) => {
+                    usuariosBody.appendChild(createGroupRow(label, rows.length));
+                    rows
+                        .sort((a, b) => (a.dataset.nombre || '').localeCompare(b.dataset.nombre || '', 'es'))
+                        .forEach(row => {
+                            row.style.display = '';
+                            usuariosBody.appendChild(row);
+                        });
+                });
+        } else {
+            userRows.forEach(row => {
+                row.style.display = visibleSet.has(row) ? '' : 'none';
+                usuariosBody.appendChild(row);
+            });
+        }
+
+        if (noResultsRow) {
+            noResultsRow.style.display = userRows.length && !visibleRows.length ? '' : 'none';
+            usuariosBody.appendChild(noResultsRow);
+        }
+        if (resultCount) resultCount.textContent = visibleRows.length;
+        saveFilters();
+    }
+
+    function clearFilters() {
+        Object.values(controls).forEach(control => {
+            control.value = '';
+        });
+        try {
+            localStorage.removeItem(filterStorageKey);
+        } catch (error) {}
+        applyFilters();
+    }
+
+    fillSelect(controls.tecnico, userRows.map(row => row.dataset.tecnico));
+    fillSelect(controls.dominio, userRows.map(row => row.dataset.dominio));
+    fillSelect(controls.actividad, userRows.map(row => row.dataset.actividad));
+    restoreFilters();
+    Object.values(controls).forEach(control => {
+        control.addEventListener('input', applyFilters);
+        control.addEventListener('change', applyFilters);
+    });
+    document.getElementById('btnLimpiarFiltros').addEventListener('click', clearFilters);
+    applyFilters();
+</script>
 {% endblock %}
