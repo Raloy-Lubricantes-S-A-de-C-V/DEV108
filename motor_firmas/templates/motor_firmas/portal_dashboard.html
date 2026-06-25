@@ -30,6 +30,23 @@
     .doc-action-btn:hover { background: #edeeef; border-color: #74777d; }
     .doc-action-btn.secondary { background: #fed023; border-color: #fed023; color: #162839; }
     .doc-action-btn.secondary:hover { background: #eec209; border-color: #eec209; }
+    .view-toggle { display: inline-flex; align-items: center; gap: 0.25rem; background: #edeeef; border: 1px solid #c4c6cd; border-radius: 0.5rem; padding: 0.25rem; }
+    .view-toggle-btn { min-height: 40px; border: 0; border-radius: 0.375rem; padding: 0.45rem 0.75rem; color: #162839; background: transparent; font-size: 0.86rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; transition: background-color 0.2s ease, color 0.2s ease; }
+    .view-toggle-btn.active { background: #162839; color: #ffffff; }
+    .doc-list { display: block; }
+    .doc-list-wrap { overflow-x: auto; background: #ffffff; border: 1px solid #c4c6cd; border-radius: 0.75rem; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+    .doc-list-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 980px; }
+    .doc-list-table th { background: #f8f9fa; color: #43474c; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; text-align: left; padding: 0.85rem 1rem; border-bottom: 1px solid #c4c6cd; white-space: nowrap; }
+    .doc-list-table td { padding: 0.9rem 1rem; border-bottom: 1px solid #edeeef; vertical-align: middle; font-size: 0.88rem; }
+    .doc-list-table tr:last-child td { border-bottom: 0; }
+    .doc-list-title { color: #162839; font-weight: 800; word-break: break-word; }
+    .doc-list-group td { background: #edeeef; color: #162839; font-size: 0.78rem; font-weight: 800; text-transform: uppercase; border-bottom: 1px solid #c4c6cd; }
+    .doc-list-progress { width: 160px; max-width: 100%; }
+    .doc-list-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+    .doc-list-action { min-height: 36px; border: 1px solid #c4c6cd; background: #ffffff; color: #162839; padding: 0.45rem 0.6rem; border-radius: 0.45rem; font-weight: 800; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; white-space: nowrap; }
+    .doc-list-action:hover { background: #edeeef; border-color: #74777d; }
+    .doc-list-action.secondary { background: #fed023; border-color: #fed023; }
+    .doc-list-action.secondary:hover { background: #eec209; border-color: #eec209; }
     .qr-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(22, 40, 57, 0.78); z-index: 1100; justify-content: center; align-items: center; backdrop-filter: blur(4px); padding: 1rem; }
     .qr-modal { width: 720px; max-width: 100%; max-height: 92vh; background: #ffffff; border: 1px solid #c4c6cd; border-radius: 0.75rem; overflow: hidden; box-shadow: 0 20px 45px rgba(0,0,0,0.2); display: flex; flex-direction: column; }
     .qr-modal-body { padding: 1.5rem; overflow-y: auto; }
@@ -146,10 +163,22 @@
             <input class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="date" id="filFechaFin">
         </div>
 
-        <button class="xl:col-span-6 justify-self-start inline-flex items-center gap-2 bg-surface-container-high text-primary px-4 py-2 rounded-lg font-bold hover:bg-surface-dim transition-colors" onclick="limpiarFiltros()" title="Limpiar Filtros">
-            <span class="material-symbols-outlined text-[18px]">restart_alt</span>
-            Limpiar filtros
-        </button>
+        <div class="xl:col-span-6 flex flex-col sm:flex-row sm:items-center gap-3">
+            <button class="inline-flex items-center gap-2 bg-surface-container-high text-primary px-4 py-2 rounded-lg font-bold hover:bg-surface-dim transition-colors" onclick="limpiarFiltros()" title="Limpiar Filtros">
+                <span class="material-symbols-outlined text-[18px]">restart_alt</span>
+                Limpiar filtros
+            </button>
+            <div class="view-toggle" aria-label="Formato de vista">
+                <button type="button" class="view-toggle-btn" id="btnViewCards" onclick="setViewMode('cards')">
+                    <span class="material-symbols-outlined text-[18px]">grid_view</span>
+                    Tarjetas
+                </button>
+                <button type="button" class="view-toggle-btn" id="btnViewList" onclick="setViewMode('list')">
+                    <span class="material-symbols-outlined text-[18px]">view_list</span>
+                    Lista
+                </button>
+            </div>
+        </div>
     </section>
 
     <section class="doc-grid" id="gridContainer"></section>
@@ -277,6 +306,37 @@
         {% endfor %}
     ];
 
+    function getStoredViewMode() {
+        try {
+            return localStorage.getItem('portalDashboardViewMode') === 'list' ? 'list' : 'cards';
+        } catch (error) {
+            return 'cards';
+        }
+    }
+
+    function storeViewMode(mode) {
+        try {
+            localStorage.setItem('portalDashboardViewMode', mode);
+        } catch (error) {}
+    }
+
+    let viewMode = getStoredViewMode();
+
+    function setViewMode(mode) {
+        viewMode = mode === 'list' ? 'list' : 'cards';
+        storeViewMode(viewMode);
+        updateViewToggle();
+        renderGrid();
+    }
+
+    function updateViewToggle() {
+        const cardsBtn = document.getElementById('btnViewCards');
+        const listBtn = document.getElementById('btnViewList');
+        if (!cardsBtn || !listBtn) return;
+        cardsBtn.classList.toggle('active', viewMode === 'cards');
+        listBtn.classList.toggle('active', viewMode === 'list');
+    }
+
     function renderGrid() {
         let docs = [...rawData];
 
@@ -293,14 +353,20 @@
 
         const container = document.getElementById('gridContainer');
         container.innerHTML = '';
+        container.className = viewMode === 'list' ? 'doc-list' : 'doc-grid';
 
         if (docs.length === 0) {
             container.innerHTML = `
-                <div class="text-center p-12 bg-white rounded-xl border border-outline-variant text-text-muted" style="grid-column: 1 / -1;">
+                <div class="text-center p-12 bg-white rounded-xl border border-outline-variant text-text-muted" ${viewMode === 'cards' ? 'style="grid-column: 1 / -1;"' : ''}>
                     <span class="material-symbols-outlined text-5xl text-outline mb-4">drafts</span>
                     <h3 class="text-lg font-bold text-primary mb-2">No se encontraron documentos</h3>
                     <p>Intenta ajustar los filtros de búsqueda para ver más resultados.</p>
                 </div>`;
+            return;
+        }
+
+        if (viewMode === 'list') {
+            renderList(container, docs, groupProp);
             return;
         }
 
@@ -327,6 +393,48 @@
         }
     }
 
+    function renderList(container, docs, groupProp) {
+        const wrap = document.createElement('div');
+        wrap.className = 'doc-list-wrap';
+        wrap.innerHTML = `
+            <table class="doc-list-table">
+                <thead>
+                    <tr>
+                        <th>Folio</th>
+                        <th>Estado</th>
+                        <th>Enviado</th>
+                        <th>Firmas</th>
+                        <th>Progreso</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        `;
+        const tbody = wrap.querySelector('tbody');
+
+        if (groupProp === 'none') {
+            docs.forEach(doc => tbody.appendChild(crearFilaLista(doc)));
+        } else {
+            const groups = {};
+            docs.forEach(d => {
+                const key = d[groupProp];
+                if(!groups[key]) groups[key] = [];
+                groups[key].push(d);
+            });
+
+            for (const [groupName, items] of Object.entries(groups)) {
+                const groupRow = document.createElement('tr');
+                groupRow.className = 'doc-list-group';
+                groupRow.innerHTML = `<td colspan="6">Agrupación: ${formatearNombreGrupo(groupProp, groupName)} (${items.length} docs)</td>`;
+                tbody.appendChild(groupRow);
+                items.forEach(doc => tbody.appendChild(crearFilaLista(doc)));
+            }
+        }
+
+        container.appendChild(wrap);
+    }
+
     function formatearNombreGrupo(tipo, valor) {
         if (tipo === 'status') {
             if(valor === 'COMPLETED') return 'Completados';
@@ -339,12 +447,16 @@
         return valor;
     }
 
-    function crearTarjeta(doc) {
-        const div = document.createElement('div');
-
+    function statusMeta(doc) {
         let badgeClass = 'bg-processing'; let statusText = 'EN PROCESO'; let colorProgress = '#162839';
         if(doc.status === 'COMPLETED') { badgeClass = 'bg-completed'; statusText = 'COMPLETADO'; colorProgress = '#27ae60'; }
         if(doc.status === 'CANCELLED') { badgeClass = 'bg-cancelled'; statusText = 'CANCELADO'; }
+        return { badgeClass, statusText, colorProgress };
+    }
+
+    function crearTarjeta(doc) {
+        const div = document.createElement('div');
+        const { badgeClass, statusText, colorProgress } = statusMeta(doc);
 
         div.className = `doc-card ${doc.status === 'COMPLETED' ? 'completed' : ''} ${doc.status === 'CANCELLED' ? 'cancelled' : ''}`;
 
@@ -410,6 +522,56 @@
             </div>
         `;
         return div;
+    }
+
+    function crearFilaLista(doc) {
+        const tr = document.createElement('tr');
+        const { badgeClass, statusText, colorProgress } = statusMeta(doc);
+        const progressCell = doc.status === 'CANCELLED'
+            ? `<span class="text-status-danger font-bold text-xs">Proceso detenido</span>`
+            : `
+                <div class="doc-list-progress">
+                    <div class="flex justify-between text-xs font-bold mb-1">
+                        <span>${doc.firmas_hechas} / ${doc.total_firmas}</span>
+                        <span style="color:${colorProgress};">${doc.porcentaje}%</span>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar ${doc.status === 'COMPLETED' ? 'completed' : ''}" style="width: ${doc.porcentaje}%;"></div>
+                    </div>
+                </div>
+            `;
+
+        const actions = doc.status === 'COMPLETED'
+            ? `
+                <a href="/trazabilidad/${doc.token}/" target="_blank" class="doc-list-action">
+                    <span class="material-symbols-outlined text-[16px]">visibility</span>
+                    Trazabilidad
+                </a>
+                <button type="button" onclick="openQrWizard('${doc.token}')" class="doc-list-action">
+                    <span class="material-symbols-outlined text-[16px]">qr_code_2</span>
+                    QR
+                </button>
+                <a href="/portal/ajustar-firmas/${doc.token}/" class="doc-list-action secondary">
+                    <span class="material-symbols-outlined text-[16px]">edit_location_alt</span>
+                    Ajustar
+                </a>
+            `
+            : `
+                <a href="/trazabilidad/${doc.token}/" target="_blank" class="doc-list-action">
+                    <span class="material-symbols-outlined text-[16px]">visibility</span>
+                    Trazabilidad
+                </a>
+            `;
+
+        tr.innerHTML = `
+            <td><div class="doc-list-title">${doc.reference_id}</div></td>
+            <td><span class="status-badge ${badgeClass}">${statusText}</span></td>
+            <td>${doc.fecha_formato}</td>
+            <td><strong>${doc.firmas_hechas}</strong> de ${doc.total_firmas}</td>
+            <td>${progressCell}</td>
+            <td><div class="doc-list-actions">${actions}</div></td>
+        `;
+        return tr;
     }
 
     const qrWizardState = {
@@ -594,6 +756,7 @@
         document.getElementById('selGroup').addEventListener('change', renderGrid);
         document.getElementById('filFechaIni').addEventListener('change', renderGrid);
         document.getElementById('filFechaFin').addEventListener('change', renderGrid);
+        updateViewToggle();
         renderGrid();
     });
 

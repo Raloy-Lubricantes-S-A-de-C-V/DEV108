@@ -317,6 +317,19 @@ class HomeRedirectTest(SimpleTestCase):
         self.assertIn('Panel Admin', html)
         self.assertIn('/admin-portal/dashboard/', html)
 
+    def test_portal_dashboard_has_view_mode_toggle(self):
+        request = self._request_with_session({'owner_email': 'usuario@example.com'})
+
+        html = render_to_string(
+            'motor_firmas/portal_dashboard.html',
+            {'owner_email': 'usuario@example.com', 'documentos': [], 'permisos': []},
+            request=request,
+        )
+
+        self.assertIn('btnViewCards', html)
+        self.assertIn('btnViewList', html)
+        self.assertIn('Lista', html)
+
     def test_admin_dashboard_shows_portal_switch_when_owner_session_exists(self):
         request = self._request_with_session({
             'owner_email': 'usuario@example.com',
