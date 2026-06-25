@@ -97,6 +97,31 @@ def _insertar_firma(page, signature_b64, nombre_user, x, y):
     return rect_firma
 
 
+def _hash_en_lineas(hash_firma, chunk_size=24):
+    hash_firma = str(hash_firma or '').strip()
+    return "\n".join(hash_firma[i:i + chunk_size] for i in range(0, len(hash_firma), chunk_size))
+
+
+def _insertar_hash_firma(page, hash_firma, nombre_user, x, y):
+    hash_firma = str(hash_firma or '').strip()
+    if not hash_firma:
+        raise ValueError(f"No hay firma ni hash recuperable para {nombre_user or 'Firmante'}.")
+
+    page.clean_contents()
+    page.insert_text((x, y - 5), str(nombre_user).upper(), fontsize=10, fontname="hebo", color=(0, 0, 0))
+    rect_firma = fitz.Rect(x, y, x + 138, y + 60)
+    page.draw_rect(rect_firma, color=(0.08, 0.08, 0.08), fill=(1, 1, 1), width=0.7)
+    page.insert_textbox(
+        fitz.Rect(x + 4, y + 5, x + 134, y + 57),
+        f"HASH FIRMA:\n{_hash_en_lineas(hash_firma)}",
+        fontsize=5.2,
+        fontname="helv",
+        color=(0, 0, 0),
+        align=fitz.TEXT_ALIGN_CENTER,
+    )
+    return rect_firma
+
+
 def estampar_variables_en_pdf(pdf_path, variables_dict):
     doc = fitz.open(pdf_path)
     modificado = False
@@ -275,8 +300,19 @@ def reubicar_firmas_en_pdf(pdf_path, ajustes, actor_email='', actor_role=''):
         except (TypeError, ValueError):
             raise ValueError(f"Coordenadas inválidas para {ajuste.get('nombre') or ajuste.get('email')}.")
 
-        _insertar_firma(page, ajuste.get('firma_base64'), ajuste.get('nombre') or 'Firmante', x, y)
-        nuevas_posiciones[ajuste['key']] = _crear_posicion_firma(page, page_num, x, y, origen='ajuste')
+        if ajuste.get('firma_base64'):
+            rect_estampa = _insertar_firma(page, ajuste.get('firma_base64'), ajuste.get('nombre') or 'Firmante', x, y)
+        else:
+            rect_estampa = _insertar_hash_firma(page, ajuste.get('hash_firma'), ajuste.get('nombre') or 'Firmante', x, y)
+        nuevas_posiciones[ajuste['key']] = _crear_posicion_firma(
+            page,
+            page_num,
+            x,
+            y,
+            width=rect_estampa.width,
+            height=rect_estampa.height,
+            origen='ajuste',
+        )
 
     audit_page = doc.new_page()
     audit_page.insert_text((50, 40), "BITÁCORA DE AJUSTE DE FIRMAS", fontsize=14, fontname="hebo", color=(0, 0, 0))
@@ -287,9 +323,13 @@ def reubicar_firmas_en_pdf(pdf_path, ajustes, actor_email='', actor_role=''):
         if y > 760:
             audit_page = doc.new_page()
             y = 50
+        metodo = ajuste.get('metodo_reestampado') or ('firma' if ajuste.get('firma_base64') else 'hash')
+        respaldo_hash = ''
+        if metodo == 'hash' and ajuste.get('hash_firma'):
+            respaldo_hash = f" - hash {str(ajuste.get('hash_firma'))[:16]}"
         audit_page.insert_text(
             (50, y),
-            f"{idx}. {ajuste.get('nombre') or 'Firmante'} <{ajuste.get('email') or ''}> - orden {ajuste.get('orden_anterior')} -> {ajuste.get('orden_nuevo')}",
+            f"{idx}. {ajuste.get('nombre') or 'Firmante'} <{ajuste.get('email') or ''}> - orden {ajuste.get('orden_anterior')} -> {ajuste.get('orden_nuevo')} - {metodo}{respaldo_hash}",
             fontsize=9,
             fontname="helv",
         )

@@ -159,6 +159,31 @@
         return [...signers].sort((a, b) => (Number(a.orden) || 0) - (Number(b.orden) || 0));
     }
 
+    function signerStampStatus(signer) {
+        if (signer.tipo_reestampado === 'firma') {
+            return {
+                icon: 'check_circle',
+                className: 'text-status-success',
+                label: 'Firma autógrafa recuperada',
+                detail: ''
+            };
+        }
+        if (signer.tipo_reestampado === 'hash') {
+            return {
+                icon: 'tag',
+                className: 'text-amber-600',
+                label: 'Respaldo por hash',
+                detail: 'Se reestampará con hash'
+            };
+        }
+        return {
+            icon: 'error',
+            className: 'text-status-danger',
+            label: 'Sin firma ni hash recuperable',
+            detail: 'Sin respaldo recuperable'
+        };
+    }
+
     function createBoxes() {
         signers.forEach(signer => {
             const box = document.createElement('div');
@@ -239,6 +264,7 @@
         const list = document.getElementById('signerList');
         list.innerHTML = '';
         sortedSigners().forEach(signer => {
+            const status = signerStampStatus(signer);
             const row = document.createElement('div');
             row.className = `signer-row ${signer.key === activeKey ? 'active' : ''}`;
             row.onclick = () => setActive(signer.key);
@@ -247,9 +273,10 @@
                     <div class="min-w-0">
                         <div class="font-bold text-primary text-sm break-words">${escapeHtml(signer.orden)}. ${escapeHtml(signer.nombre)}</div>
                         <div class="text-xs text-on-surface-variant break-all">${escapeHtml(signer.email)}</div>
+                        ${status.detail ? `<div class="text-[11px] font-semibold mt-1 ${status.className}">${status.detail}</div>` : ''}
                     </div>
-                    <span class="material-symbols-outlined text-[18px] ${signer.puede_reestampar ? 'text-status-success' : 'text-status-danger'}">
-                        ${signer.puede_reestampar ? 'check_circle' : 'error'}
+                    <span class="material-symbols-outlined text-[18px] ${status.className}" title="${status.label}">
+                        ${status.icon}
                     </span>
                 </div>
                 <div class="flex items-center gap-2 mt-3">
@@ -323,9 +350,9 @@
 
     async function guardarAjuste() {
         syncActiveBox();
-        const faltantes = signers.filter(signer => !signer.puede_reestampar);
+        const faltantes = signers.filter(signer => signer.fecha_firma && !signer.puede_reestampar);
         if (faltantes.length) {
-            setStatus('error', 'Hay firmantes sin firma recuperable para reestampar.');
+            setStatus('error', 'Hay firmantes sin firma ni hash recuperable para reestampar.');
             return;
         }
 

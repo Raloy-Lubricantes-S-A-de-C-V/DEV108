@@ -440,6 +440,27 @@ def _obtener_firma_base64_para_reestampado(firmante):
     return _valor_firma_base64(getattr(colaborador, 'firma_base64', '')) if colaborador else ''
 
 
+def _valor_hash_para_reestampado(value):
+    if isinstance(value, dict):
+        for key in ('hash', 'hash_documento', 'document_hash', 'sha256', 'checksum'):
+            nested = _valor_hash_para_reestampado(value.get(key))
+            if nested:
+                return nested
+        return ''
+    if isinstance(value, str):
+        value = value.strip()
+        return value if len(value) >= 16 else ''
+    return ''
+
+
+def _obtener_hash_para_reestampado(firmante):
+    for field in ('hash', 'hash_documento', 'document_hash', 'sha256', 'checksum', 'metadata'):
+        hash_firma = _valor_hash_para_reestampado(firmante.get(field))
+        if hash_firma:
+            return hash_firma
+    return ''
+
+
 def _firmante_key(firmante, index):
     token = str(firmante.get('token_firmante') or '').strip()
     if token:
@@ -491,6 +512,14 @@ def _datos_ajuste_firmantes(firmantes):
     datos = []
     for index, firmante in enumerate(firmantes):
         coords = _coordenadas_ui_firmante(firmante, index)
+        firma_b64 = _obtener_firma_base64_para_reestampado(firmante)
+        hash_firma = _obtener_hash_para_reestampado(firmante)
+        firmado = bool(firmante.get('fecha_firma'))
+        tipo_reestampado = ''
+        if firmado and firma_b64:
+            tipo_reestampado = 'firma'
+        elif firmado and hash_firma:
+            tipo_reestampado = 'hash'
         datos.append({
             'key': _firmante_key(firmante, index),
             'token_firmante': str(firmante.get('token_firmante') or ''),
@@ -502,7 +531,8 @@ def _datos_ajuste_firmantes(firmantes):
             'page': coords['page'],
             'x': coords['x'],
             'y': coords['y'],
-            'puede_reestampar': bool(firmante.get('fecha_firma') and _obtener_firma_base64_para_reestampado(firmante)),
+            'puede_reestampar': bool(firmado and (firma_b64 or hash_firma)),
+            'tipo_reestampado': tipo_reestampado,
         })
     return datos
 
@@ -1311,9 +1341,11 @@ def guardar_ajuste_firmas(request, token):
             errores.append(f"Coordenadas inválidas para {firmante.get('nombre') or firmante.get('email')}.")
             continue
 
-        firma_b64 = _obtener_firma_base64_para_reestampado(firmante) if firmante.get('fecha_firma') else ''
-        if firmante.get('fecha_firma') and not firma_b64:
-            errores.append(f"No hay firma recuperable para {firmante.get('nombre') or firmante.get('email')}.")
+        firmado = bool(firmante.get('fecha_firma'))
+        firma_b64 = _obtener_firma_base64_para_reestampado(firmante) if firmado else ''
+        hash_firma = _obtener_hash_para_reestampado(firmante) if firmado else ''
+        if firmado and not (firma_b64 or hash_firma):
+            errores.append(f"No hay firma ni hash recuperable para {firmante.get('nombre') or firmante.get('email')}.")
             continue
 
         registros.append({
@@ -1323,6 +1355,8 @@ def guardar_ajuste_firmas(request, token):
             'orden': orden,
             'coordenadas': {'page': page, 'x': x, 'y': y},
             'firma_base64': firma_b64,
+            'hash_firma': hash_firma,
+            'metodo_reestampado': 'firma' if firma_b64 else ('hash' if hash_firma else ''),
         })
 
     if errores:
@@ -1338,6 +1372,8 @@ def guardar_ajuste_firmas(request, token):
             'nombre': firmante.get('nombre') or 'Firmante',
             'email': firmante.get('email') or '',
             'firma_base64': registro['firma_base64'],
+            'hash_firma': registro['hash_firma'],
+            'metodo_reestampado': registro['metodo_reestampado'],
             'posicion_anterior': _posicion_base_firmante(firmante),
             'coordenadas': registro['coordenadas'],
             'orden_anterior': _orden_firmante(firmante, registro['index']),
@@ -1371,8 +1407,11 @@ def guardar_ajuste_firmas(request, token):
                 'rol': acceso['rol'],
                 'orden': registro['orden'],
                 'coordenadas': registro['coordenadas'],
+                'metodo_reestampado': registro['metodo_reestampado'],
                 'hash_documento': resultado_pdf.get('hash'),
             }
+            if registro['metodo_reestampado'] == 'hash':
+                correccion['hash_reestampado'] = registro['hash_firma']
             historial = _json_or_default(firmante.get('correcciones_firma', []), [])
             historial.append(correccion)
             firmante['correccion_firma'] = correccion

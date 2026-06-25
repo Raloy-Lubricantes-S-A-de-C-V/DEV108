@@ -9,10 +9,12 @@ from .views import (
     _mongo_delete_document,
     _mongo_find_one_by_id,
     _mongo_update_document,
+    _datos_ajuste_firmantes,
     _indice_pendiente_actual,
     _indice_por_token,
     _indices_firmas_en_turno,
     _json_or_default,
+    _obtener_hash_para_reestampado,
 )
 
 
@@ -199,3 +201,24 @@ class SignatureTurnHelpersTest(SimpleTestCase):
         proceso = SimpleNamespace(indice_actual=1)
 
         self.assertEqual(_indice_pendiente_actual(proceso, firmantes), 1)
+
+
+class SignatureAdjustmentHelpersTest(SimpleTestCase):
+    def test_hash_can_be_used_when_signature_image_is_missing(self):
+        firmantes = [{
+            'nombre': 'Uno',
+            'email': 'uno@example.com',
+            'fecha_firma': '01/01/2026 10:00:00',
+            'hash': 'a' * 64,
+        }]
+
+        with patch('motor_firmas.views._mongo_find_one', return_value=None):
+            datos = _datos_ajuste_firmantes(firmantes)
+
+        self.assertTrue(datos[0]['puede_reestampar'])
+        self.assertEqual(datos[0]['tipo_reestampado'], 'hash')
+
+    def test_hash_can_be_read_from_nested_metadata(self):
+        firmante = {'metadata': {'document_hash': 'b' * 64}}
+
+        self.assertEqual(_obtener_hash_para_reestampado(firmante), 'b' * 64)
