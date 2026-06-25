@@ -1820,7 +1820,15 @@ def firmx_registrar_documento(request):
                     "firmx_id": document_id,
                     "document_name": document_name,
                     "firmx_response": response_data,
-                    "firmx_status_raw": firmx_status_raw
+                    "firmx_status_raw": firmx_status_raw,
+                    "api_steps": [
+                        {
+                            "step": "Registro de Documento",
+                            "timestamp": _datetime_for_mongo().isoformat(),
+                            "status": "success",
+                            "details": f"ID FIRMX: {document_id}"
+                        }
+                    ]
                 },
                 owner_email=owner_email,
                 exec_mode='firmx'
@@ -1892,32 +1900,81 @@ def firmx_obtener_qr(request, document_id):
             headers=_firmx_headers(),
             timeout=_firmx_timeout(),
         )
+        response_data = _json_response_from_requests(response)
     except Exception as e:
         return JsonResponse({"error": f"Error contactando FIRMX: {e}", **firmx_debug}, status=502)
 
-    content_type = response.headers.get('content-type', '')
     if not 200 <= response.status_code < 300:
         return JsonResponse({
             "error": "FIRMX no pudo obtener el QR.",
             "firmx_status": response.status_code,
-            "firmx_response": _json_response_from_requests(response),
+            "firmx_response": response_data,
             **firmx_debug,
         }, status=502)
 
+    content_type = response.headers.get('content-type', '')
+    qr_base64 = None
+    
     if content_type.lower().startswith('image/'):
-        return JsonResponse({
-            "status": "success",
-            "firmx_status": response.status_code,
-            "content_type": content_type,
-            "qr_image": f"data:{content_type};base64,{base64.b64encode(response.content).decode('ascii')}",
-            **firmx_debug,
-        })
+        qr_base64 = base64.b64encode(response.content).decode('ascii')
+    else:
+        # Intentar extraer del JSON (data[0].qr_code) según respuesta del usuario
+        data_list = response_data.get('data', [])
+        if isinstance(data_list, list) and len(data_list) > 0:
+            qr_base64 = data_list[0].get('qr_code')
+
+    api_steps = []
+    if qr_base64:
+        # Trazabilidad y guardado local
+        try:
+            db = _mongo_database()
+            proceso_doc = db.motor_firmas_procesofirma.find_one({"summary_data.firmx_id": clean_id})
+            
+            if proceso_doc:
+                ref_id = proceso_doc.get('reference_id')
+                qr_filename = f"{ref_id}_qr.png"
+                qr_path = os.path.join(settings.MEDIA_ROOT, qr_filename)
+                
+                # Guardar imagen
+                os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
+                with open(qr_path, "wb") as f:
+                    f.write(base64.b64decode(qr_base64))
+                
+                # Actualizar resumen y pasos
+                summary_data = proceso_doc.get('summary_data', {})
+                summary_data['qr_local_path'] = qr_filename
+                
+                api_steps = summary_data.get('api_steps', [])
+                api_steps.append({
+                    "step": "Obtención de QR",
+                    "timestamp": _datetime_for_mongo().isoformat(),
+                    "status": "success",
+                    "details": "QR guardado localmente"
+                })
+                summary_data['api_steps'] = api_steps
+                
+                db.motor_firmas_procesofirma.update_one(
+                    {"_id": proceso_doc['_id']},
+                    {"$set": {"summary_data": summary_data}}
+                )
+                
+                return JsonResponse({
+                    "status": "success",
+                    "firmx_status": response.status_code,
+                    "qr_image": f"data:image/png;base64,{qr_base64}",
+                    "api_steps": api_steps,
+                    **firmx_debug,
+                })
+        except Exception as e:
+            print(f"Error procesando guardado de QR: {e}")
 
     return JsonResponse({
         "status": "success",
         "firmx_status": response.status_code,
         "content_type": content_type,
-        "firmx_response": _json_response_from_requests(response),
+        "firmx_response": response_data,
+        "qr_image": f"data:image/png;base64,{qr_base64}" if qr_base64 else None,
+        "api_steps": api_steps,
         **firmx_debug,
     })
 

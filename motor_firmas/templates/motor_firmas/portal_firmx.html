@@ -358,6 +358,13 @@
             </section>
 
             <section class="bg-white rounded-xl border border-outline-variant p-5">
+                <h2 class="text-lg font-bold text-primary mb-3">Trazabilidad de la API</h2>
+                <div id="firmxApiSteps" class="space-y-3">
+                    <div class="text-sm text-on-surface-variant italic">No se han registrado pasos aún.</div>
+                </div>
+            </section>
+
+            <section class="bg-white rounded-xl border border-outline-variant p-5">
                 <h2 class="text-lg font-bold text-primary mb-3">Respuesta FIRMX</h2>
                 <pre id="firmxResponse" class="firmx-response text-xs bg-surface-container-low border border-outline-variant rounded-lg p-4 text-on-surface-variant">Sin respuesta todavía.</pre>
             </section>
@@ -424,6 +431,32 @@
     function setFirmxResponse(payload) {
         const response = document.getElementById('firmxResponse');
         response.textContent = typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2);
+        if (payload && payload.api_steps) {
+            renderFirmxApiSteps(payload.api_steps);
+        }
+    }
+
+    function renderFirmxApiSteps(steps) {
+        const container = document.getElementById('firmxApiSteps');
+        if (!container) return;
+        if (!steps || !steps.length) {
+            container.innerHTML = '<div class="text-sm text-on-surface-variant italic">No se han registrado pasos aún.</div>';
+            return;
+        }
+        container.innerHTML = steps.map(step => `
+            <div class="bg-surface-container-low border border-outline-variant rounded-lg p-3 shadow-sm">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-xs font-bold text-primary">${escapeHtml(step.step)}</span>
+                    <span class="text-[10px] text-outline">${escapeHtml(step.timestamp)}</span>
+                </div>
+                <div class="text-[11px] text-on-surface-variant mb-2">${escapeHtml(step.details || '')}</div>
+                <div class="flex items-center gap-2">
+                    <span class="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase ${step.status === 'success' ? 'bg-status-success-container text-status-success' : 'bg-status-danger-container text-status-danger'}">
+                        ${escapeHtml(step.status)}
+                    </span>
+                </div>
+            </div>
+        `).join('');
     }
 
     function updateFirmxWorkspace() {
