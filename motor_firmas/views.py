@@ -718,8 +718,7 @@ def _mongo_next_int_id(model):
 
 
 def _mongo_json_field(value, default):
-    value = _json_or_default(value, default)
-    return json.dumps(value, ensure_ascii=False)
+    return _json_or_default(value, default)
 
 
 def _actualizar_proceso_firma_mongo(proceso, **fields):
