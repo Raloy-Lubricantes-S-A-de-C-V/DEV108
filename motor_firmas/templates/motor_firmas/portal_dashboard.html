@@ -60,10 +60,18 @@
                 <p class="text-sm text-primary-fixed-dim">Sesión: <strong>{{ owner_email }}</strong></p>
             </div>
         </div>
-        <a href="{% url 'portal_logout' %}" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-status-danger text-white font-bold text-sm hover:opacity-90 transition-opacity">
-            <span class="material-symbols-outlined text-[18px]">logout</span>
-            Cerrar Sesión
-        </a>
+        <div class="flex flex-col sm:flex-row gap-3">
+            {% if request.session.admin_email %}
+            <a href="{% url 'admin_dashboard' %}" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-secondary-container text-primary font-bold text-sm hover:bg-secondary-fixed-dim transition-colors">
+                <span class="material-symbols-outlined text-[18px]">admin_panel_settings</span>
+                Panel Admin
+            </a>
+            {% endif %}
+            <a href="{% url 'portal_logout' %}" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-status-danger text-white font-bold text-sm hover:opacity-90 transition-opacity">
+                <span class="material-symbols-outlined text-[18px]">logout</span>
+                Cerrar Sesión
+            </a>
+        </div>
     </header>
 
     <section class="bg-white rounded-xl border border-outline-variant p-6 mb-6 shadow-sm space-y-5">

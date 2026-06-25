@@ -301,3 +301,40 @@ class HomeRedirectTest(SimpleTestCase):
         html = render_to_string('motor_firmas/portal_login.html', request=request)
 
         self.assertIn('/admin-portal/dashboard/', html)
+
+    def test_portal_dashboard_shows_admin_switch_when_admin_session_exists(self):
+        request = self._request_with_session({
+            'owner_email': 'usuario@example.com',
+            'admin_email': 'admin@example.com',
+        })
+
+        html = render_to_string(
+            'motor_firmas/portal_dashboard.html',
+            {'owner_email': 'usuario@example.com', 'documentos': [], 'permisos': []},
+            request=request,
+        )
+
+        self.assertIn('Panel Admin', html)
+        self.assertIn('/admin-portal/dashboard/', html)
+
+    def test_admin_dashboard_shows_portal_switch_when_owner_session_exists(self):
+        request = self._request_with_session({
+            'owner_email': 'usuario@example.com',
+            'admin_email': 'admin@example.com',
+        })
+
+        html = render_to_string(
+            'motor_firmas/admin_dashboard.html',
+            {
+                'admin_email': 'admin@example.com',
+                'docs_json': '[]',
+                'saved_config': '{}',
+                'carpetas_dominio': '[]',
+                'plantillas': [],
+                'es_superadmin': False,
+            },
+            request=request,
+        )
+
+        self.assertIn('Portal Usuario', html)
+        self.assertIn('/portal/dashboard/', html)

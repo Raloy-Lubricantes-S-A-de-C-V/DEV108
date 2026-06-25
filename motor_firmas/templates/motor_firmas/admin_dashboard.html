@@ -21,11 +21,17 @@
             <img src="/static/motor_firmas/img/raloy-logo-inverted.svg" alt="Raloy Lubricantes" class="raloy-logo-sm shrink-0">
             <h1 class="text-xl font-bold">Panel de Administración Global</h1>
         </div>
-        <div class="flex items-center gap-4">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
             <div class="text-right">
                 <p class="text-xs text-primary-fixed-dim font-medium">Administrador</p>
                 <p class="text-sm font-semibold">{{ admin_email }}</p>
             </div>
+            {% if request.session.owner_email %}
+            <a class="px-4 py-2 text-sm font-bold text-primary bg-secondary-container rounded-lg hover:bg-secondary-fixed-dim transition-colors inline-flex items-center justify-center gap-2" href="{% url 'portal_dashboard' %}">
+                <span class="material-symbols-outlined text-[18px]">account_circle</span>
+                Portal Usuario
+            </a>
+            {% endif %}
             <a class="px-4 py-2 text-sm font-bold text-white bg-status-danger rounded-lg hover:opacity-90 transition-opacity" href="{% url 'admin_logout' %}">
                 Cerrar Sesión
             </a>
