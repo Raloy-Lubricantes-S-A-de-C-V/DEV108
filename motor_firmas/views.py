@@ -1642,8 +1642,8 @@ def portal_firmx(request):
     if not _usuario_tiene_permiso(owner_email, 'firmx'):
         return HttpResponse("<h1>No tienes permisos para usar el módulo FIRMX.</h1>", status=403)
 
-    empresas = CarpetaDominio.objects.all().order_by('dominio')
-    areas = AreaFirmex.objects.all().order_by('nombre')
+    empresas = _mongo_find(CarpetaDominio, sort=[('dominio', 1)])
+    areas = _mongo_find(AreaFirmex, sort=[('nombre', 1)])
 
     return render(request, 'motor_firmas/portal_firmx.html', {
         'owner_email': owner_email,
@@ -1764,15 +1764,22 @@ def admin_config_firmex(request):
     if request.method == 'POST':
         nombre_area = request.POST.get('nombre_area')
         if nombre_area:
-            AreaFirmex.objects.get_or_create(nombre=nombre_area.strip())
+            nombre_area = nombre_area.strip()
+            # Usar ayudante de MongoDB para evitar fallos del ORM Djongo
+            _mongo_update_or_insert_by_query(AreaFirmex, {'nombre': nombre_area}, {
+                'created_at': _datetime_for_mongo()
+            })
 
         delete_id = request.POST.get('delete_id')
         if delete_id:
-            AreaFirmex.objects.filter(id=delete_id).delete()
+            # Buscar y eliminar usando el ID
+            area_to_del = _mongo_find_one_by_id(AreaFirmex, delete_id)
+            if area_to_del:
+                _mongo_delete_document(AreaFirmex, area_to_del)
 
         return redirect('admin_config_firmex')
 
-    areas = AreaFirmex.objects.all().order_by('nombre')
+    areas = _mongo_find(AreaFirmex, sort=[('nombre', 1)])
     return render(request, 'motor_firmas/admin_config_firmex.html', {
         'admin_email': admin_email,
         'areas': areas
