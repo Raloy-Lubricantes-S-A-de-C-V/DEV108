@@ -2224,11 +2224,11 @@ def admin_dashboard(request):
         firmantes = _normalizar_firmantes(getattr(d, 'firmantes', []))
         owner_doc = getattr(d, 'owner_email', '') or ''
         created_at = getattr(d, 'created_at', None)
-        docs_json.append({'reference_id': d.reference_id, 'token': str(d.token_acceso), 'owner_email': owner_doc or 'N/A',
+        docs_json.append({'reference_id': getattr(d, 'reference_id', 'N/A'), 'token': str(getattr(d, 'token_acceso', '')), 'owner_email': owner_doc or 'N/A',
                           'dominio': owner_doc.split('@')[1] if '@' in owner_doc else 'N/A',
-                          'status': d.status, 'fecha': created_at.strftime("%Y-%m-%d %H:%M:%S") if created_at else '',
+                          'status': getattr(d, 'status', 'UNKNOWN'), 'fecha': created_at.strftime("%Y-%m-%d %H:%M:%S") if created_at else '',
                           'progreso': f"{sum(1 for f in firmantes if f.get('fecha_firma'))}/{len(firmantes)}",
-                          'can_adjust': d.status == 'COMPLETED'})
+                          'can_adjust': getattr(d, 'status', '') == 'COMPLETED'})
     carpetas_dominio = [
         {'id': str(c.id), 'dominio': c.dominio, 'drive_folder_id': c.drive_folder_id}
         for c in _mongo_find(CarpetaDominio, {}, [('dominio', 1)])
