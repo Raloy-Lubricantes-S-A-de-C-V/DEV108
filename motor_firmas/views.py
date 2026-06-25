@@ -18,7 +18,7 @@ from django.utils import timezone
 from django.contrib.auth.hashers import check_password, make_password
 from .models import ProcesoFirma, DirectorioFirmas, OTPLogin, AdministradorPortal, PlantillaFormulario, CarpetaDominio, \
     DocumentoPDFUsuario
-from .utils import estampar_firma_en_pdf, estampar_variables_en_pdf, crear_notificacion_firma
+from .utils import estampar_firma_en_pdf, estampar_variables_en_pdf, crear_notificacion_firma, reubicar_firmas_en_pdf
 
 # WEBHOOKS DE N8N
 N8N_WEBHOOK_NOTIFICAR_CORREO = "https://n8n.raloy.com.mx/webhook/enviar-correo-firma"
@@ -381,6 +381,166 @@ def _crear_payload_qr_trazabilidad(proceso):
 
 def _validar_acceso_owner(proceso, owner_email):
     return _normalizar_email(getattr(proceso, 'owner_email', '')) == _normalizar_email(owner_email)
+
+
+def _admin_es_global(admin_obj):
+    return bool(
+        admin_obj
+        and (getattr(admin_obj, 'es_superadmin', False) or _normalizar_email(getattr(admin_obj, 'email', '')) == 'pjimenezb@raloy.com.mx')
+    )
+
+
+def _admin_tiene_acceso_proceso(admin_obj, proceso):
+    if not admin_obj or not proceso:
+        return False
+    admin_email = _normalizar_email(getattr(admin_obj, 'email', ''))
+    owner_email = _normalizar_email(getattr(proceso, 'owner_email', ''))
+    if _admin_es_global(admin_obj) or owner_email == admin_email:
+        return True
+    owner = _mongo_find_one(DirectorioFirmas, {'email': owner_email})
+    return _normalizar_email(getattr(owner, 'tecnico_asignado', '')) == admin_email
+
+
+def _resolver_acceso_proceso(request, proceso, rol_requerido=None):
+    if rol_requerido in (None, 'owner'):
+        owner_email = request.session.get('owner_email')
+        if owner_email and _validar_acceso_owner(proceso, owner_email):
+            return {'rol': 'owner', 'email': _normalizar_email(owner_email)}
+
+    if rol_requerido in (None, 'admin'):
+        admin_email = request.session.get('admin_email')
+        if admin_email:
+            admin_obj = _mongo_find_one(AdministradorPortal, {'email': _normalizar_email(admin_email)})
+            if _admin_tiene_acceso_proceso(admin_obj, proceso):
+                return {'rol': 'admin', 'email': _normalizar_email(admin_email), 'admin': admin_obj}
+
+    return None
+
+
+def _valor_firma_base64(value):
+    if isinstance(value, dict):
+        for key in ('base64', 'firma_base64', 'signature_base64', 'data'):
+            nested = _valor_firma_base64(value.get(key))
+            if nested:
+                return nested
+        return ''
+    if isinstance(value, str):
+        value = value.strip()
+        return value if len(value) > 40 else ''
+    return ''
+
+
+def _obtener_firma_base64_para_reestampado(firmante):
+    for field in ('firma_capturada_base64', 'firma_base64', 'signature_base64', 'signature', 'firma_digital'):
+        firma = _valor_firma_base64(firmante.get(field))
+        if firma:
+            return firma
+
+    colaborador = _mongo_find_one(DirectorioFirmas, {'email': _normalizar_email(firmante.get('email'))})
+    return _valor_firma_base64(getattr(colaborador, 'firma_base64', '')) if colaborador else ''
+
+
+def _firmante_key(firmante, index):
+    token = str(firmante.get('token_firmante') or '').strip()
+    if token:
+        return token
+    return f"{_normalizar_email(firmante.get('email'))}::{index}"
+
+
+def _posicion_base_firmante(firmante):
+    for field in ('posicion_estampada', 'coordenadas_ajuste', 'coordenadas'):
+        value = firmante.get(field)
+        if isinstance(value, dict):
+            return value
+    correccion = firmante.get('correccion_firma')
+    if isinstance(correccion, dict) and isinstance(correccion.get('posicion'), dict):
+        return correccion.get('posicion')
+    return {}
+
+
+def _float_clamp(value, default=0):
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        value = default
+    return max(0, min(value, 0.95))
+
+
+def _coordenadas_ui_firmante(firmante, index):
+    posicion = _posicion_base_firmante(firmante)
+    page = posicion.get('page', 1)
+    try:
+        page = max(int(page), 1)
+    except (TypeError, ValueError):
+        page = 1
+    return {
+        'page': page,
+        'x': _float_clamp(posicion.get('x'), 0.08),
+        'y': _float_clamp(posicion.get('y'), min(0.08 + (index * 0.08), 0.76)),
+    }
+
+
+def _orden_firmante(firmante, index):
+    try:
+        return max(int(firmante.get('orden', index + 1)), 1)
+    except (TypeError, ValueError):
+        return index + 1
+
+
+def _datos_ajuste_firmantes(firmantes):
+    datos = []
+    for index, firmante in enumerate(firmantes):
+        coords = _coordenadas_ui_firmante(firmante, index)
+        datos.append({
+            'key': _firmante_key(firmante, index),
+            'token_firmante': str(firmante.get('token_firmante') or ''),
+            'original_index': index,
+            'orden': _orden_firmante(firmante, index),
+            'nombre': firmante.get('nombre') or 'Firmante',
+            'email': firmante.get('email') or '',
+            'fecha_firma': firmante.get('fecha_firma') or '',
+            'page': coords['page'],
+            'x': coords['x'],
+            'y': coords['y'],
+            'puede_reestampar': bool(firmante.get('fecha_firma') and _obtener_firma_base64_para_reestampado(firmante)),
+        })
+    return datos
+
+
+def _sincronizar_pdf_finalizado(proceso):
+    link_trazabilidad = f"{PUBLIC_BASE_URL}/trazabilidad/{proceso.token_acceso}/"
+    firmantes = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
+    todos_los_correos = [f.get('email') for f in firmantes if f.get('email')]
+    if getattr(proceso, 'owner_email', None):
+        todos_los_correos.append(proceso.owner_email)
+
+    dominio_creador = proceso.owner_email.split('@')[1] if proceso.owner_email and '@' in proceso.owner_email else 'raloy.com.mx'
+    dominios_permitidos = {dominio_creador, 'raloy.com.mx', 'consorcionova.com'}
+    correos_internos = [
+        email for email in set(todos_los_correos)
+        if email and any(str(email).endswith(dominio) for dominio in dominios_permitidos)
+    ]
+
+    try:
+        with open(proceso.pdf_path, 'rb') as f:
+            response = requests.post(
+                N8N_WEBHOOK_FINALIZAR_PROCESO,
+                data={
+                    "reference_id": proceso.reference_id,
+                    "status": "COMPLETED",
+                    "correos_destino": ",".join(correos_internos),
+                    "folder_id": proceso.dir_drive,
+                    "link": link_trazabilidad,
+                    "ajuste_firmas": "true",
+                },
+                files={"pdf_final": (f"{proceso.reference_id}_CERTIFICADO.pdf", f, "application/pdf")},
+                timeout=30,
+            )
+        if not 200 <= response.status_code < 300:
+            return f"N8N respondió {response.status_code}: {response.text}"
+    except Exception as e:
+        return str(e)
+    return ''
 
 
 def _parse_email_list(value):
@@ -848,7 +1008,7 @@ def procesar_firma(request, token, firmante_token=None):
             firmante = firmantes_lista[idx]
             coords = firmante.get('coordenadas')
             nombre = firmante.get('nombre') or firmante_esperado.get('nombre') or 'Firmante'
-            document_hash = estampar_firma_en_pdf(
+            stamp_result = estampar_firma_en_pdf(
                 proceso.pdf_path,
                 firma_b64,
                 idx + 1,
@@ -859,7 +1019,13 @@ def procesar_firma(request, token, firmante_token=None):
                 registro=data.get('registro'),
                 fecha_firma=fecha_firma,
                 hash_documento=data.get('hash'),
+                return_metadata=True,
             )
+            document_hash = stamp_result.get('hash') if isinstance(stamp_result, dict) else stamp_result
+            if isinstance(stamp_result, dict) and stamp_result.get('posicion_estampada'):
+                firmante['posicion_estampada'] = stamp_result['posicion_estampada']
+            if firma_b64:
+                firmante['firma_capturada_base64'] = firma_b64
             _copiar_evidencia_firma(firmante, data, fecha_firma, ip_user, document_hash)
 
         _marcar_notificaciones_firma(proceso.reference_id, email_firmante)
@@ -951,12 +1117,17 @@ def vista_trazabilidad(request, token):
     firmantes = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
     total_firmas = len(firmantes)
     firmas_hechas = sum(1 for firmante in firmantes if firmante.get('fecha_firma'))
+    admin_email = request.session.get('admin_email')
+    admin_obj = _mongo_find_one(AdministradorPortal, {'email': _normalizar_email(admin_email)}) if admin_email else None
+    admin_tiene_acceso = _admin_tiene_acceso_proceso(admin_obj, proceso)
     return render(request, 'motor_firmas/trazabilidad.html',
                   {
                       'proceso': proceso,
                       'pdf_url': f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}",
                       'total_firmas': total_firmas,
                       'firmas_hechas': firmas_hechas,
+                      'admin_can_resend': bool(admin_tiene_acceso and proceso.status == 'PROCESSING'),
+                      'admin_can_adjust': bool(admin_tiene_acceso and proceso.status == 'COMPLETED'),
                   })
 
 
@@ -1044,6 +1215,206 @@ def enviar_qr_trazabilidad(request):
         return JsonResponse({"error": f"Error contactando N8N: {e}"}, status=502)
 
     return JsonResponse({"status": "success", "sent_to": correos, "n8n_status": response.status_code})
+
+
+def _vista_ajustar_firmas(request, token, rol_requerido):
+    proceso = _get_proceso_por_token_or_404(token)
+    acceso = _resolver_acceso_proceso(request, proceso, rol_requerido)
+    if not acceso:
+        if rol_requerido == 'admin' and request.session.get('admin_email'):
+            return HttpResponse("<h1>No tienes acceso a este documento.</h1>", status=403)
+        if rol_requerido == 'owner' and request.session.get('owner_email'):
+            return HttpResponse("<h1>No tienes acceso a este documento.</h1>", status=403)
+        if rol_requerido == 'admin':
+            return redirect('admin_login')
+        return redirect('portal_login')
+
+    if proceso.status != 'COMPLETED':
+        return HttpResponse("<h1>El documento debe estar cerrado para ajustar firmas.</h1>", status=403)
+
+    firmantes = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
+    return_url = '/admin-portal/dashboard/' if rol_requerido == 'admin' else '/portal/dashboard/'
+    return render(request, 'motor_firmas/ajustar_firmas.html', {
+        'proceso': proceso,
+        'rol': rol_requerido,
+        'actor_email': acceso['email'],
+        'return_url': return_url,
+        'pdf_url': f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}?v={int(timezone.now().timestamp())}",
+        'firmantes_json': json.dumps(_datos_ajuste_firmantes(firmantes), ensure_ascii=False),
+    })
+
+
+@ensure_csrf_cookie
+def portal_ajustar_firmas(request, token):
+    return _vista_ajustar_firmas(request, token, 'owner')
+
+
+@ensure_csrf_cookie
+def admin_ajustar_firmas(request, token):
+    return _vista_ajustar_firmas(request, token, 'admin')
+
+
+@csrf_exempt
+def guardar_ajuste_firmas(request, token):
+    if request.method != 'POST':
+        return JsonResponse({"error": "Método no permitido."}, status=405)
+
+    try:
+        data = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({"error": "JSON inválido."}, status=400)
+
+    proceso = _get_proceso_por_token_or_404(token)
+    acceso = _resolver_acceso_proceso(request, proceso)
+    if not acceso:
+        return JsonResponse({"error": "No tienes acceso a este documento."}, status=403)
+
+    if proceso.status != 'COMPLETED':
+        return JsonResponse({"error": "El documento debe estar cerrado para ajustar firmas."}, status=400)
+
+    firmantes_actuales = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
+    ajustes_recibidos = data.get('firmantes')
+    if not isinstance(ajustes_recibidos, list) or not ajustes_recibidos:
+        return JsonResponse({"error": "No se recibieron firmantes para ajustar."}, status=400)
+
+    keys_actuales = [_firmante_key(firmante, index) for index, firmante in enumerate(firmantes_actuales)]
+    recibidos_por_key = {}
+    for item in ajustes_recibidos:
+        if not isinstance(item, dict):
+            continue
+        key = str(item.get('key') or item.get('token_firmante') or '').strip()
+        if not key and item.get('original_index') is not None:
+            try:
+                key = keys_actuales[int(item.get('original_index'))]
+            except (TypeError, ValueError, IndexError):
+                key = ''
+        if key in recibidos_por_key:
+            return JsonResponse({"error": "Hay firmantes duplicados en el ajuste."}, status=400)
+        if key:
+            recibidos_por_key[key] = item
+
+    if set(recibidos_por_key.keys()) != set(keys_actuales):
+        return JsonResponse({"error": "No se puede agregar ni borrar firmantes; solo cambiar orden o posición."}, status=400)
+
+    registros = []
+    errores = []
+    for index, firmante in enumerate(firmantes_actuales):
+        key = keys_actuales[index]
+        item = recibidos_por_key[key]
+        coords = item.get('coordenadas') or {}
+        try:
+            page = max(int(coords.get('page', 1)), 1)
+            x = _float_clamp(coords.get('x'), 0.08)
+            y = _float_clamp(coords.get('y'), 0.08)
+            orden = max(int(item.get('orden', index + 1)), 1)
+        except (TypeError, ValueError):
+            errores.append(f"Coordenadas inválidas para {firmante.get('nombre') or firmante.get('email')}.")
+            continue
+
+        firma_b64 = _obtener_firma_base64_para_reestampado(firmante) if firmante.get('fecha_firma') else ''
+        if firmante.get('fecha_firma') and not firma_b64:
+            errores.append(f"No hay firma recuperable para {firmante.get('nombre') or firmante.get('email')}.")
+            continue
+
+        registros.append({
+            'key': key,
+            'index': index,
+            'firmante': firmante,
+            'orden': orden,
+            'coordenadas': {'page': page, 'x': x, 'y': y},
+            'firma_base64': firma_b64,
+        })
+
+    if errores:
+        return JsonResponse({"error": " ".join(errores)}, status=400)
+
+    ajustes_pdf = []
+    for registro in registros:
+        firmante = registro['firmante']
+        if not firmante.get('fecha_firma'):
+            continue
+        ajustes_pdf.append({
+            'key': registro['key'],
+            'nombre': firmante.get('nombre') or 'Firmante',
+            'email': firmante.get('email') or '',
+            'firma_base64': registro['firma_base64'],
+            'posicion_anterior': _posicion_base_firmante(firmante),
+            'coordenadas': registro['coordenadas'],
+            'orden_anterior': _orden_firmante(firmante, registro['index']),
+            'orden_nuevo': registro['orden'],
+        })
+
+    backup_path = f"{proceso.pdf_path}.{uuid.uuid4().hex}.ajuste.bak"
+    try:
+        shutil.copyfile(proceso.pdf_path, backup_path)
+        resultado_pdf = reubicar_firmas_en_pdf(
+            proceso.pdf_path,
+            ajustes_pdf,
+            actor_email=acceso['email'],
+            actor_role=acceso['rol'],
+        )
+
+        posiciones = resultado_pdf.get('posiciones', {})
+        fecha_ajuste = timezone.now().strftime("%d/%m/%Y %H:%M:%S")
+        nueva_lista = []
+        for registro in registros:
+            firmante = dict(registro['firmante'])
+            posicion = posiciones.get(registro['key'])
+            firmante['orden'] = registro['orden']
+            firmante['coordenadas'] = registro['coordenadas']
+            if posicion:
+                firmante['posicion_estampada'] = posicion
+
+            correccion = {
+                'fecha': fecha_ajuste,
+                'por': acceso['email'],
+                'rol': acceso['rol'],
+                'orden': registro['orden'],
+                'coordenadas': registro['coordenadas'],
+                'hash_documento': resultado_pdf.get('hash'),
+            }
+            historial = _json_or_default(firmante.get('correcciones_firma', []), [])
+            historial.append(correccion)
+            firmante['correccion_firma'] = correccion
+            firmante['correcciones_firma'] = historial
+            nueva_lista.append((registro['orden'], registro['index'], firmante))
+
+        nueva_lista = [item[2] for item in sorted(nueva_lista, key=lambda item: (item[0], item[1]))]
+        _actualizar_proceso_firma_mongo(proceso, firmantes=nueva_lista)
+        _mongo_collection(ProcesoFirma).update_one(
+            _mongo_pk_query(proceso),
+            {
+                '$set': {
+                    'firma_ajustada_en': _datetime_for_mongo(),
+                    'firma_ajustada_por': acceso['email'],
+                    'firma_ajustada_rol': acceso['rol'],
+                    'firma_ajustada_hash': resultado_pdf.get('hash'),
+                }
+            },
+        )
+
+        proceso.firmantes = nueva_lista
+        advertencia = _sincronizar_pdf_finalizado(proceso)
+        return JsonResponse({
+            "status": "success",
+            "msg": "Firmas ajustadas correctamente.",
+            "pdf_url": f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}?v={int(timezone.now().timestamp())}",
+            "warning": advertencia,
+        })
+    except Exception as e:
+        if os.path.exists(backup_path):
+            try:
+                shutil.copyfile(backup_path, proceso.pdf_path)
+            except Exception as restore_error:
+                print(f"Error restaurando PDF tras ajuste fallido: {restore_error}")
+        print(traceback.format_exc())
+        return JsonResponse({"error": f"No se pudo ajustar el documento: {e}"}, status=500)
+    finally:
+        if os.path.exists(backup_path):
+            try:
+                os.remove(backup_path)
+            except Exception:
+                pass
 
 
 @csrf_exempt
@@ -1584,7 +1955,8 @@ def admin_dashboard(request):
         docs_json.append({'reference_id': d.reference_id, 'token': str(d.token_acceso), 'owner_email': owner_doc or 'N/A',
                           'dominio': owner_doc.split('@')[1] if '@' in owner_doc else 'N/A',
                           'status': d.status, 'fecha': created_at.strftime("%Y-%m-%d %H:%M:%S") if created_at else '',
-                          'progreso': f"{sum(1 for f in firmantes if f.get('fecha_firma'))}/{len(firmantes)}"})
+                          'progreso': f"{sum(1 for f in firmantes if f.get('fecha_firma'))}/{len(firmantes)}",
+                          'can_adjust': d.status == 'COMPLETED'})
     carpetas_dominio = [
         {'id': str(c.id), 'dominio': c.dominio, 'drive_folder_id': c.drive_folder_id}
         for c in _mongo_find(CarpetaDominio, {}, [('dominio', 1)])
@@ -1694,6 +2066,66 @@ def admin_api(request, accion):
                 _actualizar_proceso_firma_mongo(doc, status='CANCELLED')
                 return JsonResponse({"status": "success"})
             return JsonResponse({"error": "No encontrado."}, status=404)
+        elif accion == 'reenviar_firma':
+            doc = _mongo_find_proceso_by_token(data.get('token'))
+            if not doc:
+                return JsonResponse({"error": "Documento no encontrado."}, status=404)
+            if not _admin_tiene_acceso_proceso(admin_actual, doc):
+                return JsonResponse({"error": "No tienes permiso sobre este documento."}, status=403)
+            if doc.status != 'PROCESSING':
+                return JsonResponse({"error": "Solo se puede reenviar en documentos en proceso."}, status=400)
+
+            firmantes = _normalizar_firmantes(getattr(doc, 'firmantes', []))
+            firmante_token = str(data.get('firmante_token') or '').strip()
+            email = _normalizar_email(data.get('email'))
+            idx = None
+            if firmante_token:
+                idx = _indice_por_token(firmantes, firmante_token)
+            if idx is None and email:
+                for i, firmante in enumerate(firmantes):
+                    if _normalizar_email(firmante.get('email')) == email and not firmante.get('fecha_firma'):
+                        idx = i
+                        break
+            if idx is None or idx < 0 or idx >= len(firmantes):
+                return JsonResponse({"error": "Firmante pendiente no encontrado."}, status=404)
+
+            firmante = firmantes[idx]
+            if firmante.get('fecha_firma'):
+                return JsonResponse({"error": "Ese firmante ya completó su firma."}, status=400)
+            if not firmante.get('token_firmante'):
+                firmante['token_firmante'] = str(uuid.uuid4())
+
+            link_firma = f"{PUBLIC_BASE_URL}/firmar/{doc.token_acceso}/{firmante.get('token_firmante')}/"
+            try:
+                response = requests.post(
+                    N8N_WEBHOOK_NOTIFICAR_CORREO,
+                    json={
+                        "email": firmante.get('email'),
+                        "nombre": firmante.get('nombre'),
+                        "link": link_firma,
+                        "mensaje": f"Reenvío de solicitud de firma para el documento {doc.reference_id}.",
+                        "reenviado": True,
+                    },
+                    timeout=20,
+                )
+                if not 200 <= response.status_code < 300:
+                    return JsonResponse({"error": f"N8N no confirmó el envío: {response.status_code}"}, status=502)
+            except Exception as e:
+                return JsonResponse({"error": f"No se pudo reenviar el correo: {e}"}, status=502)
+
+            fecha_reenvio = timezone.now().strftime("%d/%m/%Y %H:%M:%S")
+            reenvios = _json_or_default(firmante.get('reenvios_correo', []), [])
+            reenvios.append({
+                'fecha': fecha_reenvio,
+                'por': request.session.get('admin_email'),
+                'email': firmante.get('email'),
+            })
+            firmante['reenvios_correo'] = reenvios
+            firmante['ultimo_reenvio_correo'] = fecha_reenvio
+            firmante['ultimo_reenvio_por'] = request.session.get('admin_email')
+            _actualizar_proceso_firma_mongo(doc, firmantes=firmantes)
+            crear_notificacion_firma(firmante.get('email'), doc.reference_id, f"Reenvío de solicitud de firma para {doc.reference_id}.")
+            return JsonResponse({"status": "success", "msg": "Solicitud de firma reenviada.", "fecha": fecha_reenvio})
         elif accion == 'invitar_registro':
             try:
                 requests.post(N8N_WEBHOOK_INVITAR_REGISTRO,

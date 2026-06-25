@@ -322,6 +322,11 @@
         if(doc.status === 'PROCESSING') {
             cancelBtn = `<button class="text-status-danger hover:underline text-xs font-bold" onclick="cancelarDoc('${doc.token}')">Cancelar</button>`;
         }
+        const adjustBtn = doc.can_adjust
+            ? `<a href="/admin-portal/ajustar-firmas/${doc.token}/" class="text-on-secondary-container font-bold text-xs hover:underline flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[16px]">edit_location_alt</span> Ajustar
+               </a>`
+            : '';
 
         tr.innerHTML = `
             <td><span class="font-bold text-primary">${doc.reference_id}</span></td>
@@ -335,6 +340,7 @@
                     <a href="/trazabilidad/${doc.token}/" target="_blank" class="text-primary font-bold text-xs hover:underline flex items-center gap-1">
                         <span class="material-symbols-outlined text-[16px]">visibility</span> Ver
                     </a>
+                    ${adjustBtn}
                     ${cancelBtn}
                 </div>
             </td>

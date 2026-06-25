@@ -1,0 +1,376 @@
+{% extends "motor_firmas/base.html" %}
+
+{% block title %}Ajustar Firmas - {{ proceso.reference_id }}{% endblock %}
+{% block body_class %}bg-background min-h-screen lg:h-screen text-text-main p-4 md:p-5 box-border flex flex-col lg:flex-row gap-5 overflow-hidden{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<style>
+    #pdf-wrapper { position: relative; display: inline-block; background: white; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18); }
+    #pdf-render { display: block; }
+    .adjust-box { width: 168px; height: 64px; line-height: 1.15; padding: 0.25rem; }
+    .signer-row { border: 1px solid #e1e3e4; border-radius: 0.5rem; padding: 0.75rem; background: #ffffff; cursor: pointer; }
+    .signer-row.active { border-color: #162839; background: #f3f4f5; }
+    .save-status { display: none; border-radius: 0.5rem; padding: 0.75rem; font-size: 0.85rem; font-weight: 700; }
+    .save-status.ok { display: block; background: #d3f9d8; color: #1f7a44; }
+    .save-status.error { display: block; background: #ffdad6; color: #93000a; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="flex-1 min-h-[55vh] lg:min-h-0 bg-surface-container-high rounded-xl border border-outline-variant overflow-auto flex flex-col items-center p-4 md:p-5">
+    <div class="w-full flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+        <a href="{{ return_url }}" class="inline-flex items-center gap-2 text-primary font-bold hover:underline">
+            <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+            Volver
+        </a>
+        <div class="text-center">
+            <h1 class="text-lg font-bold text-primary">{{ proceso.reference_id }}</h1>
+            <p class="text-xs text-text-muted">Documento cerrado</p>
+        </div>
+        <div class="flex items-center justify-center gap-3 bg-white px-4 py-2 rounded-lg border border-outline-variant shadow-sm">
+            <button onclick="changePage(-1)" class="inline-flex items-center gap-1 text-primary font-bold text-sm hover:underline">
+                <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                Anterior
+            </button>
+            <span id="pageInfo" class="font-bold text-primary text-sm">Página 1 de 1</span>
+            <button onclick="changePage(1)" class="inline-flex items-center gap-1 text-primary font-bold text-sm hover:underline">
+                Siguiente
+                <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="pdf-wrapper">
+        <canvas id="pdf-render"></canvas>
+    </div>
+</section>
+
+<aside class="w-full lg:w-[390px] bg-white rounded-xl shadow-sm border border-outline-variant flex flex-col overflow-hidden">
+    <header class="bg-primary text-white p-5 text-center">
+        <img src="/static/motor_firmas/img/raloy-logo-inverted.svg" alt="Raloy Lubricantes" class="raloy-logo-sm mx-auto mb-4">
+        <h2 class="text-xl font-bold">Ajuste de Firmas</h2>
+        <p class="text-sm text-primary-fixed-dim mt-1">{{ actor_email }}</p>
+    </header>
+
+    <div class="p-5 flex-1 overflow-y-auto space-y-5">
+        <div id="signerList" class="space-y-3"></div>
+
+        <div class="bg-surface-container-low border border-outline-variant rounded-xl p-4" id="propsPanel" style="display:none;">
+            <h3 class="text-lg font-bold text-primary border-b border-outline-variant pb-3 mb-4" id="propsTitle">Firmante</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-on-surface-variant mb-2">Orden</label>
+                    <input class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="number" id="inpOrden" min="1" onchange="updateSelectedOrder()">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-on-surface-variant mb-2">Página</label>
+                    <div class="flex gap-2">
+                        <input class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="number" id="inpPage" min="1" onchange="updateSelectedPage()">
+                        <button type="button" onclick="moveSelectedToCurrentPage()" class="px-3 rounded-lg bg-secondary-container text-primary font-bold">
+                            <span class="material-symbols-outlined text-[18px]">my_location</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="save-status" id="saveStatus"></div>
+    </div>
+
+    <button class="bg-primary hover:bg-primary-container text-white font-bold text-lg py-4 transition-colors flex items-center justify-center gap-2" id="btnGuardar" onclick="guardarAjuste()">
+        <span class="material-symbols-outlined">save</span>
+        Guardar ajuste
+    </button>
+</aside>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+    let pdfUrl = '{{ pdf_url|escapejs }}';
+    const token = '{{ proceso.token_acceso }}';
+    const wrapper = document.getElementById('pdf-wrapper');
+    const canvas = document.getElementById('pdf-render');
+    const signers = JSON.parse('{{ firmantes_json|escapejs }}');
+    let pdfDocument = null;
+    let currentPage = 1;
+    let totalPages = 1;
+    let activeKey = signers.length ? signers[0].key : null;
+    let dragState = null;
+
+    function getCookie(name) {
+        const cookies = document.cookie ? document.cookie.split(';') : [];
+        for (const cookie of cookies) {
+            const trimmed = cookie.trim();
+            if (trimmed.startsWith(`${name}=`)) {
+                return decodeURIComponent(trimmed.substring(name.length + 1));
+            }
+        }
+        return '';
+    }
+
+    function escapeHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        }[char]));
+    }
+
+    function loadPdf() {
+        pdfjsLib.getDocument(pdfUrl).promise.then(pdfDoc => {
+            pdfDocument = pdfDoc;
+            totalPages = pdfDoc.numPages;
+            if (currentPage > totalPages) currentPage = totalPages;
+            renderPage(currentPage);
+        });
+    }
+
+    function renderPage(num) {
+        pdfDocument.getPage(num).then(page => {
+            const viewport = page.getViewport({ scale: 1.5 });
+            const ctx = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            wrapper.style.width = viewport.width + 'px';
+            wrapper.style.height = viewport.height + 'px';
+
+            page.render({ canvasContext: ctx, viewport: viewport }).promise.then(() => {
+                document.getElementById('pageInfo').innerText = `Página ${num} de ${totalPages}`;
+                positionBoxes();
+            });
+        });
+    }
+
+    function changePage(delta) {
+        const newPage = currentPage + delta;
+        if (newPage >= 1 && newPage <= totalPages) {
+            syncActiveBox();
+            currentPage = newPage;
+            renderPage(currentPage);
+        }
+    }
+
+    function sortedSigners() {
+        return [...signers].sort((a, b) => (Number(a.orden) || 0) - (Number(b.orden) || 0));
+    }
+
+    function createBoxes() {
+        signers.forEach(signer => {
+            const box = document.createElement('div');
+            box.className = 'signature-box adjust-box';
+            box.id = `box-${signer.key}`;
+            box.addEventListener('pointerdown', event => {
+                setActive(signer.key);
+                dragState = {
+                    key: signer.key,
+                    startX: event.clientX,
+                    startY: event.clientY,
+                    initialLeft: parseFloat(box.style.left || 0),
+                    initialTop: parseFloat(box.style.top || 0)
+                };
+                box.setPointerCapture(event.pointerId);
+            });
+            wrapper.appendChild(box);
+        });
+
+        document.addEventListener('pointermove', event => {
+            if (!dragState) return;
+            const box = document.getElementById(`box-${dragState.key}`);
+            if (!box) return;
+            let newX = dragState.initialLeft + (event.clientX - dragState.startX);
+            let newY = dragState.initialTop + (event.clientY - dragState.startY);
+            newX = Math.max(0, Math.min(newX, wrapper.clientWidth - box.offsetWidth));
+            newY = Math.max(0, Math.min(newY, wrapper.clientHeight - box.offsetHeight));
+            box.style.left = `${newX}px`;
+            box.style.top = `${newY}px`;
+        });
+
+        document.addEventListener('pointerup', () => {
+            if (dragState) syncSignerFromBox(dragState.key);
+            dragState = null;
+        });
+    }
+
+    function positionBoxes() {
+        signers.forEach(signer => {
+            const box = document.getElementById(`box-${signer.key}`);
+            if (!box) return;
+            box.innerText = `${signer.orden}. ${signer.nombre}`;
+            box.classList.toggle('selected', signer.key === activeKey);
+            if (Number(signer.page) === currentPage) {
+                box.style.display = 'flex';
+                box.style.left = `${Number(signer.x || 0) * wrapper.clientWidth}px`;
+                box.style.top = `${Number(signer.y || 0) * wrapper.clientHeight}px`;
+            } else {
+                box.style.display = 'none';
+            }
+        });
+        renderSignerList();
+        renderProps();
+    }
+
+    function syncSignerFromBox(key) {
+        const signer = signers.find(item => item.key === key);
+        const box = document.getElementById(`box-${key}`);
+        if (!signer || !box || box.style.display === 'none') return;
+        signer.page = currentPage;
+        signer.x = Math.max(0, Math.min(parseFloat(box.style.left || 0) / wrapper.clientWidth, 0.95));
+        signer.y = Math.max(0, Math.min(parseFloat(box.style.top || 0) / wrapper.clientHeight, 0.95));
+        renderSignerList();
+        renderProps();
+    }
+
+    function syncActiveBox() {
+        if (activeKey) syncSignerFromBox(activeKey);
+    }
+
+    function setActive(key) {
+        syncActiveBox();
+        activeKey = key;
+        positionBoxes();
+    }
+
+    function renderSignerList() {
+        const list = document.getElementById('signerList');
+        list.innerHTML = '';
+        sortedSigners().forEach(signer => {
+            const row = document.createElement('div');
+            row.className = `signer-row ${signer.key === activeKey ? 'active' : ''}`;
+            row.onclick = () => setActive(signer.key);
+            row.innerHTML = `
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <div class="font-bold text-primary text-sm break-words">${escapeHtml(signer.orden)}. ${escapeHtml(signer.nombre)}</div>
+                        <div class="text-xs text-on-surface-variant break-all">${escapeHtml(signer.email)}</div>
+                    </div>
+                    <span class="material-symbols-outlined text-[18px] ${signer.puede_reestampar ? 'text-status-success' : 'text-status-danger'}">
+                        ${signer.puede_reestampar ? 'check_circle' : 'error'}
+                    </span>
+                </div>
+                <div class="flex items-center gap-2 mt-3">
+                    <button type="button" class="px-2 py-1 rounded bg-surface-container text-primary" onclick="event.stopPropagation(); moveOrder('${signer.key}', -1);">
+                        <span class="material-symbols-outlined text-[16px]">arrow_upward</span>
+                    </button>
+                    <button type="button" class="px-2 py-1 rounded bg-surface-container text-primary" onclick="event.stopPropagation(); moveOrder('${signer.key}', 1);">
+                        <span class="material-symbols-outlined text-[16px]">arrow_downward</span>
+                    </button>
+                    <span class="text-xs text-text-muted">Página ${signer.page}</span>
+                </div>
+            `;
+            list.appendChild(row);
+        });
+    }
+
+    function renderProps() {
+        const signer = signers.find(item => item.key === activeKey);
+        const panel = document.getElementById('propsPanel');
+        if (!signer) {
+            panel.style.display = 'none';
+            return;
+        }
+        panel.style.display = 'block';
+        document.getElementById('propsTitle').innerText = signer.nombre;
+        document.getElementById('inpOrden').value = signer.orden;
+        document.getElementById('inpPage').value = signer.page;
+    }
+
+    function updateSelectedOrder() {
+        const signer = signers.find(item => item.key === activeKey);
+        if (!signer) return;
+        signer.orden = Math.max(1, Number(document.getElementById('inpOrden').value || signer.orden));
+        positionBoxes();
+    }
+
+    function updateSelectedPage() {
+        const signer = signers.find(item => item.key === activeKey);
+        if (!signer) return;
+        signer.page = Math.max(1, Math.min(Number(document.getElementById('inpPage').value || currentPage), totalPages));
+        currentPage = signer.page;
+        renderPage(currentPage);
+    }
+
+    function moveSelectedToCurrentPage() {
+        const signer = signers.find(item => item.key === activeKey);
+        if (!signer) return;
+        signer.page = currentPage;
+        signer.x = 0.08;
+        signer.y = 0.08;
+        positionBoxes();
+    }
+
+    function moveOrder(key, delta) {
+        syncActiveBox();
+        const ordered = sortedSigners();
+        const index = ordered.findIndex(item => item.key === key);
+        const target = index + delta;
+        if (index < 0 || target < 0 || target >= ordered.length) return;
+        const currentOrder = ordered[index].orden;
+        ordered[index].orden = ordered[target].orden;
+        ordered[target].orden = currentOrder;
+        setActive(key);
+    }
+
+    function setStatus(type, message) {
+        const box = document.getElementById('saveStatus');
+        box.className = `save-status ${type || ''}`;
+        box.textContent = message || '';
+    }
+
+    async function guardarAjuste() {
+        syncActiveBox();
+        const faltantes = signers.filter(signer => !signer.puede_reestampar);
+        if (faltantes.length) {
+            setStatus('error', 'Hay firmantes sin firma recuperable para reestampar.');
+            return;
+        }
+
+        const btn = document.getElementById('btnGuardar');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Guardando...';
+        setStatus('', '');
+
+        try {
+            const res = await fetch(`/api/ajustar-firmas/${token}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    firmantes: signers.map(signer => ({
+                        key: signer.key,
+                        token_firmante: signer.token_firmante,
+                        original_index: signer.original_index,
+                        orden: Number(signer.orden),
+                        coordenadas: {
+                            page: Number(signer.page),
+                            x: Number(signer.x),
+                            y: Number(signer.y)
+                        }
+                    }))
+                })
+            });
+            const payload = await res.json();
+            if (!res.ok) throw new Error(payload.error || 'No se pudo guardar el ajuste.');
+            setStatus(payload.warning ? 'error' : 'ok', payload.warning ? `Ajuste local guardado. ${payload.warning}` : 'Ajuste guardado correctamente.');
+            if (payload.pdf_url) {
+                pdfUrl = payload.pdf_url;
+                loadPdf();
+            }
+        } catch (error) {
+            setStatus('error', error.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<span class="material-symbols-outlined">save</span> Guardar ajuste';
+        }
+    }
+
+    createBoxes();
+    loadPdf();
+</script>
+{% endblock %}

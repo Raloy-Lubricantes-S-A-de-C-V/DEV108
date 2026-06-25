@@ -30,6 +30,14 @@
                             <span class="status-badge bg-processing">En proceso</span>
                         {% endif %}
                     </div>
+                    {% if admin_can_adjust %}
+                        <div class="mt-5">
+                            <a href="{% url 'admin_ajustar_firmas' proceso.token_acceso %}" class="inline-flex items-center justify-center gap-2 bg-secondary-container text-primary px-4 py-3 rounded-lg font-bold hover:bg-secondary-fixed-dim transition-colors">
+                                <span class="material-symbols-outlined text-[18px]">edit_location_alt</span>
+                                Ajustar firmas
+                            </a>
+                        </div>
+                    {% endif %}
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-outline-variant bg-white">
@@ -117,6 +125,26 @@
                                     <span class="material-symbols-outlined text-[14px]">hourglass_empty</span>
                                     Esperando acción del usuario...
                                 </div>
+                                {% if admin_can_resend %}
+                                    <div class="pt-3">
+                                        <button type="button"
+                                                data-token="{{ proceso.token_acceso }}"
+                                                data-firmante-token="{{ firmante.token_firmante|default:'' }}"
+                                                data-email="{{ firmante.email }}"
+                                                onclick="reenviarFirma(this)"
+                                                class="inline-flex items-center justify-center gap-2 bg-secondary-container text-primary px-4 py-2 rounded-lg font-bold text-xs hover:bg-secondary-fixed-dim transition-colors">
+                                            <span class="material-symbols-outlined text-[16px]">forward_to_inbox</span>
+                                            Reenviar correo
+                                        </button>
+                                        <div class="resend-status text-xs font-bold mt-2"></div>
+                                    </div>
+                                {% endif %}
+                                {% if firmante.ultimo_reenvio_correo %}
+                                    <div class="text-xs text-on-surface-variant flex items-center gap-1 mt-2">
+                                        <span class="material-symbols-outlined text-[14px]">mark_email_read</span>
+                                        Reenviado el: {{ firmante.ultimo_reenvio_correo }}
+                                    </div>
+                                {% endif %}
                             {% endif %}
                         </div>
                     </div>
@@ -179,4 +207,39 @@
         <p class="text-xs text-text-muted">© 2026 Raloy Lubricantes. Todos los derechos reservados.</p>
     </footer>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function reenviarFirma(button) {
+        const statusBox = button.parentElement.querySelector('.resend-status');
+        button.disabled = true;
+        const originalHtml = button.innerHTML;
+        button.innerHTML = '<span class="material-symbols-outlined animate-spin text-[16px]">sync</span> Reenviando...';
+        statusBox.textContent = '';
+        statusBox.className = 'resend-status text-xs font-bold mt-2';
+
+        try {
+            const res = await fetch('/api/admin-action/reenviar_firma/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    token: button.dataset.token,
+                    firmante_token: button.dataset.firmanteToken,
+                    email: button.dataset.email
+                })
+            });
+            const payload = await res.json();
+            if (!res.ok) throw new Error(payload.error || 'No se pudo reenviar.');
+            statusBox.textContent = `Solicitud enviada nuevamente ${payload.fecha || ''}`;
+            statusBox.classList.add('text-status-success');
+        } catch (error) {
+            statusBox.textContent = error.message;
+            statusBox.classList.add('text-status-danger');
+        } finally {
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        }
+    }
+</script>
 {% endblock %}

@@ -6,6 +6,97 @@ from datetime import datetime
 
 import re
 
+
+def _limpiar_firma_base64(signature_b64):
+    if not signature_b64:
+        return ''
+    signature_b64 = str(signature_b64)
+    if ',' in signature_b64:
+        signature_b64 = signature_b64.split(',', 1)[1]
+    return signature_b64.strip()
+
+
+def _crear_posicion_firma(page, page_num, x, y, width=120, height=60, origen='manual'):
+    return {
+        'page': page_num + 1,
+        'x': x / page.rect.width if page.rect.width else 0,
+        'y': y / page.rect.height if page.rect.height else 0,
+        'width': width / page.rect.width if page.rect.width else 0,
+        'height': height / page.rect.height if page.rect.height else 0,
+        'rect': {
+            'x0': x,
+            'y0': y,
+            'x1': x + width,
+            'y1': y + height,
+        },
+        'origen': origen,
+    }
+
+
+def _rect_from_position(page, posicion):
+    if not posicion:
+        return None
+
+    rect_data = posicion.get('rect') if isinstance(posicion, dict) else None
+    if isinstance(rect_data, dict):
+        try:
+            x0 = float(rect_data.get('x0'))
+            y0 = float(rect_data.get('y0'))
+            x1 = float(rect_data.get('x1'))
+            y1 = float(rect_data.get('y1'))
+            return fitz.Rect(x0 - 4, y0 - 18, x1 + 8, y1 + 8)
+        except (TypeError, ValueError):
+            pass
+
+    try:
+        x = float(posicion.get('x')) * page.rect.width
+        y = float(posicion.get('y')) * page.rect.height
+        width = float(posicion.get('width', 120 / page.rect.width)) * page.rect.width
+        height = float(posicion.get('height', 60 / page.rect.height)) * page.rect.height
+        return fitz.Rect(x - 4, y - 18, x + width + 8, y + height + 8)
+    except (AttributeError, TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
+def _inferir_rect_firma_por_nombre(doc, nombre_user):
+    nombre_user = str(nombre_user or '').strip()
+    if not nombre_user:
+        return None, None
+
+    terminos = []
+    nombre_upper = nombre_user.upper()
+    if nombre_upper:
+        terminos.append(nombre_upper)
+    if nombre_user not in terminos:
+        terminos.append(nombre_user)
+
+    for page_num, page in enumerate(doc):
+        page_text = page.get_text("text")
+        if "CONSTANCIA DE CONSERV" in page_text or "BITÁCORA DE AJUSTE" in page_text:
+            continue
+        for termino in terminos:
+            instancias = page.search_for(termino)
+            if not instancias:
+                continue
+            rect = sorted(instancias, key=lambda r: (r.y0, r.x0))[0]
+            return page_num, fitz.Rect(
+                max(0, rect.x0 - 8),
+                max(0, rect.y0 - 78),
+                min(page.rect.width, rect.x0 + 150),
+                min(page.rect.height, rect.y1 + 78),
+            )
+    return None, None
+
+
+def _insertar_firma(page, signature_b64, nombre_user, x, y):
+    img_data = base64.b64decode(_limpiar_firma_base64(signature_b64))
+    page.clean_contents()
+    page.insert_text((x, y - 5), str(nombre_user).upper(), fontsize=10, fontname="hebo", color=(0, 0, 0))
+    rect_firma = fitz.Rect(x, y, x + 120, y + 60)
+    page.insert_image(rect_firma, stream=img_data)
+    return rect_firma
+
+
 def estampar_variables_en_pdf(pdf_path, variables_dict):
     doc = fitz.open(pdf_path)
     modificado = False
@@ -47,37 +138,33 @@ def estampar_variables_en_pdf(pdf_path, variables_dict):
 
 def estampar_firma_en_pdf(
         pdf_path, signature_b64, signer_index, email_user, nombre_user, ip_user,
-        coordenadas=None, registro=None, fecha_firma=None, hash_documento=None):
+        coordenadas=None, registro=None, fecha_firma=None, hash_documento=None, return_metadata=False):
     """
     Soporta dos modos:
     1. Por Coordenadas (Drag & Drop): Si se pasa el dict 'coordenadas' con 'x', 'y' y 'page' (en porcentajes).
     2. Por Búsqueda (Plantilla): Busca la etiqueta {{FIRMA_X}}.
     """
     doc = fitz.open(pdf_path)
-    if ',' in signature_b64: signature_b64 = signature_b64.split(',')[1]
-    img_data = base64.b64decode(signature_b64)
     firma_estampada = False
+    posicion_estampada = None
 
     # MODO 1: EDITOR VISUAL (DRAG & DROP)
     if coordenadas:
         page_num = int(coordenadas.get('page', 1)) - 1
         if page_num < len(doc):
             page = doc[page_num]
-            page.clean_contents()
             # Convertimos el porcentaje visual a puntos reales del PDF
             x = float(coordenadas.get('x')) * page.rect.width
             y = float(coordenadas.get('y')) * page.rect.height
 
-            # Dibujamos nombre y firma
-            page.insert_text((x, y - 5), str(nombre_user).upper(), fontsize=10, fontname="hebo", color=(0, 0, 0))
-            rect_firma = fitz.Rect(x, y, x + 120, y + 60)
-            page.insert_image(rect_firma, stream=img_data)
+            _insertar_firma(page, signature_b64, nombre_user, x, y)
+            posicion_estampada = _crear_posicion_firma(page, page_num, x, y, origen='coordenadas')
             firma_estampada = True
 
     # MODO 2: PLANTILLA NORMAL (BÚSQUEDA)
     if not firma_estampada:
         etiqueta_busqueda = f"{{{{FIRMA_{signer_index}}}}}"
-        for page in doc:
+        for page_num, page in enumerate(doc):
             page.clean_contents()
             instancias = page.search_for(etiqueta_busqueda)
             if instancias:
@@ -85,10 +172,16 @@ def estampar_firma_en_pdf(
                 rect_borrar = fitz.Rect(rect.x0 - 2, rect.y0, rect.x1 + 2, rect.y1)
                 page.add_redact_annot(rect_borrar, fill=(1, 1, 1))
                 page.apply_redactions()
-                page.insert_text((rect.x0, rect.y1 - 2), str(nombre_user).upper(), fontsize=10, fontname="hebo",
+                x = rect.x0
+                y = rect.y0 - 50
+                page.insert_text((x, rect.y1 - 2), str(nombre_user).upper(), fontsize=10, fontname="hebo",
                                  color=(0, 0, 0))
-                rect_firma = fitz.Rect(rect.x0, rect.y0 - 50, rect.x0 + 120, rect.y1)
+                rect_firma = fitz.Rect(x, y, x + 120, rect.y1)
+                img_data = base64.b64decode(_limpiar_firma_base64(signature_b64))
                 page.insert_image(rect_firma, stream=img_data)
+                posicion_estampada = _crear_posicion_firma(
+                    page, page_num, x, y, width=120, height=rect.y1 - y, origen='plantilla'
+                )
                 firma_estampada = True
                 break
 
@@ -96,8 +189,14 @@ def estampar_firma_en_pdf(
     if not firma_estampada:
         ultima_pagina = doc[-1]
         ultima_pagina.clean_contents()
-        rect_firma = fitz.Rect(100, 600 - (signer_index * 60), 220, 650 - (signer_index * 60))
+        x = 100
+        y = 600 - (signer_index * 60)
+        rect_firma = fitz.Rect(x, y, 220, 650 - (signer_index * 60))
+        img_data = base64.b64decode(_limpiar_firma_base64(signature_b64))
         ultima_pagina.insert_image(rect_firma, stream=img_data)
+        posicion_estampada = _crear_posicion_firma(
+            ultima_pagina, len(doc) - 1, x, y, width=120, height=rect_firma.height, origen='respaldo'
+        )
 
     # Hoja de Auditoría
     temp_path = pdf_path.replace(".pdf", "_temp.pdf")
@@ -131,7 +230,81 @@ def estampar_firma_en_pdf(
     doc.save(final_temp_path)
     doc.close()
     shutil.move(final_temp_path, pdf_path)
+    if return_metadata:
+        return {'hash': document_hash, 'posicion_estampada': posicion_estampada}
     return document_hash
+
+
+def reubicar_firmas_en_pdf(pdf_path, ajustes, actor_email='', actor_role=''):
+    doc = fitz.open(pdf_path)
+    nuevas_posiciones = {}
+    paginas_con_redaccion = set()
+
+    for ajuste in ajustes:
+        posicion_anterior = ajuste.get('posicion_anterior') or {}
+        try:
+            page_num = int(posicion_anterior.get('page', 0)) - 1
+        except (TypeError, ValueError):
+            page_num = -1
+        rect = None
+        if 0 <= page_num < len(doc):
+            rect = _rect_from_position(doc[page_num], posicion_anterior)
+        if not rect:
+            page_num, rect = _inferir_rect_firma_por_nombre(doc, ajuste.get('nombre'))
+        if not rect:
+            continue
+        doc[page_num].add_redact_annot(rect, fill=(1, 1, 1))
+        paginas_con_redaccion.add(page_num)
+
+    for page_num in paginas_con_redaccion:
+        doc[page_num].apply_redactions()
+
+    for ajuste in ajustes:
+        coords = ajuste.get('coordenadas') or {}
+        try:
+            page_num = int(coords.get('page', 1)) - 1
+        except (TypeError, ValueError):
+            page_num = 0
+        if page_num < 0 or page_num >= len(doc):
+            raise ValueError(f"Página inválida para {ajuste.get('nombre') or ajuste.get('email')}.")
+
+        page = doc[page_num]
+        try:
+            x = float(coords.get('x')) * page.rect.width
+            y = float(coords.get('y')) * page.rect.height
+        except (TypeError, ValueError):
+            raise ValueError(f"Coordenadas inválidas para {ajuste.get('nombre') or ajuste.get('email')}.")
+
+        _insertar_firma(page, ajuste.get('firma_base64'), ajuste.get('nombre') or 'Firmante', x, y)
+        nuevas_posiciones[ajuste['key']] = _crear_posicion_firma(page, page_num, x, y, origen='ajuste')
+
+    audit_page = doc.new_page()
+    audit_page.insert_text((50, 40), "BITÁCORA DE AJUSTE DE FIRMAS", fontsize=14, fontname="hebo", color=(0, 0, 0))
+    audit_page.insert_text((50, 62), f"Realizado por: {actor_email or 'N/A'} ({actor_role or 'N/A'})", fontsize=9, fontname="helv")
+    audit_page.insert_text((50, 80), f"Fecha UTC: {datetime.utcnow().isoformat()}Z", fontsize=9, fontname="helv")
+    y = 115
+    for idx, ajuste in enumerate(ajustes, start=1):
+        if y > 760:
+            audit_page = doc.new_page()
+            y = 50
+        audit_page.insert_text(
+            (50, y),
+            f"{idx}. {ajuste.get('nombre') or 'Firmante'} <{ajuste.get('email') or ''}> - orden {ajuste.get('orden_anterior')} -> {ajuste.get('orden_nuevo')}",
+            fontsize=9,
+            fontname="helv",
+        )
+        y += 18
+
+    import shutil
+    temp_path = pdf_path.replace(".pdf", f"_ajuste_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.pdf")
+    doc.save(temp_path)
+    doc.close()
+
+    with open(temp_path, "rb") as f:
+        document_hash = hashlib.sha256(f.read()).hexdigest()
+
+    shutil.move(temp_path, pdf_path)
+    return {'hash': document_hash, 'posiciones': nuevas_posiciones}
 import os
 import traceback
 from django.conf import settings

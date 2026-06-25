@@ -263,7 +263,8 @@
             mes: "{{ item.proceso.created_at|date:'F Y' }}",
             total_firmas: {{ item.total_firmas }},
             firmas_hechas: {{ item.firmas_hechas }},
-            porcentaje: {{ item.porcentaje }}
+            porcentaje: {{ item.porcentaje }},
+            can_adjust: {% if item.proceso.status == 'COMPLETED' %}true{% else %}false{% endif %}
         }{% if not forloop.last %},{% endif %}
         {% endfor %}
     ];
@@ -371,6 +372,10 @@
                         <span class="material-symbols-outlined text-[18px]">qr_code_2</span>
                         Compartir QR
                     </button>
+                    <a href="/portal/ajustar-firmas/${doc.token}/" class="doc-action-btn secondary">
+                        <span class="material-symbols-outlined text-[18px]">edit_location_alt</span>
+                        Ajustar firmas
+                    </a>
                 </div>
             `
             : `

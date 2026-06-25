@@ -22,6 +22,7 @@ urlpatterns = [
     path('portal/', views.portal_login, name='portal_login'),
     path('api/solicitar-otp/', views.solicitar_otp, name='solicitar_otp'),
     path('portal/dashboard/', views.portal_dashboard, name='portal_dashboard'),
+    path('portal/ajustar-firmas/<uuid:token>/', views.portal_ajustar_firmas, name='portal_ajustar_firmas'),
     path('portal/firmx/', views.portal_firmx, name='portal_firmx'),
     path('portal/logout/', views.portal_logout, name='portal_logout'),
     path('api/firmx/register-document/', views.firmx_registrar_documento, name='firmx_registrar_documento'),
@@ -42,6 +43,7 @@ urlpatterns = [
     # RUTAS DEL PORTAL (ADMINISTRADORES)
     path('admin-portal/', views.admin_login, name='admin_login'),
     path('admin-portal/dashboard/', views.admin_dashboard, name='admin_dashboard'),
+    path('admin-portal/ajustar-firmas/<uuid:token>/', views.admin_ajustar_firmas, name='admin_ajustar_firmas'),
     path('admin-portal/crear-plantilla/', views.admin_crear_plantilla, name='admin_crear_plantilla'),
     path('admin-portal/editar-plantilla/<str:plantilla_id>/', views.admin_editar_plantilla,
          name='admin_editar_plantilla'),
@@ -50,6 +52,7 @@ urlpatterns = [
     path('admin-portal/administradores/', views.admin_administradores, name='admin_administradores'),
     path('admin-portal/logout/', views.admin_logout, name='admin_logout'),
     path('api/admin-action/<str:accion>/', views.admin_api, name='admin_api'),
+    path('api/ajustar-firmas/<uuid:token>/', views.guardar_ajuste_firmas, name='guardar_ajuste_firmas'),
     
     # RUTAS DE NOTIFICACIONES (POLLING)
     path('api/internal/dev036/check-alerts', views.dev036_check_alerts, name='dev036_check_alerts'),
