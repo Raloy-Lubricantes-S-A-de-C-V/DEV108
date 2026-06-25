@@ -29,6 +29,7 @@ urlpatterns = [
     path('portal/logout/', views.portal_logout, name='portal_logout'),
     path('api/firmx/register-document/', views.firmx_registrar_documento, name='firmx_registrar_documento'),
     path('api/firmx/documents/<str:document_id>/sign-qr/', views.firmx_obtener_qr, name='firmx_obtener_qr'),
+    path('api/firmx/documents/<str:document_id>/notify/', views.firmx_enviar_notificaciones, name='firmx_enviar_notificaciones'),
 
     # RUTAS DE PLANTILLAS
     path('portal/plantillas/', views.portal_plantillas, name='portal_plantillas'),

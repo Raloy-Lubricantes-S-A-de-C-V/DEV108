@@ -64,7 +64,7 @@
 
     <div id="firmxWorkspace" class="firmx-workspace grid grid-cols-1 xl:grid-cols-[1fr_390px] gap-6 items-start">
         <main class="space-y-5">
-            <nav class="grid grid-cols-1 md:grid-cols-4 gap-3" aria-label="Pasos FIRMX">
+            <nav class="grid grid-cols-1 md:grid-cols-5 gap-3" aria-label="Pasos FIRMX">
                 <button type="button" class="firmx-step-button active" data-step-button="1" onclick="goToFirmxStep(1)">
                     <span class="firmx-step-index">1</span>
                     <span>Archivo y datos</span>
@@ -81,12 +81,16 @@
                     <span class="firmx-step-index">4</span>
                     <span>Registro y QR</span>
                 </button>
+                <button type="button" class="firmx-step-button" data-step-button="5" onclick="goToFirmxStep(5)">
+                    <span class="firmx-step-index">5</span>
+                    <span>Notificaciones</span>
+                </button>
             </nav>
 
             <section class="firmx-step-shell active" data-step-panel="1">
                 <div class="firmx-panel p-5 md:p-6 space-y-5">
                     <div>
-                        <p class="text-xs font-bold text-outline uppercase">Step 1 de 4</p>
+                        <p class="text-xs font-bold text-outline uppercase">Step 1 de 5</p>
                         <h2 class="text-2xl font-bold text-primary mt-1">Subir archivo y datos iniciales</h2>
                     </div>
 
@@ -131,7 +135,7 @@
             <section class="firmx-step-shell" data-step-panel="2">
                 <div class="firmx-panel p-5 md:p-6 space-y-5">
                     <div>
-                        <p class="text-xs font-bold text-outline uppercase">Step 2 de 4</p>
+                        <p class="text-xs font-bold text-outline uppercase">Step 2 de 5</p>
                         <h2 class="text-2xl font-bold text-primary mt-1">Revisar PDF y agregar firmantes</h2>
                     </div>
 
@@ -223,7 +227,7 @@
             <section class="firmx-step-shell" data-step-panel="3">
                 <div class="firmx-panel p-5 md:p-6 space-y-5">
                     <div>
-                        <p class="text-xs font-bold text-outline uppercase">Step 3 de 4</p>
+                        <p class="text-xs font-bold text-outline uppercase">Step 3 de 5</p>
                         <h2 class="text-2xl font-bold text-primary mt-1">Confirmar envío a FIRMX</h2>
                     </div>
 
@@ -296,7 +300,7 @@
             <section class="firmx-step-shell" data-step-panel="4">
                 <div class="firmx-panel p-5 md:p-6 space-y-5">
                     <div>
-                        <p class="text-xs font-bold text-outline uppercase">Step 4 de 4</p>
+                        <p class="text-xs font-bold text-outline uppercase">Step 4 de 5</p>
                         <h2 class="text-2xl font-bold text-primary mt-1">Registro y QR de firma</h2>
                     </div>
 
@@ -314,9 +318,47 @@
                             <span class="material-symbols-outlined text-[18px]">arrow_back</span>
                             Volver a confirmación
                         </button>
-                        <button id="firmxMainQrButton" type="button" disabled onclick="loadFirmxQr()" class="inline-flex items-center justify-center gap-2 bg-secondary-container text-primary px-5 py-3 rounded-lg font-bold hover:bg-secondary-fixed-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                            <span class="material-symbols-outlined text-[18px]">qr_code_2</span>
-                            Obtener QR para firmar
+                        <div class="flex gap-3">
+                            <button id="firmxMainQrButton" type="button" disabled onclick="loadFirmxQr()" class="inline-flex items-center justify-center gap-2 bg-secondary-container text-primary px-5 py-3 rounded-lg font-bold hover:bg-secondary-fixed-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                <span class="material-symbols-outlined text-[18px]">qr_code_2</span>
+                                Obtener QR para firmar
+                            </button>
+                            <button type="button" onclick="goToFirmxStep(5)" class="inline-flex items-center justify-center gap-2 bg-primary text-white px-5 py-3 rounded-lg font-bold hover:bg-primary-container transition-colors">
+                                Siguiente
+                                <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="firmx-step-shell" data-step-panel="5">
+                <div class="firmx-panel p-5 md:p-6 space-y-5">
+                    <div>
+                        <p class="text-xs font-bold text-outline uppercase">Step 5 de 5</p>
+                        <h2 class="text-2xl font-bold text-primary mt-1">Enviar notificaciones por correo</h2>
+                    </div>
+
+                    <div class="bg-surface-container-low border border-outline-variant rounded-xl p-5 text-on-surface-variant">
+                        <p class="text-sm mb-4">Se enviará un correo a todos los firmantes con el enlace para realizar la firma digital en FIRMX.</p>
+                        <div class="flex items-center gap-3 text-primary font-bold">
+                            <span class="material-symbols-outlined">mail</span>
+                            <span>Asunto: Firma Digital Raloy - FIRMX</span>
+                        </div>
+                    </div>
+
+                    <div id="firmxNotifyState" class="hidden bg-status-success-container text-status-success border border-status-success rounded-xl p-4 text-sm font-bold">
+                        Notificaciones enviadas correctamente.
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row sm:justify-between gap-3">
+                        <button type="button" onclick="goToFirmxStep(4)" class="inline-flex items-center justify-center gap-2 border border-outline-variant bg-white text-primary px-5 py-3 rounded-lg font-bold hover:bg-surface-container transition-colors">
+                            <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+                            Anterior (QR)
+                        </button>
+                        <button id="firmxNotifyButton" type="button" onclick="sendFirmxNotifications()" class="inline-flex items-center justify-center gap-2 bg-primary text-white px-8 py-3 rounded-lg font-bold hover:bg-primary-container transition-colors shadow-lg">
+                            <span class="material-symbols-outlined text-[20px]">send</span>
+                            ENVIAR A TODOS LOS FIRMANTES
                         </button>
                     </div>
                 </div>
@@ -675,6 +717,7 @@
             if (currentFirmxStep === 2) side.innerHTML = stepOneSummaryHtml();
             if (currentFirmxStep === 3) side.innerHTML = stepOneSummaryHtml() + '<hr class="border-outline-variant my-2">' + signersSummaryHtml();
             if (currentFirmxStep === 4) side.innerHTML = stepOneSummaryHtml() + '<hr class="border-outline-variant my-2">' + signersSummaryHtml() + '<hr class="border-outline-variant my-2">' + notificationSummaryHtml();
+            if (currentFirmxStep === 5) side.innerHTML = stepOneSummaryHtml() + '<hr class="border-outline-variant my-2">' + signersSummaryHtml() + '<hr class="border-outline-variant my-2">' + notificationSummaryHtml();
         }
         updateFirmxSignersPanel();
         updateCurlPreview('register');
@@ -730,7 +773,7 @@
         updateFirmxWorkspace();
         if (target === 2) loadFirmxPdfPreview();
         updateSummaries();
-        setFirmxStatus(target === 4 ? 'Listo para consultar resultado o QR.' : `Step ${target} activo.`);
+        setFirmxStatus(target >= 4 ? 'Listo para consultar resultado, QR o notificaciones.' : `Step ${target} activo.`);
     }
 
     function addFirmxSigner(name = '', email = '') {
@@ -986,8 +1029,59 @@
             btn.disabled = false;
             mainBtn.disabled = false;
             btn.textContent = 'Obtener QR para firmar';
-            mainBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">qr_code_2</span> Obtener QR para firmar';
         }
+    }
+
+    async function sendFirmxNotifications() {
+        const id = firmxDocumentId || document.getElementById('firmxDocumentIdManual').value.trim();
+        if (!id) {
+            setFirmxStatus('No hay un ID de documento para notificar.', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('firmxNotifyButton');
+        const stateBox = document.getElementById('firmxNotifyState');
+        
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[20px]">sync</span> ENVIANDO...';
+        stateBox.classList.add('hidden');
+
+        try {
+            const res = await fetch(`/api/firmx/documents/${id}/notify/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') }
+            });
+            const payload = await parseFetchPayload(res);
+            setFirmxResponse(payload);
+
+            if (!res.ok) throw new Error(payload.error || 'Error al enviar notificaciones.');
+
+            stateBox.classList.remove('hidden');
+            stateBox.textContent = `Notificaciones enviadas correctamente a: ${payload.sent_to.join(', ')}`;
+            setFirmxStatus('Notificaciones enviadas.', 'ok');
+            
+        } catch (error) {
+            setFirmxStatus(error.message, 'error');
+            alert(error.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<span class="material-symbols-outlined text-[20px]">send</span> ENVIAR A TODOS LOS FIRMANTES';
+        }
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
     }
 
     document.addEventListener('DOMContentLoaded', () => {

@@ -1944,6 +1944,11 @@ def firmx_obtener_qr(request, document_id):
                 summary_data = proceso_doc.get('summary_data', {})
                 summary_data['qr_local_path'] = qr_filename
                 
+                # Guardar también la URL de firma para el paso de notificaciones
+                data_list = response_data.get('data', [])
+                if isinstance(data_list, list) and len(data_list) > 0:
+                    summary_data['url_qr_code'] = data_list[0].get('url_qr_code')
+                
                 api_steps = summary_data.get('api_steps', [])
                 api_steps.append({
                     "step": "Obtención de QR",
@@ -1977,6 +1982,80 @@ def firmx_obtener_qr(request, document_id):
         "api_steps": api_steps,
         **firmx_debug,
     })
+@csrf_exempt
+def firmx_enviar_notificaciones(request, document_id):
+    owner_email = request.session.get('owner_email')
+    if not owner_email:
+        return JsonResponse({"error": "No autenticado"}, status=403)
+    if not _usuario_tiene_permiso(owner_email, 'firmx'):
+        return JsonResponse({"error": "No tienes permiso para usar FIRMX."}, status=403)
+    
+    clean_id = str(document_id or '').strip()
+    db = _mongo_database()
+    proceso_doc = db.motor_firmas_procesofirma.find_one({"summary_data.firmx_id": clean_id})
+    if not proceso_doc:
+        return JsonResponse({"error": "No se encontró el proceso relacionado en el sistema."}, status=404)
+    
+    # Obtener correos de los firmantes
+    firmantes = _normalizar_firmantes(proceso_doc.get('firmantes', []))
+    emails = [f.get('email') for f in firmantes if f.get('email')]
+    
+    if not emails:
+        return JsonResponse({"error": "No se encontraron correos de firmantes para notificar."}, status=400)
+    
+    # Recuperar URL de firma
+    summary_data = proceso_doc.get('summary_data', {})
+    url_firma = summary_data.get('url_qr_code')
+    
+    if not url_firma:
+        return JsonResponse({"error": "No se encontró la URL de firma. Primero debes obtener el QR (Paso 4)."}, status=400)
+
+    # Preparar payload para N8N basado en el JSON proporcionado
+    payload_n8n = {
+        "correos_destino": ",".join(emails),
+        "reference_id": proceso_doc.get('reference_id', 'N/A'),
+        "url_firma": url_firma,
+        "subject": "Firma Digital Raloy - FIRMX",
+        "titulo": "Firma Digital Raloy - FIRMX",
+        "texto_boton": "IR A FIRMA",
+        "mensaje": "Se requiere su firma para el documento: " + summary_data.get('document_name', 'Documento FIRMX')
+    }
+    
+    try:
+        response = requests.post(N8N_WEBHOOK_ENVIAR_QR, json=payload_n8n, timeout=20)
+        
+        # Trazabilidad
+        api_steps = summary_data.get('api_steps', [])
+        success = 200 <= response.status_code < 300
+        
+        api_steps.append({
+            "step": "Envío de Notificaciones",
+            "timestamp": _datetime_for_mongo().isoformat(),
+            "status": "success" if success else "error",
+            "details": f"Notificación enviada a: {', '.join(emails)}" if success else f"Error al enviar: {response.status_code}"
+        })
+        
+        db.motor_firmas_procesofirma.update_one(
+            {"_id": proceso_doc['_id']},
+            {"$set": {"summary_data.api_steps": api_steps}}
+        )
+        
+        if not success:
+            return JsonResponse({
+                "error": "El servidor de correos (N8N) respondió con error.",
+                "n8n_status": response.status_code,
+                "api_steps": api_steps
+            }, status=502)
+            
+        return JsonResponse({
+            "status": "success",
+            "n8n_status": response.status_code,
+            "sent_to": emails,
+            "api_steps": api_steps
+        })
+        
+    except Exception as e:
+        return JsonResponse({"error": f"Error contactando con el servicio de notificaciones: {e}"}, status=502)
 
 
 def portal_logout(request):
