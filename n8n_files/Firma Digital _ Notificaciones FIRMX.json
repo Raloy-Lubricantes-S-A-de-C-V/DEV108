@@ -1,0 +1,66 @@
+{
+  "name": "Firma Digital | Notificaciones FIRMX",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "notificar-firmx",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "58e9f726-8f11-4b8e-9707-4227c5073553",
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.correos_destino }}",
+        "subject": "={{ $json.body.subject }}",
+        "message": "=<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"utf-8\"/><meta content=\"width=device-width, initial-scale=1.0\" name=\"viewport\"/><title>Firma Digital Raloy - FIRMX</title><style>body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;}table,td{mso-table-lspace:0pt;mso-table-rspace:0pt;border-collapse:collapse!important;}img{border:0;height:auto;line-height:100%;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;}@media screen and (max-width:620px){.email-shell{width:100%!important;}.email-body{padding:32px 24px!important;}.email-footer{padding:28px 24px!important;}.email-title{font-size:24px!important;}}</style></head><body style=\"margin:0; padding:0; width:100%!important; background-color:#f3f4f5; font-family:Inter, Arial, sans-serif;\"><center><table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"background-color:#f3f4f5;\" width=\"100%\"><tbody><tr><td align=\"center\" style=\"padding:40px 12px;\"><table class=\"email-shell\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px; width:100%; background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);\" width=\"600\"><tbody><tr><td align=\"center\" style=\"background-color:#0056b3; padding:32px 0;\"><div style=\"color:#ffffff; font-family:Arial, sans-serif; font-size:24px; font-weight:700; letter-spacing:0;\">Firma Digital Raloy - FIRMX</div></td></tr><tr><td class=\"email-body\" style=\"padding:48px 40px;\"><h1 class=\"email-title\" style=\"margin:0 0 24px 0; color:#162839; font-family:Arial, sans-serif; font-size:28px; font-weight:700; line-height:1.2;\">{{ $json.body.titulo }}</h1><p style=\"margin:0 0 16px 0; color:#1a1a1a; font-family:Inter, Arial, sans-serif; font-size:16px; font-weight:700; line-height:1.5;\">Hola,</p><p style=\"margin:0 0 24px 0; color:#43474c; font-family:Inter, Arial, sans-serif; font-size:16px; font-weight:400; line-height:1.6;\">{{ $json.body.mensaje }}</p><p style=\"margin:0 0 16px 0; color:#43474c; font-family:Inter, Arial, sans-serif; font-size:16px; font-weight:400; line-height:1.6;\">Referencia: <strong>{{ $json.body.reference_id }}</strong></p><table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-top:32px;\" width=\"100%\"><tbody><tr><td align=\"center\"><a href=\"{{ $json.body.url_firma }}\" style=\"background-color:#007bff; color:#ffffff; display:inline-block; padding:18px 34px; font-family:Inter, Arial, sans-serif; font-size:14px; font-weight:800; text-decoration:none; text-transform:uppercase; border-radius:8px; letter-spacing:0.05em; box-shadow:0 4px 6px -1px rgba(0,0,0,0.10);\">{{ $json.body.texto_boton }}</a></td></tr></tbody></table><p style=\"margin:28px 0 0 0; color:#666666; font-family:Inter, Arial, sans-serif; font-size:12px; line-height:1.5; text-align:center; font-style:italic;\">Este correo es una notificación automática del proceso de firmas en FIRMX.</p></td></tr><tr><td class=\"email-footer\" align=\"center\" style=\"background-color:#f3f4f5; padding:32px 40px; border-top:1px solid #c4c6cd;\"><table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\"><tbody><tr><td align=\"center\" style=\"padding-bottom:16px;\"><span style=\"color:#162839; font-family:Inter, Arial, sans-serif; font-size:14px; font-weight:700;\">Raloy Lubricantes</span></td></tr><tr><td align=\"center\" style=\"padding-bottom:24px;\"><a href=\"https://raloylubricantes.mx/\" style=\"color:#162839; font-family:Inter, Arial, sans-serif; font-size:12px; text-decoration:underline; margin:0 8px;\">Aviso de Privacidad</a><a href=\"https://raloylubricantes.mx/\" style=\"color:#162839; font-family:Inter, Arial, sans-serif; font-size:12px; text-decoration:underline; margin:0 8px;\">Términos de Servicio</a></td></tr><tr><td align=\"center\"><p style=\"margin:0; color:#74777d; font-family:Inter, Arial, sans-serif; font-size:12px;\">&copy; 2026 Raloy Lubricantes. Todos los derechos reservados.</p></td></tr></tbody></table></td></tr></tbody></table></td></tr></tbody></table></center></body></html>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "2c371678-53c7-4bd0-a779-3c2bb2c04787",
+      "name": "Send a message",
+      "retryOnFail": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "kZpCrF2WYlMkP0DJ",
+          "name": "Gmail account Aplicaciones Grupo Nova"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

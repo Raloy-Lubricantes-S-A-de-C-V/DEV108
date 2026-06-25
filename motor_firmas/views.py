@@ -32,6 +32,7 @@ N8N_WEBHOOK_ANALIZAR_PLANTILLA = "https://n8n.raloy.com.mx/webhook/analizar-plan
 N8N_WEBHOOK_PREPARAR_DIR = "https://n8n.raloy.com.mx/webhook/preparar-directorio"
 N8N_WEBHOOK_SUBIR_PDF_USUARIO = "https://n8n.raloy.com.mx/webhook/subir-pdf-usuario"
 N8N_WEBHOOK_ENVIAR_QR = "https://n8n.raloy.com.mx/webhook/enviar-qr-trazabilidad"
+N8N_WEBHOOK_NOTIFICAR_FIRMX = "https://n8n.raloy.com.mx/webhook/notificar-firmx"
 
 PUBLIC_BASE_URL = "https://dsign.raloy.com.mx"
 QR_TRAZABILIDAD_SALT = "motor_firmas.trazabilidad_qr"
@@ -2022,7 +2023,7 @@ def firmx_enviar_notificaciones(request, document_id):
     }
     
     try:
-        response = requests.post(N8N_WEBHOOK_ENVIAR_QR, json=payload_n8n, timeout=20)
+        response = requests.post(N8N_WEBHOOK_NOTIFICAR_FIRMX, json=payload_n8n, timeout=20)
         
         # Trazabilidad
         api_steps = summary_data.get('api_steps', [])
