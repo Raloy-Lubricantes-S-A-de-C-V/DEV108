@@ -365,6 +365,9 @@ class HomeRedirectTest(SimpleTestCase):
 
         self.assertIn('Step 1 de 4', html)
         self.assertIn('PDF y firmantes', html)
+        self.assertIn('firmxToggleIntegrationSideButton', html)
+        self.assertIn('firmxToggleSignersButton', html)
+        self.assertIn('firmxZoomLabel', html)
         self.assertIn('API FIRMX', html)
         self.assertIn('firmxCurlPreview', html)
 

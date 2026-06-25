@@ -21,7 +21,10 @@
     .firmx-curl { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
     .firmx-qr-frame { width: 220px; min-height: 220px; border: 1px solid #c4c6cd; border-radius: 0.75rem; background: #fff; display: flex; align-items: center; justify-content: center; margin: 0 auto; padding: 1rem; }
     .firmx-qr-frame img { max-width: 180px; max-height: 180px; }
-    .firmx-pdf-stage { min-height: 520px; background: #edeeef; border: 1px solid #c4c6cd; border-radius: 0.75rem; overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 1rem; }
+    .firmx-workspace.side-collapsed { grid-template-columns: minmax(0, 1fr); }
+    .firmx-workspace.side-collapsed .firmx-side { display: none; }
+    .firmx-review-panel.collapsed .firmx-signers-body { display: none; }
+    .firmx-pdf-stage { height: min(76vh, 860px); min-height: 620px; background: #edeeef; border: 1px solid #c4c6cd; border-radius: 0.75rem; overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 1rem; }
     .firmx-pdf-wrapper { position: relative; display: inline-block; background: white; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.16); }
     .firmx-pdf-wrapper canvas { display: block; max-width: none; }
     .firmx-summary-list { display: grid; gap: 0.65rem; color: #43474c; font-size: 0.88rem; }
@@ -30,7 +33,7 @@
     .firmx-side { position: sticky; top: 1.25rem; }
     @media screen and (max-width: 1023px) {
         .firmx-side { position: static; }
-        .firmx-pdf-stage { min-height: 360px; }
+        .firmx-pdf-stage { height: 68vh; min-height: 380px; }
     }
 </style>
 {% endblock %}
@@ -59,7 +62,7 @@
         </div>
     </header>
 
-    <div class="grid grid-cols-1 xl:grid-cols-[1fr_390px] gap-6 items-start">
+    <div id="firmxWorkspace" class="firmx-workspace grid grid-cols-1 xl:grid-cols-[1fr_390px] gap-6 items-start">
         <main class="space-y-5">
             <nav class="grid grid-cols-1 md:grid-cols-4 gap-3" aria-label="Pasos FIRMX">
                 <button type="button" class="firmx-step-button active" data-step-button="1" onclick="goToFirmxStep(1)">
@@ -137,11 +140,37 @@
                         <div id="firmxStepOneSummary" class="firmx-summary-list"></div>
                     </div>
 
-                    <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-5">
-                        <div>
-                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
-                                <h3 class="text-lg font-bold text-primary">Vista del documento</h3>
-                                <div class="inline-flex items-center gap-3 bg-white px-3 py-2 rounded-lg border border-outline-variant self-start">
+                    <div id="firmxSignerPanel" class="firmx-review-panel firmx-panel-muted p-4 collapsed">
+                        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div>
+                                <h3 class="text-lg font-bold text-primary">Firmantes</h3>
+                                <p id="firmxSignerCount" class="text-sm text-text-muted mt-1">Sin firmantes capturados</p>
+                            </div>
+                            <div class="flex flex-col sm:flex-row gap-2">
+                                <button id="firmxAddSignerButton" type="button" class="inline-flex items-center justify-center gap-2 border border-outline-variant bg-white text-primary px-4 py-3 rounded-lg font-bold hover:bg-surface-container transition-colors">
+                                    <span class="material-symbols-outlined text-[18px]">person_add</span>
+                                    Agregar firmante
+                                </button>
+                                <button id="firmxToggleSignersButton" type="button" onclick="toggleFirmxSignersPanel()" class="inline-flex items-center justify-center gap-2 bg-primary text-white px-4 py-3 rounded-lg font-bold hover:bg-primary-container transition-colors">
+                                    <span class="material-symbols-outlined text-[18px]">expand_more</span>
+                                    Mostrar firmantes
+                                </button>
+                            </div>
+                        </div>
+                        <div id="firmxSignersPanelBody" class="firmx-signers-body border-t border-outline-variant mt-4 pt-4">
+                            <div id="firmxSigners" class="grid grid-cols-1 lg:grid-cols-2 gap-3"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 mb-3">
+                            <h3 class="text-lg font-bold text-primary">Vista del documento</h3>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button id="firmxToggleIntegrationSideButton" type="button" onclick="toggleFirmxIntegrationSide()" class="inline-flex items-center gap-2 border border-outline-variant bg-white text-primary px-3 py-2 rounded-lg font-bold text-sm hover:bg-surface-container transition-colors">
+                                    <span class="material-symbols-outlined text-[18px]">dock_to_right</span>
+                                    Mostrar panel FIRMX
+                                </button>
+                                <div class="inline-flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-outline-variant">
                                     <button type="button" onclick="changeFirmxPdfPage(-1)" class="inline-flex items-center gap-1 text-primary font-bold text-sm hover:underline">
                                         <span class="material-symbols-outlined text-[18px]">chevron_left</span>
                                         Anterior
@@ -152,28 +181,30 @@
                                         <span class="material-symbols-outlined text-[18px]">chevron_right</span>
                                     </button>
                                 </div>
-                            </div>
-                            <div class="firmx-pdf-stage" id="firmxPdfStage">
-                                <div id="firmxPdfPlaceholder" class="text-center text-text-muted p-8">
-                                    <span class="material-symbols-outlined text-5xl text-outline mb-3">picture_as_pdf</span>
-                                    <p class="font-bold text-primary">El PDF se mostrará aquí al continuar desde el Step 1.</p>
-                                </div>
-                                <div id="firmxPdfWrapper" class="firmx-pdf-wrapper hidden">
-                                    <canvas id="firmxPdfCanvas"></canvas>
+                                <div class="inline-flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-outline-variant">
+                                    <button type="button" onclick="changeFirmxPdfZoom(-0.15)" class="inline-flex items-center text-primary hover:text-primary-container" title="Alejar">
+                                        <span class="material-symbols-outlined text-[20px]">zoom_out</span>
+                                    </button>
+                                    <span id="firmxZoomLabel" class="font-bold text-primary text-sm min-w-[48px] text-center">125%</span>
+                                    <button type="button" onclick="changeFirmxPdfZoom(0.15)" class="inline-flex items-center text-primary hover:text-primary-container" title="Acercar">
+                                        <span class="material-symbols-outlined text-[20px]">zoom_in</span>
+                                    </button>
+                                    <button type="button" onclick="fitFirmxPdfWidth()" class="inline-flex items-center gap-1 text-primary font-bold text-sm hover:underline">
+                                        <span class="material-symbols-outlined text-[18px]">fit_screen</span>
+                                        Ajustar
+                                    </button>
                                 </div>
                             </div>
                         </div>
-
-                        <aside class="firmx-panel-muted p-4">
-                            <div class="flex items-center justify-between gap-3 mb-4">
-                                <h3 class="text-lg font-bold text-primary">Firmantes</h3>
-                                <button id="firmxAddSignerButton" type="button" class="inline-flex items-center justify-center gap-2 border border-outline-variant bg-white text-primary px-3 py-2 rounded-lg font-bold hover:bg-surface-container transition-colors">
-                                    <span class="material-symbols-outlined text-[18px]">person_add</span>
-                                    Agregar
-                                </button>
+                        <div class="firmx-pdf-stage" id="firmxPdfStage">
+                            <div id="firmxPdfPlaceholder" class="text-center text-text-muted p-8">
+                                <span class="material-symbols-outlined text-5xl text-outline mb-3">picture_as_pdf</span>
+                                <p class="font-bold text-primary">El PDF se mostrará aquí al continuar desde el Step 1.</p>
                             </div>
-                            <div id="firmxSigners" class="space-y-3"></div>
-                        </aside>
+                            <div id="firmxPdfWrapper" class="firmx-pdf-wrapper hidden">
+                                <canvas id="firmxPdfCanvas"></canvas>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="flex flex-col sm:flex-row sm:justify-between gap-3">
@@ -330,6 +361,9 @@
     let firmxPdfDocument = null;
     let firmxPdfCurrentPage = 1;
     let firmxPdfTotalPages = 1;
+    let firmxPdfZoom = 1.25;
+    let firmxSignersExpanded = false;
+    let firmxIntegrationSideVisible = true;
 
     window.addEventListener('error', (event) => {
         const status = document.getElementById('firmxStatus');
@@ -370,6 +404,77 @@
     function setFirmxResponse(payload) {
         const response = document.getElementById('firmxResponse');
         response.textContent = typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2);
+    }
+
+    function updateFirmxWorkspace() {
+        const workspace = document.getElementById('firmxWorkspace');
+        const button = document.getElementById('firmxToggleIntegrationSideButton');
+        const collapseSide = currentFirmxStep === 2 && !firmxIntegrationSideVisible;
+        if (workspace) workspace.classList.toggle('side-collapsed', collapseSide);
+        if (button) {
+            button.innerHTML = collapseSide
+                ? '<span class="material-symbols-outlined text-[18px]">dock_to_right</span> Mostrar panel FIRMX'
+                : '<span class="material-symbols-outlined text-[18px]">dock_to_left</span> Ocultar panel FIRMX';
+        }
+    }
+
+    function toggleFirmxIntegrationSide() {
+        firmxIntegrationSideVisible = !firmxIntegrationSideVisible;
+        updateFirmxWorkspace();
+        if (firmxPdfDocument) window.setTimeout(fitFirmxPdfWidth, 60);
+    }
+
+    function updateFirmxSignersPanel() {
+        const panel = document.getElementById('firmxSignerPanel');
+        const button = document.getElementById('firmxToggleSignersButton');
+        const count = document.getElementById('firmxSignerCount');
+        const rowCount = document.querySelectorAll('#firmxSigners .firmx-signer-row').length;
+        const capturedCount = collectSigners(false).signers.length;
+        if (panel) panel.classList.toggle('collapsed', !firmxSignersExpanded);
+        if (button) {
+            button.innerHTML = firmxSignersExpanded
+                ? '<span class="material-symbols-outlined text-[18px]">expand_less</span> Ocultar firmantes'
+                : '<span class="material-symbols-outlined text-[18px]">expand_more</span> Mostrar firmantes';
+        }
+        if (count) {
+            if (capturedCount) {
+                count.textContent = `${capturedCount} firmante${capturedCount === 1 ? '' : 's'} capturado${capturedCount === 1 ? '' : 's'}`;
+            } else if (rowCount) {
+                count.textContent = `${rowCount} firmante${rowCount === 1 ? '' : 's'} pendiente${rowCount === 1 ? '' : 's'}`;
+            } else {
+                count.textContent = 'Sin firmantes capturados';
+            }
+        }
+    }
+
+    function toggleFirmxSignersPanel(forceValue = null) {
+        firmxSignersExpanded = forceValue === null ? !firmxSignersExpanded : !!forceValue;
+        updateFirmxSignersPanel();
+    }
+
+    function updateFirmxZoomLabel() {
+        const label = document.getElementById('firmxZoomLabel');
+        if (label) label.textContent = `${Math.round(firmxPdfZoom * 100)}%`;
+    }
+
+    function changeFirmxPdfZoom(delta) {
+        firmxPdfZoom = Math.min(2.4, Math.max(0.55, firmxPdfZoom + delta));
+        updateFirmxZoomLabel();
+        if (firmxPdfDocument) renderFirmxPdfPage(firmxPdfCurrentPage);
+    }
+
+    async function fitFirmxPdfWidth() {
+        if (!firmxPdfDocument) {
+            updateFirmxZoomLabel();
+            return;
+        }
+        const stage = document.getElementById('firmxPdfStage');
+        const page = await firmxPdfDocument.getPage(firmxPdfCurrentPage);
+        const viewport = page.getViewport({ scale: 1 });
+        const availableWidth = Math.max(320, stage.clientWidth - 48);
+        firmxPdfZoom = Math.min(2.4, Math.max(0.55, availableWidth / viewport.width));
+        updateFirmxZoomLabel();
+        await renderFirmxPdfPage(firmxPdfCurrentPage);
     }
 
     async function parseFetchPayload(response) {
@@ -507,6 +612,7 @@
             if (currentFirmxStep === 3) side.innerHTML = stepOneSummaryHtml() + '<hr class="border-outline-variant my-2">' + signersSummaryHtml();
             if (currentFirmxStep === 4) side.innerHTML = stepOneSummaryHtml() + '<hr class="border-outline-variant my-2">' + signersSummaryHtml() + '<hr class="border-outline-variant my-2">' + notificationSummaryHtml();
         }
+        updateFirmxSignersPanel();
         updateCurlPreview('register');
     }
 
@@ -547,6 +653,7 @@
         }
 
         currentFirmxStep = target;
+        firmxIntegrationSideVisible = target !== 2;
         document.querySelectorAll('[data-step-panel]').forEach(panel => {
             panel.classList.toggle('active', panel.dataset.stepPanel === String(target));
         });
@@ -556,6 +663,7 @@
             button.classList.toggle('done', buttonStep < target);
         });
 
+        updateFirmxWorkspace();
         if (target === 2) loadFirmxPdfPreview();
         updateSummaries();
         setFirmxStatus(target === 4 ? 'Listo para consultar resultado o QR.' : `Step ${target} activo.`);
@@ -584,10 +692,16 @@
             row.remove();
             renumberFirmxSigners();
             updateSummaries();
+            updateFirmxSignersPanel();
         });
-        row.querySelectorAll('input').forEach(input => input.addEventListener('input', updateSummaries));
+        row.querySelectorAll('input').forEach(input => input.addEventListener('input', () => {
+            updateSummaries();
+            updateFirmxSignersPanel();
+        }));
         container.appendChild(row);
+        if (currentFirmxStep === 2) firmxSignersExpanded = true;
         updateSummaries();
+        updateFirmxSignersPanel();
     }
 
     function renumberFirmxSigners() {
@@ -605,6 +719,8 @@
         firmxPdfDocument = null;
         firmxPdfCurrentPage = 1;
         firmxPdfTotalPages = 1;
+        firmxPdfZoom = 1.25;
+        updateFirmxZoomLabel();
         document.getElementById('firmxPdfPageInfo').textContent = 'Página 1 de 1';
         document.getElementById('firmxPdfWrapper').classList.add('hidden');
         const placeholder = document.getElementById('firmxPdfPlaceholder');
@@ -631,7 +747,7 @@
             firmxPdfTotalPages = firmxPdfDocument.numPages;
             placeholder.classList.add('hidden');
             wrapper.classList.remove('hidden');
-            renderFirmxPdfPage(1);
+            await fitFirmxPdfWidth();
         } catch (error) {
             placeholder.classList.remove('hidden');
             wrapper.classList.add('hidden');
@@ -643,7 +759,7 @@
     async function renderFirmxPdfPage(pageNum) {
         if (!firmxPdfDocument) return;
         const page = await firmxPdfDocument.getPage(pageNum);
-        const viewport = page.getViewport({ scale: 1.35 });
+        const viewport = page.getViewport({ scale: firmxPdfZoom });
         const canvas = document.getElementById('firmxPdfCanvas');
         const ctx = canvas.getContext('2d');
         canvas.height = viewport.height;
@@ -652,6 +768,7 @@
         await page.render({ canvasContext: ctx, viewport }).promise;
         firmxPdfCurrentPage = pageNum;
         document.getElementById('firmxPdfPageInfo').textContent = `Página ${pageNum} de ${firmxPdfTotalPages}`;
+        updateFirmxZoomLabel();
     }
 
     function changeFirmxPdfPage(delta) {
@@ -809,6 +926,9 @@
             el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', updateSummaries);
         });
         addFirmxSigner();
+        updateFirmxWorkspace();
+        updateFirmxZoomLabel();
+        updateFirmxSignersPanel();
         updateSummaries();
     });
 </script>
