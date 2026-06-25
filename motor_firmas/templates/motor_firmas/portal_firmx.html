@@ -62,30 +62,31 @@
         </div>
     </header>
 
+    <nav class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6" aria-label="Pasos FIRMX">
+        <button type="button" class="firmx-step-button active" data-step-button="1" onclick="goToFirmxStep(1)">
+            <span class="firmx-step-index">1</span>
+            <span>Archivo y datos</span>
+        </button>
+        <button type="button" class="firmx-step-button" data-step-button="2" onclick="goToFirmxStep(2)">
+            <span class="firmx-step-index">2</span>
+            <span>PDF y firmantes</span>
+        </button>
+        <button type="button" class="firmx-step-button" data-step-button="3" onclick="goToFirmxStep(3)">
+            <span class="firmx-step-index">3</span>
+            <span>Confirmación</span>
+        </button>
+        <button type="button" class="firmx-step-button" data-step-button="4" onclick="goToFirmxStep(4)">
+            <span class="firmx-step-index">4</span>
+            <span>Registro y QR</span>
+        </button>
+        <button type="button" class="firmx-step-button" data-step-button="5" onclick="goToFirmxStep(5)">
+            <span class="firmx-step-index">5</span>
+            <span>Notificaciones</span>
+        </button>
+    </nav>
+
     <div id="firmxWorkspace" class="firmx-workspace grid grid-cols-1 xl:grid-cols-[1fr_390px] gap-6 items-start">
         <main class="space-y-5">
-            <nav class="grid grid-cols-1 md:grid-cols-5 gap-3" aria-label="Pasos FIRMX">
-                <button type="button" class="firmx-step-button active" data-step-button="1" onclick="goToFirmxStep(1)">
-                    <span class="firmx-step-index">1</span>
-                    <span>Archivo y datos</span>
-                </button>
-                <button type="button" class="firmx-step-button" data-step-button="2" onclick="goToFirmxStep(2)">
-                    <span class="firmx-step-index">2</span>
-                    <span>PDF y firmantes</span>
-                </button>
-                <button type="button" class="firmx-step-button" data-step-button="3" onclick="goToFirmxStep(3)">
-                    <span class="firmx-step-index">3</span>
-                    <span>Confirmación</span>
-                </button>
-                <button type="button" class="firmx-step-button" data-step-button="4" onclick="goToFirmxStep(4)">
-                    <span class="firmx-step-index">4</span>
-                    <span>Registro y QR</span>
-                </button>
-                <button type="button" class="firmx-step-button" data-step-button="5" onclick="goToFirmxStep(5)">
-                    <span class="firmx-step-index">5</span>
-                    <span>Notificaciones</span>
-                </button>
-            </nav>
 
             <section class="firmx-step-shell active" data-step-panel="1">
                 <div class="firmx-panel p-5 md:p-6 space-y-5">
