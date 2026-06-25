@@ -426,6 +426,13 @@
     const isFirmxAdmin = {% if es_admin_firmx %}true{% else %}false{% endif %};
     let currentFirmxStep = 1;
     let firmxDocumentId = '';
+    let firmxFolio = '';
+    let lastFirmxRegistrationMsg = '';
+    let lastFirmxRegistrationType = '';
+    let lastFirmxQrMsg = '';
+    let lastFirmxQrType = '';
+    let lastFirmxNotifyMsg = '';
+    let lastFirmxNotifyType = '';
     let firmxSelectedFile = null;
     let firmxPdfObjectUrl = '';
     let firmxPdfDocument = null;
@@ -713,15 +720,42 @@
         if (stepOne) stepOne.innerHTML = stepOneSummaryHtml();
         if (stepTwo) stepTwo.innerHTML = stepOneSummaryHtml() + '<hr class="border-outline-variant my-2">' + signersSummaryHtml();
         if (stepThree) stepThree.innerHTML = stepOneSummaryHtml() + '<hr class="border-outline-variant my-2">' + signersSummaryHtml() + '<hr class="border-outline-variant my-2">' + notificationSummaryHtml();
+        
         if (side) {
-            if (currentFirmxStep === 1) side.innerHTML = stepOneSummaryHtml();
-            if (currentFirmxStep === 2) side.innerHTML = stepOneSummaryHtml();
-            if (currentFirmxStep === 3) side.innerHTML = stepOneSummaryHtml() + '<hr class="border-outline-variant my-2">' + signersSummaryHtml();
-            if (currentFirmxStep === 4) side.innerHTML = stepOneSummaryHtml() + '<hr class="border-outline-variant my-2">' + signersSummaryHtml() + '<hr class="border-outline-variant my-2">' + notificationSummaryHtml();
-            if (currentFirmxStep === 5) side.innerHTML = stepOneSummaryHtml() + '<hr class="border-outline-variant my-2">' + signersSummaryHtml() + '<hr class="border-outline-variant my-2">' + notificationSummaryHtml();
+            let html = stepOneSummaryHtml();
+            const signers = collectSigners(false).signers;
+            if (currentFirmxStep >= 2 || signers.length > 0) {
+                html += '<hr class="border-outline-variant my-2">' + signersSummaryHtml();
+            }
+            if (currentFirmxStep >= 3) {
+                html += '<hr class="border-outline-variant my-2">' + notificationSummaryHtml();
+            }
+            if (firmxDocumentId || firmxFolio) {
+                html += `
+                    <hr class="border-outline-variant my-2">
+                    <div class="text-status-success font-bold text-xs uppercase mb-2">Resultado FIRMX</div>
+                    <div class="text-xs text-primary"><strong>Folio:</strong> ${escapeHtml(firmxFolio || 'N/A')}</div>
+                    <div class="text-xs text-primary"><strong>ID FIRMX:</strong> ${escapeHtml(firmxDocumentId || 'N/A')}</div>
+                `;
+            }
+            side.innerHTML = html;
         }
         updateFirmxSignersPanel();
         updateCurlPreview('register');
+
+        // Actualizar botón de registro si ya existe uno
+        const submitBtn = document.getElementById('firmxSubmitButton');
+        if (submitBtn) {
+            if (firmxDocumentId || firmxFolio) {
+                submitBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">verified</span> Volver a registrar documento';
+                submitBtn.classList.remove('bg-primary');
+                submitBtn.classList.add('bg-status-success');
+            } else {
+                submitBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">send</span> Registrar documento en FIRMX';
+                submitBtn.classList.add('bg-primary');
+                submitBtn.classList.remove('bg-status-success');
+            }
+        }
     }
 
     function validateStepOne() {
@@ -774,7 +808,25 @@
         updateFirmxWorkspace();
         if (target === 2) loadFirmxPdfPreview();
         updateSummaries();
-        setFirmxStatus(target >= 4 ? 'Listo para consultar resultado, QR o notificaciones.' : `Step ${target} activo.`);
+
+        // Restaurar estado visual si existe
+        if (target === 4 && lastFirmxRegistrationMsg) {
+            setFinalState(lastFirmxRegistrationMsg, lastFirmxRegistrationType);
+            if (lastFirmxQrMsg) setFinalState(lastFirmxQrMsg, lastFirmxQrType);
+        }
+        if (target === 5 && lastFirmxNotifyMsg) {
+            const stateBox = document.getElementById('firmxNotifyState');
+            if (stateBox) {
+                stateBox.classList.remove('hidden');
+                stateBox.textContent = lastFirmxNotifyMsg;
+            }
+        }
+
+        if (lastFirmxRegistrationMsg && target >= 4) {
+            setFirmxStatus(lastFirmxRegistrationMsg, lastFirmxRegistrationType);
+        } else {
+            setFirmxStatus(target >= 4 ? 'Listo para consultar resultado, QR o notificaciones.' : `Step ${target} activo.`);
+        }
     }
 
     function addFirmxSigner(name = '', email = '') {
@@ -926,9 +978,19 @@
 
     function setFinalState(message, type = 'muted') {
         const box = document.getElementById('firmxFinalState');
+        if (!box) return;
         const color = type === 'ok' ? 'text-status-success' : type === 'error' ? 'text-status-danger' : 'text-on-surface-variant';
         box.className = `bg-surface-container-low border border-outline-variant rounded-xl p-5 font-semibold ${color}`;
         box.textContent = message;
+        
+        // Persistir según el contenido
+        if (message.includes('Documento registrado') || message.includes('Folio:')) {
+            lastFirmxRegistrationMsg = message;
+            lastFirmxRegistrationType = type;
+        } else if (message.includes('QR obtenido')) {
+            lastFirmxQrMsg = message;
+            lastFirmxQrType = type;
+        }
     }
 
     function validateStepThree() {
@@ -977,6 +1039,7 @@
             if (payload.firmx_curl) updateCurlPreview('register', payload.firmx_curl);
             if (!res.ok) throw new Error(payload.error || 'FIRMX no pudo registrar el documento.');
             firmxDocumentId = payload.document_id || '';
+            firmxFolio = payload.folio || '';
             document.getElementById('firmxDocumentIdManual').value = firmxDocumentId;
             document.getElementById('firmxQrButton').disabled = !firmxDocumentId;
             document.getElementById('firmxMainQrButton').disabled = !firmxDocumentId;
@@ -984,6 +1047,7 @@
             const okMessage = firmxDocumentId ? `Documento registrado. Folio: ${folio} (ID FIRMX: ${firmxDocumentId})` : `Documento registrado. Folio: ${folio}. Captura el ID FIRMX para consultar QR.`;
             setFirmxStatus(okMessage, 'ok');
             setFinalState(okMessage, 'ok');
+            updateSummaries();
 
             // Cargar QR automáticamente si tenemos el ID
             if (firmxDocumentId) {
@@ -1058,7 +1122,10 @@
             if (!res.ok) throw new Error(payload.error || 'Error al enviar notificaciones.');
 
             stateBox.classList.remove('hidden');
-            stateBox.textContent = `Notificaciones enviadas correctamente a: ${payload.sent_to.join(', ')}`;
+            const okMsg = `Notificaciones enviadas correctamente a: ${payload.sent_to.join(', ')}`;
+            stateBox.textContent = okMsg;
+            lastFirmxNotifyMsg = okMsg;
+            lastFirmxNotifyType = 'ok';
             setFirmxStatus('Notificaciones enviadas.', 'ok');
             
         } catch (error) {
