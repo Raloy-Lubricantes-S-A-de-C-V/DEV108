@@ -903,7 +903,8 @@
             document.getElementById('firmxDocumentIdManual').value = firmxDocumentId;
             document.getElementById('firmxQrButton').disabled = !firmxDocumentId;
             document.getElementById('firmxMainQrButton').disabled = !firmxDocumentId;
-            const okMessage = firmxDocumentId ? `Documento registrado. ID FIRMX: ${firmxDocumentId}` : 'Documento registrado. Captura el ID FIRMX para consultar QR.';
+            const folio = payload.folio || 'N/A';
+            const okMessage = firmxDocumentId ? `Documento registrado. Folio: ${folio} (ID FIRMX: ${firmxDocumentId})` : `Documento registrado. Folio: ${folio}. Captura el ID FIRMX para consultar QR.`;
             setFirmxStatus(okMessage, 'ok');
             setFinalState(okMessage, 'ok');
 

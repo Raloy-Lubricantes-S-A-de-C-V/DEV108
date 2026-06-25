@@ -766,6 +766,27 @@ def _crear_proceso_firma_mongo(
     return _mongo_to_namespace(document)
 
 
+def _generar_folio_firmx(test_mode=True):
+    prefix = "FXP" if test_mode else "FX"
+    try:
+        db = _mongo_database()
+        # Usar find_one_and_update para asegurar atomicidad de la secuencia
+        # return_document=True equivale a ReturnDocument.AFTER
+        res = db.secuencias.find_one_and_update(
+            {'_id': 'folio_firmx'},
+            {'$inc': {'valor': 1}},
+            upsert=True,
+            return_document=True
+        )
+        valor = res.get('valor', 1)
+    except Exception as e:
+        print(f"Error generando folio FIRMX: {e}")
+        # Fallback simple basado en timestamp si falla la secuencia atómica
+        valor = int(timezone.now().timestamp())
+    
+    return f"{prefix}-{str(valor).zfill(10)}"
+
+
 def _check_pin_colaborador(colaborador, pin):
     return bool(colaborador and check_password(pin or '', getattr(colaborador, 'pin_hash', '')))
 
@@ -1760,11 +1781,14 @@ def firmx_registrar_documento(request):
         }, status=502)
 
     document_id = _extract_firmx_document_id(response_data)
+    ref_id = None
 
     # Trazabilidad: Guardar registro local si se obtuvo el ID
     if document_id:
         try:
-            ref_id = f"FIRMX-{document_id}"
+            # Generar folio secuencial (FXP para pruebas conforme a solicitud)
+            ref_id = _generar_folio_firmx(test_mode=True)
+
             # Asegurar directorio y guardar PDF local
             os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
             file_path = os.path.join(settings.MEDIA_ROOT, f"{ref_id}.pdf")
@@ -1773,18 +1797,30 @@ def firmx_registrar_documento(request):
                 for chunk in pdf_file.chunks():
                     destination.write(chunk)
 
+            # Extraer estado de FIRMX si está disponible
+            firmx_data = response_data.get('data', {})
+            firmx_status_raw = firmx_data.get('document_status', 'waiting_for_signatures')
+            
+            # Mapear estado de FIRMX a nuestro sistema
+            local_status = 'FIRMX_WAITING'
+            if firmx_status_raw == 'completed':
+                local_status = 'COMPLETED'
+            elif firmx_status_raw == 'cancelled':
+                local_status = 'CANCELLED'
+
             # Crear proceso en MongoDB para trazabilidad en el dashboard
             _crear_proceso_firma_mongo(
                 reference_id=ref_id,
                 pdf_path=file_path,
                 firmantes=firmantes_limpios,
                 indice_actual=1,
-                status='FIRMX_WAITING',
+                status=local_status,
                 view_info='firmx',
                 summary_data={
                     "firmx_id": document_id,
                     "document_name": document_name,
-                    "firmx_response": response_data
+                    "firmx_response": response_data,
+                    "firmx_status_raw": firmx_status_raw
                 },
                 owner_email=owner_email,
                 exec_mode='firmx'
@@ -1796,6 +1832,7 @@ def firmx_registrar_documento(request):
         "status": "success",
         "firmx_status": response.status_code,
         "document_id": document_id,
+        "folio": ref_id,
         "firmx_response": response_data,
         **firmx_debug,
     })
