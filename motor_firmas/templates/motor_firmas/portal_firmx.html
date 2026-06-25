@@ -906,6 +906,11 @@
             const okMessage = firmxDocumentId ? `Documento registrado. ID FIRMX: ${firmxDocumentId}` : 'Documento registrado. Captura el ID FIRMX para consultar QR.';
             setFirmxStatus(okMessage, 'ok');
             setFinalState(okMessage, 'ok');
+
+            // Cargar QR automáticamente si tenemos el ID
+            if (firmxDocumentId) {
+                setTimeout(() => loadFirmxQr(), 500);
+            }
         } catch (error) {
             setFirmxStatus(error.message, 'error');
             setFinalState(error.message, 'error');

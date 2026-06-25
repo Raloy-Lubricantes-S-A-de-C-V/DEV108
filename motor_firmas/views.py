@@ -654,18 +654,30 @@ def _json_response_from_requests(response):
 
 def _extract_firmx_document_id(data):
     if isinstance(data, dict):
+        # 1. Buscar campos directos conocidos
         for key in ('document_id', 'documentId', 'id', 'document', 'document_pk', 'pk'):
             value = data.get(key)
             if isinstance(value, (str, int)) and str(value).strip():
                 return str(value).strip()
-            if isinstance(value, dict):
-                nested = _extract_firmx_document_id(value)
-                if nested:
-                    return nested
-        for value in data.values():
+
+        # 2. Buscar en URLs dentro de 'data' (Estructura observada en FIRMX v1)
+        data_obj = data.get('data')
+        if isinstance(data_obj, dict):
+            for url_key in ('document_url', 'qrcode_url', 'url'):
+                url = data_obj.get(url_key)
+                if isinstance(url, str):
+                    # El ID numérico suele estar al final de la URL, e.g. .../api/1565
+                    match = re.search(r'/(\d+)(?:/|$)[\w-]*$', url)
+                    if match:
+                        return match.group(1)
+
+        # 3. Búsqueda recursiva genérica
+        for key, value in data.items():
+            if key == 'data': continue  # Evitar doble procesamiento si ya se hizo arriba
             nested = _extract_firmx_document_id(value)
             if nested:
                 return nested
+
     if isinstance(data, list):
         for item in data:
             nested = _extract_firmx_document_id(item)
@@ -1747,10 +1759,43 @@ def firmx_registrar_documento(request):
             **firmx_debug,
         }, status=502)
 
+    document_id = _extract_firmx_document_id(response_data)
+
+    # Trazabilidad: Guardar registro local si se obtuvo el ID
+    if document_id:
+        try:
+            ref_id = f"FIRMX-{document_id}"
+            # Asegurar directorio y guardar PDF local
+            os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
+            file_path = os.path.join(settings.MEDIA_ROOT, f"{ref_id}.pdf")
+            pdf_file.seek(0)
+            with open(file_path, 'wb+') as destination:
+                for chunk in pdf_file.chunks():
+                    destination.write(chunk)
+
+            # Crear proceso en MongoDB para trazabilidad en el dashboard
+            _crear_proceso_firma_mongo(
+                reference_id=ref_id,
+                pdf_path=file_path,
+                firmantes=firmantes_limpios,
+                indice_actual=1,
+                status='FIRMX_WAITING',
+                view_info='firmx',
+                summary_data={
+                    "firmx_id": document_id,
+                    "document_name": document_name,
+                    "firmx_response": response_data
+                },
+                owner_email=owner_email,
+                exec_mode='firmx'
+            )
+        except Exception as e:
+            print(f"Error guardando trazabilidad FIRMX: {e}")
+
     return JsonResponse({
         "status": "success",
         "firmx_status": response.status_code,
-        "document_id": _extract_firmx_document_id(response_data),
+        "document_id": document_id,
         "firmx_response": response_data,
         **firmx_debug,
     })
