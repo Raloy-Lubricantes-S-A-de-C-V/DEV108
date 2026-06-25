@@ -745,6 +745,12 @@ def _otp_es_valido(otp_record, code_ingresado):
     )
 
 
+def home_redirect(request):
+    if request.session.get('owner_email'):
+        return redirect('portal_dashboard')
+    return redirect('portal_login')
+
+
 def _generar_otp_mongo(email):
     otp_code = str(uuid.uuid4().int)[-6:]
     otp_record, _ = _mongo_update_or_insert_by_query(

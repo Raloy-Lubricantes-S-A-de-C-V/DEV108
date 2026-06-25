@@ -4,7 +4,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import fitz
-from django.test import SimpleTestCase
+from django.contrib.sessions.middleware import SessionMiddleware
+from django.template.loader import render_to_string
+from django.test import Client, RequestFactory, SimpleTestCase
 
 from . import utils
 from .views import (
@@ -13,6 +15,7 @@ from .views import (
     _mongo_find_one_by_id,
     _mongo_update_document,
     _datos_ajuste_firmantes,
+    home_redirect,
     _indice_pendiente_actual,
     _indice_por_token,
     _indices_firmas_en_turno,
@@ -259,3 +262,42 @@ class SignatureAdjustmentPdfTest(SimpleTestCase):
             self.assertIn("HOJA DE CORRE", adjusted[1].get_text("text"))
             self.assertIn('firmante-1', result['posiciones'])
             adjusted.close()
+
+
+class HomeRedirectTest(SimpleTestCase):
+    def setUp(self):
+        self.client = Client()
+        self.factory = RequestFactory()
+
+    def _request_with_session(self, session_data=None):
+        request = self.factory.get('/')
+        middleware = SessionMiddleware(lambda req: None)
+        middleware.process_request(request)
+        for key, value in (session_data or {}).items():
+            request.session[key] = value
+        return request
+
+    def test_root_redirects_to_portal_login_without_session(self):
+        response = home_redirect(self._request_with_session())
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], '/portal/')
+
+    def test_root_redirects_to_portal_dashboard_with_owner_session(self):
+        response = home_redirect(self._request_with_session({'owner_email': 'usuario@example.com'}))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], '/portal/dashboard/')
+
+    def test_portal_login_has_admin_panel_link(self):
+        response = self.client.get('/portal/')
+
+        self.assertContains(response, 'Ir al panel administrativo')
+        self.assertContains(response, '/admin-portal/')
+
+    def test_portal_login_admin_link_points_to_dashboard_when_admin_session_exists(self):
+        request = self._request_with_session({'admin_email': 'admin@example.com'})
+
+        html = render_to_string('motor_firmas/portal_login.html', request=request)
+
+        self.assertIn('/admin-portal/dashboard/', html)

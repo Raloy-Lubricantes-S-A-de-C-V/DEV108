@@ -2,6 +2,8 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    path('', views.home_redirect, name='home_redirect'),
+
     # RUTAS API N8N Y FIRMA NORMAL
     path('api/recibir-documento/', views.recibir_documento_n8n, name='recibir_documento'),
     path('firmar/<uuid:token>/', views.vista_firma_ui, name='vista_firma_old'),
