@@ -1,3 +1,5 @@
+import base64
+import json
 import os
 import tempfile
 from types import SimpleNamespace
@@ -5,8 +7,9 @@ from unittest.mock import patch
 
 import fitz
 from django.contrib.sessions.middleware import SessionMiddleware
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.template.loader import render_to_string
-from django.test import Client, RequestFactory, SimpleTestCase
+from django.test import Client, RequestFactory, SimpleTestCase, override_settings
 
 from . import utils
 from .views import (
@@ -14,7 +17,9 @@ from .views import (
     _mongo_delete_document,
     _mongo_find_one_by_id,
     _mongo_update_document,
+    _firmx_curl_preview,
     _datos_ajuste_firmantes,
+    firmx_registrar_documento,
     home_redirect,
     _indice_pendiente_actual,
     _indice_por_token,
@@ -71,6 +76,18 @@ class FakeMongoCollection:
 class MongoViewHelpersTest(SimpleTestCase):
     def _model(self, table_name):
         return SimpleNamespace(_meta=SimpleNamespace(db_table=table_name))
+
+    @override_settings(FIRMX_API_BASE_URL='https://stage.firmx.mobilender.mx/digisign/api/v1')
+    def test_firmx_curl_preview_redacts_base64_and_api_key(self):
+        curl = _firmx_curl_preview('POST', '/documents/register/', {
+            'document_name': 'Contrato',
+            'document_base64': 'abc123',
+        })
+
+        self.assertIn('https://stage.firmx.mobilender.mx/digisign/api/v1/documents/register/', curl)
+        self.assertIn('X-Api-Key: <FIRMX_API_KEY>', curl)
+        self.assertIn('<base64_pdf_omitido:6 caracteres>', curl)
+        self.assertNotIn('abc123', curl)
 
     def test_find_one_by_id_accepts_string_for_integer_id(self):
         model = self._model('motor_firmas_directoriofirmas')
@@ -329,6 +346,59 @@ class HomeRedirectTest(SimpleTestCase):
         self.assertIn('btnViewCards', html)
         self.assertIn('btnViewList', html)
         self.assertIn('Lista', html)
+
+    def test_portal_firmx_admin_template_shows_api_panel(self):
+        request = self._request_with_session({
+            'owner_email': 'usuario@example.com',
+            'admin_email': 'admin@example.com',
+        })
+
+        html = render_to_string(
+            'motor_firmas/portal_firmx.html',
+            {
+                'owner_email': 'usuario@example.com',
+                'firmx_base_url': 'https://stage.firmx.mobilender.mx/digisign/api/v1',
+                'es_admin_firmx': True,
+            },
+            request=request,
+        )
+
+        self.assertIn('Step 1 de 4', html)
+        self.assertIn('PDF y firmantes', html)
+        self.assertIn('API FIRMX', html)
+        self.assertIn('firmxCurlPreview', html)
+
+    @override_settings(FIRMX_API_BASE_URL='https://stage.firmx.mobilender.mx/digisign/api/v1')
+    def test_firmx_register_admin_response_includes_sanitized_curl(self):
+        request = self.factory.post('/api/firmx/register-document/', data={
+            'pdf_file': SimpleUploadedFile('contrato.pdf', b'%PDF-1.4 contenido', content_type='application/pdf'),
+            'document_name': 'Contrato',
+            'dead_line_to_sign': '2026-07-01',
+            'signers_json': json.dumps([{'name': 'Juan Perez', 'email': 'juan@example.com'}]),
+            'viewers_json': '[]',
+            'tags_json': '[]',
+        })
+        middleware = SessionMiddleware(lambda req: None)
+        middleware.process_request(request)
+        request.session['owner_email'] = 'usuario@example.com'
+        request.session['admin_email'] = 'admin@example.com'
+
+        fake_response = SimpleNamespace(
+            status_code=200,
+            headers={'content-type': 'application/json'},
+            json=lambda: {'document_id': 'firmx-123'},
+            text='{"document_id":"firmx-123"}',
+        )
+
+        with patch('motor_firmas.views._usuario_tiene_permiso', return_value=True), \
+                patch('motor_firmas.views.requests.post', return_value=fake_response):
+            response = firmx_registrar_documento(request)
+
+        payload = json.loads(response.content)
+        self.assertEqual(payload['status'], 'success')
+        self.assertIn('firmx_curl', payload)
+        self.assertIn('<base64_pdf_omitido:', payload['firmx_curl'])
+        self.assertNotIn(base64.b64encode(b'%PDF-1.4 contenido').decode('ascii'), payload['firmx_curl'])
 
     def test_admin_dashboard_shows_portal_switch_when_owner_session_exists(self):
         request = self._request_with_session({

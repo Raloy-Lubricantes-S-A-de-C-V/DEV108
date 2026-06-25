@@ -6,6 +6,7 @@ import re
 import uuid
 import shutil
 import base64
+import shlex
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 from urllib.parse import quote
@@ -617,6 +618,28 @@ def _firmx_url(path):
 
 def _firmx_timeout():
     return int(getattr(settings, 'FIRMX_REQUEST_TIMEOUT', 45))
+
+
+def _firmx_sanitize_payload_for_curl(payload):
+    safe_payload = json.loads(json.dumps(payload, ensure_ascii=False))
+    if isinstance(safe_payload, dict) and 'document_base64' in safe_payload:
+        base64_len = len(str(safe_payload.get('document_base64') or ''))
+        safe_payload['document_base64'] = f"<base64_pdf_omitido:{base64_len} caracteres>"
+    return safe_payload
+
+
+def _firmx_curl_preview(method, path, payload=None):
+    lines = [
+        f"curl --request {method.upper()} \\",
+        f"  --url {shlex.quote(_firmx_url(path))} \\",
+        "  --header 'X-Api-Key: <FIRMX_API_KEY>' \\",
+        "  --header 'Content-Type: application/json'",
+    ]
+    if payload is not None:
+        lines[-1] += " \\"
+        body = json.dumps(_firmx_sanitize_payload_for_curl(payload), ensure_ascii=False, indent=2)
+        lines.append(f"  --data {shlex.quote(body)}")
+    return "\n".join(lines)
 
 
 def _json_response_from_requests(response):
@@ -1621,6 +1644,7 @@ def portal_firmx(request):
     return render(request, 'motor_firmas/portal_firmx.html', {
         'owner_email': owner_email,
         'firmx_base_url': getattr(settings, 'FIRMX_API_BASE_URL', ''),
+        'es_admin_firmx': bool(request.session.get('admin_email')),
     })
 
 
@@ -1694,6 +1718,9 @@ def firmx_registrar_documento(request):
         "viewers": viewers_limpios,
         "message_for_request": request.POST.get('message_for_request') or 'Favor de revisar y firmar el documento.',
     }
+    firmx_debug = {}
+    if request.session.get('admin_email'):
+        firmx_debug["firmx_curl"] = _firmx_curl_preview('POST', '/documents/register/', firmx_payload)
 
     try:
         response = requests.post(
@@ -1704,13 +1731,14 @@ def firmx_registrar_documento(request):
         )
         response_data = _json_response_from_requests(response)
     except Exception as e:
-        return JsonResponse({"error": f"Error contactando FIRMX: {e}"}, status=502)
+        return JsonResponse({"error": f"Error contactando FIRMX: {e}", **firmx_debug}, status=502)
 
     if not 200 <= response.status_code < 300:
         return JsonResponse({
             "error": "FIRMX no pudo registrar el documento.",
             "firmx_status": response.status_code,
             "firmx_response": response_data,
+            **firmx_debug,
         }, status=502)
 
     return JsonResponse({
@@ -1718,6 +1746,7 @@ def firmx_registrar_documento(request):
         "firmx_status": response.status_code,
         "document_id": _extract_firmx_document_id(response_data),
         "firmx_response": response_data,
+        **firmx_debug,
     })
 
 
@@ -1735,6 +1764,10 @@ def firmx_obtener_qr(request, document_id):
     if not re.match(r'^[A-Za-z0-9_-]+$', clean_id):
         return JsonResponse({"error": "ID de documento FIRMX inválido."}, status=400)
 
+    firmx_debug = {}
+    if request.session.get('admin_email'):
+        firmx_debug["firmx_curl"] = _firmx_curl_preview('GET', f'/documents/api/{clean_id}/sign_qr')
+
     try:
         response = requests.get(
             _firmx_url(f'/documents/api/{clean_id}/sign_qr'),
@@ -1742,7 +1775,7 @@ def firmx_obtener_qr(request, document_id):
             timeout=_firmx_timeout(),
         )
     except Exception as e:
-        return JsonResponse({"error": f"Error contactando FIRMX: {e}"}, status=502)
+        return JsonResponse({"error": f"Error contactando FIRMX: {e}", **firmx_debug}, status=502)
 
     content_type = response.headers.get('content-type', '')
     if not 200 <= response.status_code < 300:
@@ -1750,6 +1783,7 @@ def firmx_obtener_qr(request, document_id):
             "error": "FIRMX no pudo obtener el QR.",
             "firmx_status": response.status_code,
             "firmx_response": _json_response_from_requests(response),
+            **firmx_debug,
         }, status=502)
 
     if content_type.lower().startswith('image/'):
@@ -1758,6 +1792,7 @@ def firmx_obtener_qr(request, document_id):
             "firmx_status": response.status_code,
             "content_type": content_type,
             "qr_image": f"data:{content_type};base64,{base64.b64encode(response.content).decode('ascii')}",
+            **firmx_debug,
         })
 
     return JsonResponse({
@@ -1765,6 +1800,7 @@ def firmx_obtener_qr(request, document_id):
         "firmx_status": response.status_code,
         "content_type": content_type,
         "firmx_response": _json_response_from_requests(response),
+        **firmx_debug,
     })
 
 
