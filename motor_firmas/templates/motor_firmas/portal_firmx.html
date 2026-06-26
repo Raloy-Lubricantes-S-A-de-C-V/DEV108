@@ -5,6 +5,10 @@
 
 {% block extra_head %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
 <style>
     .firmx-logo-panel { width: 8.5rem; max-width: 100%; height: auto; display: block; }
     .firmx-step-shell { display: none; }
@@ -378,7 +382,7 @@
                     <h2 class="text-lg font-bold text-primary">API FIRMX</h2>
                     <span id="firmxCurlAction" class="text-xs font-bold bg-secondary-container text-primary px-2 py-1 rounded">POST registro</span>
                 </div>
-                <pre id="firmxCurlPreview" class="firmx-curl text-xs bg-surface-container-low border border-outline-variant rounded-lg p-4 text-on-surface-variant">Completa el Step 1 para ver el cURL.</pre>
+                <pre class="firmx-curl bg-surface-container-low border border-outline-variant rounded-lg p-4"><code id="firmxCurlPreview" class="language-bash text-xs">Completa el Step 1 para ver el cURL.</code></pre>
             </section>
             {% endif %}
 
@@ -410,13 +414,18 @@
 
             <section class="bg-white rounded-xl border border-outline-variant p-5">
                 <h2 class="text-lg font-bold text-primary mb-3">Respuesta FIRMX</h2>
-                <pre id="firmxResponse" class="firmx-response text-xs bg-surface-container-low border border-outline-variant rounded-lg p-4 text-on-surface-variant">Sin respuesta todavía.</pre>
+                <pre class="firmx-response bg-surface-container-low border border-outline-variant rounded-lg p-4"><code id="firmxResponse" class="language-json text-xs">Sin respuesta todavía.</code></pre>
             </section>
 
             <section class="bg-white rounded-xl border border-outline-variant p-5">
                 <h2 class="text-lg font-bold text-primary mb-3">API KEY UTILIZADO</h2>
                 <div class="space-y-3">
-                    <input id="firmxApiKeyInput" type="password" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" value="{{ firmx_api_key }}">
+                    <div class="relative">
+                        <input id="firmxApiKeyInput" type="password" class="w-full pl-4 pr-12 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" value="{{ firmx_api_key }}">
+                        <button type="button" onclick="toggleFirmxApiKeyVisibility()" class="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-primary transition-colors">
+                            <span id="firmxApiKeyToggleIcon" class="material-symbols-outlined">visibility</span>
+                        </button>
+                    </div>
                     <button type="button" onclick="saveFirmxApiKey()" class="w-full bg-primary text-white px-4 py-2 rounded-lg font-bold hover:bg-primary-container transition-colors">
                         Guardar API Key
                     </button>
@@ -436,7 +445,7 @@
 
     const firmxBaseUrl = "{{ firmx_base_url|escapejs }}";
     const initialFirmxApiKey = "{{ firmx_api_key|escapejs }}";
-    const isFirmxAdmin = {% if es_admin_firmx %}true{% else %}false{% endif %};
+    const isFirmxAdmin = "{{ es_admin_firmx }}" === "True";
     let currentFirmxStep = 1;
     let firmxDocumentId = '';
     let firmxFolio = '';
@@ -479,7 +488,8 @@
 
     window.addEventListener('unhandledrejection', (event) => {
         const status = document.getElementById('firmxStatus');
-        if (status) setFirmxStatus(`Error de pantalla: ${event.reason?.message || event.reason}`, 'error');
+        const reason = event.reason || {};
+        if (status) setFirmxStatus(`Error de pantalla: ${reason.message || reason}`, 'error');
     });
 
     function todayPlus(days) {
@@ -489,7 +499,7 @@
     }
 
     function escapeHtml(value) {
-        return String(value ?? '').replace(/[&<>"']/g, char => ({
+        return String(value || '').replace(/[&<>"']/g, char => ({
             '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
         }[char]));
     }
@@ -499,7 +509,8 @@
     }
 
     function getDocumentName() {
-        return document.getElementById('firmxDocumentName').value.trim() || firmxSelectedFile?.name || '';
+        const fileName = firmxSelectedFile ? firmxSelectedFile.name : '';
+        return document.getElementById('firmxDocumentName').value.trim() || fileName || '';
     }
 
     function setFirmxStatus(message, type = 'muted') {
@@ -509,8 +520,8 @@
     }
 
     function setFirmxResponse(payload) {
-        const response = document.getElementById('firmxResponse');
-        if (!response) return;
+        const responseCode = document.getElementById('firmxResponse');
+        if (!responseCode) return;
 
         let display = payload;
         if (payload && typeof payload === 'object') {
@@ -524,7 +535,9 @@
             }
         }
 
-        response.textContent = display;
+        responseCode.textContent = display;
+        if (window.Prism) Prism.highlightElement(responseCode);
+
         if (payload && payload.api_steps) {
             renderFirmxApiSteps(payload.api_steps);
         }
@@ -712,27 +725,30 @@
 
     function updateCurlPreview(action = 'register', backendCurl = '') {
         if (!isFirmxAdmin) return;
-        const pre = document.getElementById('firmxCurlPreview');
+        const codeEl = document.getElementById('firmxCurlPreview');
         const label = document.getElementById('firmxCurlAction');
-        if (!pre || !label) return;
+        if (!codeEl || !label) return;
         if (backendCurl) {
-            pre.textContent = backendCurl;
+            codeEl.textContent = backendCurl;
+            if (window.Prism) Prism.highlightElement(codeEl);
             return;
         }
         if (action === 'qr') {
             const id = document.getElementById('firmxDocumentIdManual').value.trim() || firmxDocumentId || '<document_id>';
             label.textContent = 'GET QR';
-            pre.textContent = buildCurlPreview('GET', `/documents/api/${encodeURIComponent(id)}/sign_qr`);
-            return;
+            codeEl.textContent = buildCurlPreview('GET', `/documents/api/${encodeURIComponent(id)}/sign_qr`);
+        } else {
+            label.textContent = 'POST registro';
+            codeEl.textContent = buildCurlPreview('POST', '/documents/register/', buildFirmxPayloadPreview());
         }
-        label.textContent = 'POST registro';
-        pre.textContent = buildCurlPreview('POST', '/documents/register/', buildFirmxPayloadPreview());
+        if (window.Prism) Prism.highlightElement(codeEl);
     }
 
     function stepOneSummaryHtml() {
+        const fileName = firmxSelectedFile ? firmxSelectedFile.name : 'Sin PDF seleccionado';
         return `
             <div><strong>Documento:</strong> ${escapeHtml(getDocumentName() || 'Sin nombre')}</div>
-            <div><strong>Archivo:</strong> ${escapeHtml(firmxSelectedFile?.name || 'Sin PDF seleccionado')}</div>
+            <div><strong>Archivo:</strong> ${escapeHtml(fileName)}</div>
             <div><strong>Tipo:</strong> ${escapeHtml(document.getElementById('firmxSignatureType').value)}</div>
             <div><strong>Fecha límite:</strong> ${escapeHtml(document.getElementById('firmxDeadline').value || 'Pendiente')}</div>
         `;
@@ -1223,21 +1239,6 @@
         updateFirmxSignersPanel();
         updateSummaries();
     });
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
-    }
-
     async function saveFirmxApiKey() {
         const apiKey = document.getElementById('firmxApiKeyInput').value.trim();
         if (!apiKey) {
@@ -1263,6 +1264,18 @@
         } catch (err) {
             console.error(err);
             alert('Error de conexión al guardar la API Key.');
+        }
+    }
+
+    function toggleFirmxApiKeyVisibility() {
+        const input = document.getElementById('firmxApiKeyInput');
+        const icon = document.getElementById('firmxApiKeyToggleIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.textContent = 'visibility_off';
+        } else {
+            input.type = 'password';
+            icon.textContent = 'visibility';
         }
     }
 </script>
