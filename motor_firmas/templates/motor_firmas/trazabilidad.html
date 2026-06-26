@@ -48,17 +48,6 @@
                         {% endif %}
                     </div>
 
-                    {% if sync_error %}
-                        <div class="mt-4 mx-auto max-w-md bg-status-danger/10 border border-status-danger/20 text-status-danger px-4 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2">
-                            <span class="material-symbols-outlined text-[16px]">error</span>
-                            Error de sincronización con FIRMX: {{ sync_error }}
-                        </div>
-                    {% elif es_firmx and proceso.status != 'COMPLETED' and proceso.status != 'CANCELLED' %}
-                        <div class="mt-4 mx-auto max-w-md bg-status-success/10 border border-status-success/20 text-status-success px-4 py-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-2">
-                            <span class="material-symbols-outlined text-[14px] animate-spin">sync</span>
-                            Estado sincronizado en tiempo real con FIRMX
-                        </div>
-                    {% endif %}
 
                     {% if admin_can_adjust %}
                         <div class="mt-5">
