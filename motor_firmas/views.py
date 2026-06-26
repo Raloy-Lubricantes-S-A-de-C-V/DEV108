@@ -1234,12 +1234,19 @@ def procesar_firma(request, token, firmante_token=None):
 
 def vista_trazabilidad(request, token):
     proceso = _get_proceso_por_token_or_404(token)
+    summary_data = getattr(proceso, 'summary_data', {})
     firmantes = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
     total_firmas = len(firmantes)
     firmas_hechas = sum(1 for firmante in firmantes if firmante.get('fecha_firma'))
     admin_email = request.session.get('admin_email')
     admin_obj = _mongo_find_one(AdministradorPortal, {'email': _normalizar_email(admin_email)}) if admin_email else None
     admin_tiene_acceso = _admin_tiene_acceso_proceso(admin_obj, proceso)
+
+    es_firmx = bool(summary_data.get('firmx_id'))
+    qr_firmx_url = ""
+    if es_firmx and summary_data.get('qr_local_path'):
+        qr_firmx_url = f"{settings.MEDIA_URL}{summary_data['qr_local_path']}"
+
     return render(request, 'motor_firmas/trazabilidad.html',
                   {
                       'proceso': proceso,
@@ -1248,6 +1255,8 @@ def vista_trazabilidad(request, token):
                       'firmas_hechas': firmas_hechas,
                       'admin_can_resend': bool(admin_tiene_acceso and proceso.status == 'PROCESSING'),
                       'admin_can_adjust': bool(admin_tiene_acceso and proceso.status == 'COMPLETED'),
+                      'es_firmx': es_firmx,
+                      'qr_firmx_url': qr_firmx_url,
                   })
 
 

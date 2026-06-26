@@ -9,8 +9,25 @@
         <div class="h-2 bg-primary"></div>
         <div class="px-6 md:px-8 py-8">
             <div class="rounded-xl border border-outline-variant bg-white shadow-sm overflow-hidden">
-                <div class="px-6 py-6 flex justify-center border-b border-outline-variant bg-background-pure">
+                <div class="px-6 py-6 flex flex-col md:flex-row items-center justify-center gap-6 border-b border-outline-variant bg-background-pure">
                     <img src="/static/motor_firmas/img/raloy-logo.svg" alt="Raloy Lubricantes" class="raloy-logo">
+                    {% if es_firmx and qr_firmx_url %}
+                        <div class="flex flex-col items-center gap-2">
+                            <div class="p-2 border border-outline-variant rounded-lg bg-white shadow-sm">
+                                <img src="{{ qr_firmx_url }}" alt="QR FIRMX" class="w-32 h-32 object-contain">
+                            </div>
+                            {% if admin_can_resend %}
+                                <button type="button" 
+                                        onclick="sendFirmxNotificationsDirect()" 
+                                        id="firmxNotifyButton"
+                                        class="inline-flex items-center justify-center gap-2 bg-primary text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-primary-container transition-colors shadow-sm">
+                                    <span class="material-symbols-outlined text-[16px]">send</span>
+                                    ENVIAR A FIRMANTES
+                                </button>
+                                <div id="firmxNotifyStatus" class="text-[10px] font-bold mt-1"></div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
                 </div>
 
                 <div class="px-6 py-6 text-center border-b border-outline-variant bg-surface-bright">
@@ -125,7 +142,7 @@
                                     <span class="material-symbols-outlined text-[14px]">hourglass_empty</span>
                                     Esperando acción del usuario...
                                 </div>
-                                {% if admin_can_resend %}
+                                {% if admin_can_resend and not es_firmx %}
                                     <div class="pt-3">
                                         <button type="button"
                                                 data-token="{{ proceso.token_acceso }}"
@@ -210,6 +227,41 @@
 {% endblock %}
 
 {% block scripts %}
+{% if es_firmx %}
+<script>
+    async function sendFirmxNotificationsDirect() {
+        const btn = document.getElementById('firmxNotifyButton');
+        const status = document.getElementById('firmxNotifyStatus');
+        const firmxId = "{{ proceso.summary_data.firmx_id }}";
+            
+        if (!firmxId) return;
+            
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[16px]">sync</span> ENVIANDO...';
+        status.textContent = "";
+            
+        try {
+            const res = await fetch(`/api/firmx/documents/${firmxId}/notify/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+            });
+            const payload = await res.json();
+                
+            if (!res.ok) throw new Error(payload.error || 'Error al enviar.');
+                
+            status.className = "text-[10px] font-bold mt-1 text-status-success";
+            status.textContent = "¡Enviado!";
+            btn.innerHTML = '<span class="material-symbols-outlined text-[16px]">send</span> REENVIAR A TODOS';
+        } catch (e) {
+            status.className = "text-[10px] font-bold mt-1 text-status-danger";
+            status.textContent = e.message;
+            btn.innerHTML = '<span class="material-symbols-outlined text-[16px]">send</span> REINTENTAR ENVÍO';
+        } finally {
+            btn.disabled = false;
+        }
+    }
+</script>
+{% endif %}
 <script>
     async function reenviarFirma(button) {
         const statusBox = button.parentElement.querySelector('.resend-status');

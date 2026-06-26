@@ -395,6 +395,10 @@
                     Obtener QR para firmar
                 </button>
                 <input id="firmxDocumentIdManual" type="text" class="w-full mt-3 px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" placeholder="ID FIRMX si no viene en respuesta">
+                <button id="firmxNotifySidebarButton" type="button" onclick="sendFirmxNotifications()" class="w-full mt-3 bg-primary text-white px-4 py-3 rounded-lg font-bold hover:bg-primary-container transition-colors shadow-md flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">send</span>
+                    ENVIAR A FIRMANTES
+                </button>
             </section>
 
             <section class="bg-white rounded-xl border border-outline-variant p-5">
@@ -816,6 +820,14 @@
                 submitBtn.classList.remove('bg-status-success');
             }
         }
+
+        const sidebarNotifyBtn = document.getElementById('firmxNotifySidebarButton');
+        if (sidebarNotifyBtn) {
+            const hasId = !!(firmxDocumentId || document.getElementById('firmxDocumentIdManual').value.trim());
+            sidebarNotifyBtn.disabled = !hasId;
+            sidebarNotifyBtn.style.opacity = hasId ? '1' : '0.5';
+            sidebarNotifyBtn.style.cursor = hasId ? 'pointer' : 'not-allowed';
+        }
     }
 
     function validateStepOne() {
@@ -1165,10 +1177,15 @@
         }
 
         const btn = document.getElementById('firmxNotifyButton');
+        const sidebarBtn = document.getElementById('firmxNotifySidebarButton');
         const stateBox = document.getElementById('firmxNotifyState');
         
         btn.disabled = true;
+        if (sidebarBtn) sidebarBtn.disabled = true;
+
         btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[20px]">sync</span> ENVIANDO...';
+        if (sidebarBtn) sidebarBtn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[18px]">sync</span> ENVIANDO...';
+        
         stateBox.classList.add('hidden');
 
         try {
@@ -1193,7 +1210,12 @@
             alert(error.message);
         } finally {
             btn.disabled = false;
-            btn.innerHTML = '<span class="material-symbols-outlined text-[20px]">send</span> ENVIAR A TODOS LOS FIRMANTES';
+            const btnText = '<span class="material-symbols-outlined text-[20px]">send</span> REENVIAR A TODOS LOS FIRMANTES';
+            btn.innerHTML = btnText;
+            if (sidebarBtn) {
+                sidebarBtn.disabled = false;
+                sidebarBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">send</span> REENVIAR A FIRMANTES';
+            }
         }
     }
 
@@ -1223,6 +1245,12 @@
             const hasId = !!event.target.value.trim();
             document.getElementById('firmxQrButton').disabled = !hasId && !firmxDocumentId;
             document.getElementById('firmxMainQrButton').disabled = !hasId && !firmxDocumentId;
+            const sidebarNotifyBtn = document.getElementById('firmxNotifySidebarButton');
+            if (sidebarNotifyBtn) {
+                sidebarNotifyBtn.disabled = !hasId && !firmxDocumentId;
+                sidebarNotifyBtn.style.opacity = (hasId || firmxDocumentId) ? '1' : '0.5';
+                sidebarNotifyBtn.style.cursor = (hasId || firmxDocumentId) ? 'pointer' : 'not-allowed';
+            }
             updateCurlPreview('qr');
         });
         [
