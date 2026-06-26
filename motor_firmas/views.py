@@ -611,8 +611,8 @@ def _parse_email_list(value):
 
 
 def _firmx_headers():
-    config = ConfiguracionFirmex.objects.first()
-    if config and config.api_key:
+    config = _mongo_find_one(ConfiguracionFirmex)
+    if config and getattr(config, 'api_key', None):
         api_key = config.api_key
     else:
         api_key = getattr(settings, 'FIRMX_API_KEY', '')
@@ -1713,9 +1713,9 @@ def portal_firmx(request):
 
     api_key = ""
     if is_admin:
-        config = ConfiguracionFirmex.objects.first()
+        config = _mongo_find_one(ConfiguracionFirmex)
         if config:
-            api_key = config.api_key
+            api_key = getattr(config, 'api_key', '')
         else:
             api_key = getattr(settings, 'FIRMX_API_KEY', '')
 
@@ -1742,11 +1742,11 @@ def firmx_guardar_config(request):
         api_key = data.get('api_key')
 
         if api_key is not None:
-            config = ConfiguracionFirmex.objects.first()
-            if not config:
-                config = ConfiguracionFirmex()
-            config.api_key = api_key.strip()
-            config.save()
+            # Usar ayudante de MongoDB para evitar fallos del ORM Djongo
+            _mongo_update_or_insert_by_query(ConfiguracionFirmex, {}, {
+                'api_key': api_key.strip(),
+                'updated_at': _datetime_for_mongo()
+            })
             return JsonResponse({"status": "success", "message": "API Key guardada correctamente"})
         else:
             return JsonResponse({"error": "Falta api_key"}, status=400)
