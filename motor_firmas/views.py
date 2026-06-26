@@ -1247,20 +1247,23 @@ def _firmx_sync_status(clean_id):
             return False, f"FIRMX Error {response.status_code}: {response_data.get('error') or 'Error desconocido'}"
 
         db = _mongo_database()
-        firmx_data = response_data.get('data', {})
+        # FIRMX puede devolver la data directamente, en un campo 'data', o en 'data' como lista
+        firmx_data = response_data.get('data', response_data)
         if isinstance(firmx_data, list) and len(firmx_data) > 0:
             firmx_data = firmx_data[0]
             
         if not isinstance(firmx_data, dict):
             return False, "Estructura de datos de FIRMX inesperada (no es un objeto)."
 
+        # Intentar encontrar el objeto documento si está anidado
+        doc_obj = firmx_data.get('document') if isinstance(firmx_data.get('document'), dict) else firmx_data
+
         # Mapear estado del documento
-        # FIRMX v1 suele usar document_status, status o state
-        status_key = 'document_status' if 'document_status' in firmx_data else ('status' if 'status' in firmx_data else 'state')
-        firmx_status_raw = str(firmx_data.get(status_key) or 'waiting_for_signatures').lower()
+        status_key = 'document_status' if 'document_status' in doc_obj else ('status' if 'status' in doc_obj else 'state')
+        firmx_status_raw = str(doc_obj.get(status_key) or 'waiting_for_signatures').lower()
         
         local_status = 'FIRMX_WAITING'
-        if firmx_status_raw in ['completed', 'signed', 'finalized', 'finalizado', 'completado']:
+        if firmx_status_raw in ['completed', 'signed', 'finalized', 'finalizado', 'completado', 'firmado']:
             local_status = 'COMPLETED'
         elif firmx_status_raw in ['cancelled', 'rejected', 'deleted', 'cancelado', 'rechazado', 'eliminado']:
             local_status = 'CANCELLED'
@@ -1278,8 +1281,13 @@ def _firmx_sync_status(clean_id):
             }
         )
 
-        # Sincronizar firmantes
-        firmantes_firmx = firmx_data.get('signers') or firmx_data.get('signatures') or firmx_data.get('documents_signers') or []
+        # Sincronizar firmantes - Búsqueda robusta
+        firmantes_firmx = doc_obj.get('signers') or doc_obj.get('signatures') or doc_obj.get('documents_signers') or []
+        if not firmantes_firmx and 'data' in firmx_data and isinstance(firmx_data['data'], dict):
+            # Probar un nivel más profundo
+            d2 = firmx_data['data']
+            firmantes_firmx = d2.get('signers') or d2.get('signatures') or d2.get('documents_signers') or []
+
         if firmantes_firmx:
             proceso_doc = db.motor_firmas_procesofirma.find_one({"summary_data.firmx_id": clean_id})
             if proceso_doc:
@@ -1289,9 +1297,9 @@ def _firmx_sync_status(clean_id):
                     email_fx = f_fx.get('email')
                     if not email_fx: continue
                     
-                    f_status = str(f_fx.get('status') or '').lower()
+                    f_status = str(f_fx.get('status') or f_fx.get('state') or '').lower()
                     # Mapeo flexible de estado de firma
-                    esta_firmado = f_status in ['signed', 'completed', 'finalized', 'firmado'] or \
+                    esta_firmado = f_status in ['signed', 'completed', 'finalized', 'firmado', 'firmada', 'completada'] or \
                                    f_fx.get('signed_at') or \
                                    f_fx.get('signed') is True
                     
@@ -1319,13 +1327,16 @@ def vista_trazabilidad(request, token):
     
     # Sincronización automática con FIRMX si aplica
     es_firmx = bool(summary_data.get('firmx_id'))
+    sync_error = None
     if es_firmx and proceso.status != 'COMPLETED' and proceso.status != 'CANCELLED':
         firmx_id = summary_data.get('firmx_id')
-        success, _ = _firmx_sync_status(firmx_id)
+        success, error_msg = _firmx_sync_status(firmx_id)
         if success:
             # Refrescar el objeto proceso tras la actualización en DB
             proceso = _get_proceso_por_token_or_404(token)
             summary_data = getattr(proceso, 'summary_data', {})
+        else:
+            sync_error = error_msg
 
     firmantes = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
     total_firmas = len(firmantes)
@@ -1352,6 +1363,7 @@ def vista_trazabilidad(request, token):
                       'admin_can_adjust': bool(admin_tiene_acceso and proceso.status == 'COMPLETED'),
                       'es_firmx': es_firmx,
                       'qr_firmx_url': qr_firmx_url,
+                      'sync_error': sync_error,
                   })
 
 
@@ -1771,8 +1783,21 @@ def portal_dashboard(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
     documentos = _mongo_find(ProcesoFirma, {'owner_email': owner_email}, [('created_at', -1)])
+    
+    # Sincronización automática de documentos FIRMX pendientes (máx 5 por carga)
+    sync_count = 0
     lista_docs = []
     for doc in documentos:
+        summary_data = getattr(doc, 'summary_data', {})
+        firmx_id = summary_data.get('firmx_id')
+        
+        if firmx_id and doc.status not in ['COMPLETED', 'CANCELLED'] and sync_count < 5:
+            success, _ = _firmx_sync_status(firmx_id)
+            if success:
+                # Refrescar documento tras sync
+                doc = _mongo_find_one(ProcesoFirma, {'_id': doc._id})
+            sync_count += 1
+            
         firmantes = _normalizar_firmantes(getattr(doc, 'firmantes', []))
         tot = len(firmantes)
         hechas = sum(1 for f in firmantes if f.get('fecha_firma'))
@@ -2517,7 +2542,18 @@ def admin_dashboard(request):
         todos_docs = _mongo_find(ProcesoFirma, {'owner_email': {'$in': owners_permitidos}}, [('created_at', -1)])
         plantillas = _mongo_find(PlantillaFormulario, {'owner_email': {'$in': owners_permitidos}}, [('created_at', -1)])
     docs_json = []
+    sync_count = 0
     for d in todos_docs:
+        summary_data = getattr(d, 'summary_data', {})
+        firmx_id = summary_data.get('firmx_id')
+        
+        if firmx_id and d.status not in ['COMPLETED', 'CANCELLED'] and sync_count < 5:
+            success, _ = _firmx_sync_status(firmx_id)
+            if success:
+                # Refrescar documento tras sync
+                d = _mongo_find_one(ProcesoFirma, {'_id': d._id})
+            sync_count += 1
+
         firmantes = _normalizar_firmantes(getattr(d, 'firmantes', []))
         owner_doc = getattr(d, 'owner_email', '') or ''
         created_at = getattr(d, 'created_at', None)

@@ -454,7 +454,9 @@
         let badgeClass = 'bg-processing'; let statusText = 'EN PROCESO'; let colorProgress = '#162839';
         if(doc.status === 'COMPLETED') { badgeClass = 'bg-completed'; statusText = 'COMPLETADO'; colorProgress = '#27ae60'; }
         if(doc.status === 'CANCELLED') { badgeClass = 'bg-cancelled'; statusText = 'CANCELADO'; }
-        if(doc.status === 'FIRMX_WAITING') { badgeClass = 'bg-firmx'; statusText = 'FIRMX (ESPERA)'; colorProgress = '#2d9be8'; }
+        if(doc.status === 'FIRMX_WAITING' || (doc.firmx_id && doc.status === 'PROCESSING')) { 
+            badgeClass = 'bg-firmx'; statusText = 'FIRMX (ESPERA)'; colorProgress = '#2d9be8'; 
+        }
         return { badgeClass, statusText, colorProgress };
     }
 
