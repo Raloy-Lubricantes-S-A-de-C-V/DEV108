@@ -16,16 +16,6 @@
                             <div class="p-2 border border-outline-variant rounded-lg bg-white shadow-sm">
                                 <img src="{{ qr_firmx_url }}" alt="QR FIRMX" class="w-32 h-32 object-contain">
                             </div>
-                            {% if admin_can_resend %}
-                                <button type="button" 
-                                        onclick="sendFirmxNotificationsDirect()" 
-                                        id="firmxNotifyButton"
-                                        class="inline-flex items-center justify-center gap-2 bg-primary text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-primary-container transition-colors shadow-sm">
-                                    <span class="material-symbols-outlined text-[16px]">send</span>
-                                    ENVIAR A FIRMANTES
-                                </button>
-                                <div id="firmxNotifyStatus" class="text-[10px] font-bold mt-1"></div>
-                            {% endif %}
                         </div>
                     {% endif %}
                 </div>
@@ -238,41 +228,6 @@
 {% endblock %}
 
 {% block scripts %}
-{% if es_firmx %}
-<script>
-    async function sendFirmxNotificationsDirect() {
-        const btn = document.getElementById('firmxNotifyButton');
-        const status = document.getElementById('firmxNotifyStatus');
-        const firmxId = "{{ proceso.summary_data.firmx_id }}";
-            
-        if (!firmxId) return;
-            
-        btn.disabled = true;
-        btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[16px]">sync</span> ENVIANDO...';
-        status.textContent = "";
-            
-        try {
-            const res = await fetch(`/api/firmx/documents/${firmxId}/notify/`, {
-                method: 'POST',
-                headers: { 'X-CSRFToken': '{{ csrf_token }}' }
-            });
-            const payload = await res.json();
-                
-            if (!res.ok) throw new Error(payload.error || 'Error al enviar.');
-                
-            status.className = "text-[10px] font-bold mt-1 text-status-success";
-            status.textContent = "¡Enviado!";
-            btn.innerHTML = '<span class="material-symbols-outlined text-[16px]">send</span> REENVIAR A TODOS';
-        } catch (e) {
-            status.className = "text-[10px] font-bold mt-1 text-status-danger";
-            status.textContent = e.message;
-            btn.innerHTML = '<span class="material-symbols-outlined text-[16px]">send</span> REINTENTAR ENVÍO';
-        } finally {
-            btn.disabled = false;
-        }
-    }
-</script>
-{% endif %}
 <script>
     async function reenviarFirma(button) {
         const statusBox = button.parentElement.querySelector('.resend-status');
