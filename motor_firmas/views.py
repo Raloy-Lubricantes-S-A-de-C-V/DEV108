@@ -1242,6 +1242,9 @@ def vista_trazabilidad(request, token):
     admin_obj = _mongo_find_one(AdministradorPortal, {'email': _normalizar_email(admin_email)}) if admin_email else None
     admin_tiene_acceso = _admin_tiene_acceso_proceso(admin_obj, proceso)
 
+    owner_email = request.session.get('owner_email')
+    owner_tiene_acceso = _validar_acceso_owner(proceso, owner_email) if owner_email else False
+
     es_firmx = bool(summary_data.get('firmx_id'))
     qr_firmx_url = ""
     if es_firmx and summary_data.get('qr_local_path'):
@@ -1253,8 +1256,9 @@ def vista_trazabilidad(request, token):
                       'pdf_url': f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}",
                       'total_firmas': total_firmas,
                       'firmas_hechas': firmas_hechas,
-                      'admin_can_resend': bool(admin_tiene_acceso and proceso.status == 'PROCESSING'),
+                      'admin_can_resend': bool(admin_tiene_acceso and proceso.status in ['PROCESSING', 'FIRMX_WAITING']),
                       'admin_can_adjust': bool(admin_tiene_acceso and proceso.status == 'COMPLETED'),
+                      'can_refresh_status': bool((admin_tiene_acceso or owner_tiene_acceso) and es_firmx and proceso.status != 'COMPLETED'),
                       'es_firmx': es_firmx,
                       'qr_firmx_url': qr_firmx_url,
                   })
@@ -2141,6 +2145,105 @@ def firmx_enviar_notificaciones(request, document_id):
         
     except Exception as e:
         return JsonResponse({"error": f"Error contactando con el servicio de notificaciones: {e}"}, status=502)
+
+
+@csrf_exempt
+def firmx_obtener_status(request, document_id):
+    owner_email = request.session.get('owner_email')
+    admin_email = request.session.get('admin_email')
+    
+    if not owner_email and not admin_email:
+        return JsonResponse({"error": "No autenticado"}, status=403)
+        
+    usuario_verificador = owner_email or admin_email
+    if not _usuario_tiene_permiso(usuario_verificador, 'firmx'):
+        return JsonResponse({"error": "No tienes permiso para usar FIRMX."}, status=403)
+    
+    clean_id = str(document_id or '').strip()
+    if not clean_id:
+        return JsonResponse({"error": "ID de documento FIRMX inválido."}, status=400)
+
+    firmx_debug = {}
+    try:
+        firmx_debug["firmx_curl"] = _firmx_curl_preview('GET', f'/documents/api/{clean_id}/')
+        
+        response = requests.get(
+            _firmx_url(f'/documents/api/{clean_id}/'),
+            headers=_firmx_headers(),
+            timeout=_firmx_timeout(),
+        )
+        response_data = _json_response_from_requests(response)
+    except Exception as e:
+        return JsonResponse({"error": f"Error contactando FIRMX: {e}", **firmx_debug}, status=502)
+
+    if not 200 <= response.status_code < 300:
+        return JsonResponse({
+            "error": "FIRMX no pudo obtener el estado del documento.",
+            "firmx_status": response.status_code,
+            "firmx_response": response_data,
+            **firmx_debug,
+        }, status=502)
+
+    # Actualizar el proceso local con la nueva información
+    try:
+        db = _mongo_database()
+        firmx_data = response_data.get('data', {})
+        firmx_status_raw = firmx_data.get('document_status', 'waiting_for_signatures')
+        
+        # Mapear estado
+        local_status = 'FIRMX_WAITING'
+        if firmx_status_raw == 'completed':
+            local_status = 'COMPLETED'
+        elif firmx_status_raw == 'cancelled':
+            local_status = 'CANCELLED'
+            
+        # Actualizar en DB
+        db.motor_firmas_procesofirma.update_one(
+            {"summary_data.firmx_id": clean_id},
+            {
+                "$set": {
+                    "status": local_status,
+                    "summary_data.firmx_status_raw": firmx_status_raw,
+                    "summary_data.firmx_response": response_data,
+                    "updated_at": _datetime_for_mongo()
+                }
+            }
+        )
+
+        # Opcional: Sincronizar firmantes locales si FIRMX reporta firmas
+        firmantes_firmx = firmx_data.get('signers') or firmx_data.get('signatures') or []
+        if firmantes_firmx:
+            proceso_doc = db.motor_firmas_procesofirma.find_one({"summary_data.firmx_id": clean_id})
+            if proceso_doc:
+                firmantes_locales = _normalizar_firmantes(proceso_doc.get('firmantes', []))
+                hubo_cambio = False
+                for f_fx in firmantes_firmx:
+                    email_fx = f_fx.get('email')
+                    if not email_fx: continue
+                    # FIRMX suele usar 'signed' o 'completed' para el estado del firmante
+                    esta_firmado = f_fx.get('status') in ['signed', 'completed'] or f_fx.get('signed_at')
+                    
+                    for f_loc in firmantes_locales:
+                        if _normalizar_email(f_loc.get('email')) == _normalizar_email(email_fx):
+                            if esta_firmado and not f_loc.get('fecha_firma'):
+                                f_loc['fecha_firma'] = f_fx.get('signed_at') or _datetime_for_mongo().isoformat()
+                                hubo_cambio = True
+                
+                if hubo_cambio:
+                    db.motor_firmas_procesofirma.update_one(
+                        {"_id": proceso_doc['_id']},
+                        {"$set": {"firmantes": firmantes_locales}}
+                    )
+
+    except Exception as e:
+        print(f"Error actualizando estado FIRMX local: {e}")
+
+    return JsonResponse({
+        "status": "success",
+        "firmx_status": response.status_code,
+        "firmx_response": response_data,
+        **firmx_debug,
+    })
 
 
 def portal_logout(request):

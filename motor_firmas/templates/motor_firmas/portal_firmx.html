@@ -399,6 +399,10 @@
                     <span class="material-symbols-outlined text-[18px]">send</span>
                     ENVIAR A FIRMANTES
                 </button>
+                <button id="firmxStatusSidebarButton" type="button" onclick="getFirmxStatus()" class="w-full mt-3 bg-secondary text-white px-4 py-3 rounded-lg font-bold hover:bg-secondary-container transition-colors shadow-md flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">sync</span>
+                    VER ESTADO FIRMANTES
+                </button>
             </section>
 
             <section class="bg-white rounded-xl border border-outline-variant p-5">
@@ -741,6 +745,10 @@
             const id = document.getElementById('firmxDocumentIdManual').value.trim() || firmxDocumentId || '<document_id>';
             label.textContent = 'GET QR';
             codeEl.textContent = buildCurlPreview('GET', `/documents/api/${encodeURIComponent(id)}/sign_qr`);
+        } else if (action === 'status') {
+            const id = document.getElementById('firmxDocumentIdManual').value.trim() || firmxDocumentId || '<document_id>';
+            label.textContent = 'GET Status';
+            codeEl.textContent = buildCurlPreview('GET', `/documents/api/${encodeURIComponent(id)}/`);
         } else {
             label.textContent = 'POST registro';
             codeEl.textContent = buildCurlPreview('POST', '/documents/register/', buildFirmxPayloadPreview());
@@ -827,6 +835,14 @@
             sidebarNotifyBtn.disabled = !hasId;
             sidebarNotifyBtn.style.opacity = hasId ? '1' : '0.5';
             sidebarNotifyBtn.style.cursor = hasId ? 'pointer' : 'not-allowed';
+        }
+
+        const sidebarStatusBtn = document.getElementById('firmxStatusSidebarButton');
+        if (sidebarStatusBtn) {
+            const hasId = !!(firmxDocumentId || document.getElementById('firmxDocumentIdManual').value.trim());
+            sidebarStatusBtn.disabled = !hasId;
+            sidebarStatusBtn.style.opacity = hasId ? '1' : '0.5';
+            sidebarStatusBtn.style.cursor = hasId ? 'pointer' : 'not-allowed';
         }
     }
 
@@ -1169,6 +1185,40 @@
         }
     }
 
+    async function getFirmxStatus() {
+        const docId = firmxDocumentId || document.getElementById('firmxDocumentIdManual').value.trim();
+        if (!docId) return;
+
+        const sidebarBtn = document.getElementById('firmxStatusSidebarButton');
+        sidebarBtn.disabled = true;
+        sidebarBtn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[18px]">sync</span> OBTENIENDO...';
+
+        try {
+            updateCurlPreview('status', docId);
+            const res = await fetch(`/api/firmx/documents/${docId}/status/`);
+            const payload = await res.json();
+            
+            if (isFirmxAdmin) {
+                setFirmxResponse(payload);
+            }
+
+            if (!res.ok) throw new Error(payload.error || 'Error al obtener estado.');
+
+            setFirmxStatus('Estado de firmantes actualizado correctamente.', 'success');
+            
+            // Actualizar la trazabilidad de la API si viene en la respuesta
+            if (payload.firmx_response && payload.firmx_response.data) {
+                // Aquí podríamos actualizar la UI con los detalles de los firmantes
+                // Por ahora mostramos el JSON si es admin
+            }
+        } catch (error) {
+            setFirmxStatus(error.message, 'error');
+        } finally {
+            sidebarBtn.disabled = false;
+            sidebarBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">sync</span> VER ESTADO FIRMANTES';
+        }
+    }
+
     async function sendFirmxNotifications() {
         const id = firmxDocumentId || document.getElementById('firmxDocumentIdManual').value.trim();
         if (!id) {
@@ -1250,6 +1300,12 @@
                 sidebarNotifyBtn.disabled = !hasId && !firmxDocumentId;
                 sidebarNotifyBtn.style.opacity = (hasId || firmxDocumentId) ? '1' : '0.5';
                 sidebarNotifyBtn.style.cursor = (hasId || firmxDocumentId) ? 'pointer' : 'not-allowed';
+            }
+            const sidebarStatusBtn = document.getElementById('firmxStatusSidebarButton');
+            if (sidebarStatusBtn) {
+                sidebarStatusBtn.disabled = !hasId && !firmxDocumentId;
+                sidebarStatusBtn.style.opacity = (hasId || firmxDocumentId) ? '1' : '0.5';
+                sidebarStatusBtn.style.cursor = (hasId || firmxDocumentId) ? 'pointer' : 'not-allowed';
             }
             updateCurlPreview('qr');
         });
