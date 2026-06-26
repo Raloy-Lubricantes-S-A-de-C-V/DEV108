@@ -18,7 +18,7 @@ from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.utils import timezone
 from django.contrib.auth.hashers import check_password, make_password
 from .models import ProcesoFirma, DirectorioFirmas, OTPLogin, AdministradorPortal, PlantillaFormulario, CarpetaDominio, \
-    DocumentoPDFUsuario, AreaFirmex
+    DocumentoPDFUsuario, AreaFirmex, ConfiguracionFirmex
 from .utils import estampar_firma_en_pdf, estampar_variables_en_pdf, crear_notificacion_firma, reubicar_firmas_en_pdf
 
 # WEBHOOKS DE N8N
@@ -72,6 +72,14 @@ def _json_or_default(value, default):
 
 def _normalizar_firmantes(firmantes):
     firmantes = _json_or_default(firmantes, [])
+    for f in firmantes:
+        if isinstance(f, dict):
+            if 'nombre' in f:
+                f['nombre'] = str(f['nombre'] or '').strip().upper()
+            if 'email' in f:
+                f['email'] = str(f['email'] or '').strip().lower()
+            if 'iniciales' in f:
+                f['iniciales'] = str(f['iniciales'] or '').strip().upper()
     return [f for f in firmantes if isinstance(f, dict)]
 
 
@@ -603,7 +611,12 @@ def _parse_email_list(value):
 
 
 def _firmx_headers():
-    api_key = getattr(settings, 'FIRMX_API_KEY', '')
+    config = ConfiguracionFirmex.objects.first()
+    if config and config.api_key:
+        api_key = config.api_key
+    else:
+        api_key = getattr(settings, 'FIRMX_API_KEY', '')
+
     if not api_key:
         raise ValueError("FIRMX_API_KEY no está configurada.")
     return {
@@ -1542,10 +1555,10 @@ def registro_firmas(request):
                                                                                 'motor_firmas/registro_firmas.html',
                                                                                 {"error": "Correo registrado."})
         _mongo_insert_model(DirectorioFirmas, {
-            'nombre': request.POST.get('nombre'),
+            'nombre': str(request.POST.get('nombre') or '').strip().upper(),
             'email': email,
-            'puesto': request.POST.get('puesto'),
-            'iniciales': request.POST.get('iniciales'),
+            'puesto': str(request.POST.get('puesto') or '').strip().upper(),
+            'iniciales': str(request.POST.get('iniciales') or '').strip().upper(),
             'firma_base64': request.POST.get('firma_base64'),
             'pin_hash': make_password(request.POST.get('pin')),
             'acepto_terminos': True,
@@ -1678,13 +1691,48 @@ def portal_firmx(request):
     empresas = _mongo_find(CarpetaDominio, sort=[('dominio', 1)])
     areas = _mongo_find(AreaFirmex, sort=[('nombre', 1)])
 
+    is_admin = bool(request.session.get('admin_email'))
+    api_key = ""
+    if is_admin:
+        config = ConfiguracionFirmex.objects.first()
+        if config:
+            api_key = config.api_key
+        else:
+            api_key = getattr(settings, 'FIRMX_API_KEY', '')
+
     return render(request, 'motor_firmas/portal_firmx.html', {
         'owner_email': owner_email,
         'firmx_base_url': getattr(settings, 'FIRMX_API_BASE_URL', ''),
-        'es_admin_firmx': bool(request.session.get('admin_email')),
+        'es_admin_firmx': is_admin,
+        'firmx_api_key': api_key,
         'empresas': empresas,
         'areas': areas,
     })
+
+
+@csrf_exempt
+def firmx_guardar_config(request):
+    if not request.session.get('admin_email'):
+        return JsonResponse({"error": "No autorizado"}, status=403)
+
+    if request.method != 'POST':
+        return JsonResponse({"error": "Método no permitido"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        api_key = data.get('api_key')
+
+        if api_key is not None:
+            config = ConfiguracionFirmex.objects.first()
+            if not config:
+                config = ConfiguracionFirmex()
+            config.api_key = api_key.strip()
+            config.save()
+            return JsonResponse({"status": "success", "message": "API Key guardada correctamente"})
+        else:
+            return JsonResponse({"error": "Falta api_key"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
 
 
 @csrf_exempt
@@ -2527,7 +2575,7 @@ def admin_api(request, accion):
                 'contexto': data.get('contexto', ''),
                 'intencion': data.get('intencion', ''),
                 'variables': data.get('variables', []),
-                'firmantes_config': data.get('firmantes_config', []),
+                'firmantes_config': _normalizar_firmantes(data.get('firmantes_config', [])),
                 'usuarios_permitidos': data.get('usuarios_permitidos', []),
                 'created_at': _datetime_for_mongo(),
             })
@@ -2542,7 +2590,7 @@ def admin_api(request, accion):
                     'view_info': data.get('view_info'),
                     'usuarios_permitidos': data.get('usuarios_permitidos', []),
                     'variables': data.get('variables', []),
-                    'firmantes_config': data.get('firmantes_config', []),
+                    'firmantes_config': _normalizar_firmantes(data.get('firmantes_config', [])),
                     'contexto': data.get('contexto', getattr(p, 'contexto', '')),
                     'intencion': data.get('intencion', getattr(p, 'intencion', '')),
                 })

@@ -139,3 +139,11 @@ class SignaturesMaster(models.Model):
 
     class Meta:
         db_table = 'signatures_master'
+
+
+class ConfiguracionFirmex(models.Model):
+    api_key = models.CharField(max_length=255)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Configuración FIRMX - {self.updated_at}"

@@ -88,6 +88,23 @@
 <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
+    document.addEventListener('input', function (e) {
+        if (e.target.tagName === 'INPUT') {
+            const type = e.target.type.toLowerCase();
+            if (type !== 'email' && type !== 'password') {
+                const start = e.target.selectionStart;
+                const end = e.target.selectionEnd;
+                e.target.value = e.target.value.toUpperCase();
+                try { e.target.setSelectionRange(start, end); } catch(err) {}
+            } else if (type === 'email') {
+                const start = e.target.selectionStart;
+                const end = e.target.selectionEnd;
+                e.target.value = e.target.value.toLowerCase();
+                try { e.target.setSelectionRange(start, end); } catch(err) {}
+            }
+        }
+    });
+
     const url = '{{ pdf_url }}';
     const wrapper = document.getElementById('pdf-wrapper');
     let boxes = [];
@@ -203,7 +220,7 @@
             data.orden = document.getElementById('inpOrden').value;
             data.nombre = document.getElementById('inpNombre').value.toUpperCase();
             data.iniciales = document.getElementById('inpIniciales').value.toUpperCase();
-            data.email = document.getElementById('inpEmail').value;
+            data.email = document.getElementById('inpEmail').value.toLowerCase();
             document.getElementById(activeBoxId).innerText = (data.nombre || 'FIRMANTE') + ' (' + data.orden + ')';
         }
     }

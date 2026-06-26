@@ -367,13 +367,6 @@
         </main>
 
         <aside class="firmx-side space-y-5">
-            <section class="bg-surface-container-low rounded-xl border border-outline-variant p-5">
-                <h2 class="text-lg font-bold text-primary mb-3">Estado de integración</h2>
-                <p class="text-sm text-text-muted mb-3">Base FIRMX:</p>
-                <div class="text-xs bg-white border border-outline-variant rounded-lg p-3 break-all">{{ firmx_base_url }}</div>
-                <div id="firmxStatus" class="mt-4 text-sm font-semibold text-outline">Esperando registro.</div>
-            </section>
-
             <section class="bg-white rounded-xl border border-outline-variant p-5">
                 <h2 class="text-lg font-bold text-primary mb-3">Resumen activo</h2>
                 <div id="firmxSideSummary" class="firmx-summary-list"></div>
@@ -407,10 +400,29 @@
                 </div>
             </section>
 
+            {% if es_admin_firmx %}
+            <section class="bg-surface-container-low rounded-xl border border-outline-variant p-5">
+                <h2 class="text-lg font-bold text-primary mb-3">Estado de integración</h2>
+                <p class="text-sm text-text-muted mb-3">Base FIRMX:</p>
+                <div class="text-xs bg-white border border-outline-variant rounded-lg p-3 break-all">{{ firmx_base_url }}</div>
+                <div id="firmxStatus" class="mt-4 text-sm font-semibold text-outline">Esperando registro.</div>
+            </section>
+
             <section class="bg-white rounded-xl border border-outline-variant p-5">
                 <h2 class="text-lg font-bold text-primary mb-3">Respuesta FIRMX</h2>
                 <pre id="firmxResponse" class="firmx-response text-xs bg-surface-container-low border border-outline-variant rounded-lg p-4 text-on-surface-variant">Sin respuesta todavía.</pre>
             </section>
+
+            <section class="bg-white rounded-xl border border-outline-variant p-5">
+                <h2 class="text-lg font-bold text-primary mb-3">API KEY UTILIZADO</h2>
+                <div class="space-y-3">
+                    <input id="firmxApiKeyInput" type="password" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" value="{{ firmx_api_key }}">
+                    <button type="button" onclick="saveFirmxApiKey()" class="w-full bg-primary text-white px-4 py-2 rounded-lg font-bold hover:bg-primary-container transition-colors">
+                        Guardar API Key
+                    </button>
+                </div>
+            </section>
+            {% endif %}
         </aside>
     </div>
 </div>
@@ -423,6 +435,7 @@
     }
 
     const firmxBaseUrl = "{{ firmx_base_url|escapejs }}";
+    const initialFirmxApiKey = "{{ firmx_api_key|escapejs }}";
     const isFirmxAdmin = {% if es_admin_firmx %}true{% else %}false{% endif %};
     let currentFirmxStep = 1;
     let firmxDocumentId = '';
@@ -438,6 +451,23 @@
     let firmxPdfDocument = null;
     let firmxPdfCurrentPage = 1;
     let firmxPdfTotalPages = 1;
+    document.addEventListener('input', function (e) {
+        if (e.target.tagName === 'INPUT') {
+            const type = e.target.type.toLowerCase();
+            if (type !== 'email' && type !== 'password' && !e.target.classList.contains('no-uppercase')) {
+                const start = e.target.selectionStart;
+                const end = e.target.selectionEnd;
+                e.target.value = e.target.value.toUpperCase();
+                try { e.target.setSelectionRange(start, end); } catch(err) {}
+            } else if (type === 'email') {
+                const start = e.target.selectionStart;
+                const end = e.target.selectionEnd;
+                e.target.value = e.target.value.toLowerCase();
+                try { e.target.setSelectionRange(start, end); } catch(err) {}
+            }
+        }
+    });
+
     let firmxPdfZoom = 1.25;
     let firmxSignersExpanded = false;
     let firmxIntegrationSideVisible = true;
@@ -480,7 +510,21 @@
 
     function setFirmxResponse(payload) {
         const response = document.getElementById('firmxResponse');
-        response.textContent = typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2);
+        if (!response) return;
+
+        let display = payload;
+        if (payload && typeof payload === 'object') {
+            display = JSON.stringify(payload, null, 2);
+        } else if (typeof payload === 'string') {
+            try {
+                const parsed = JSON.parse(payload);
+                display = JSON.stringify(parsed, null, 2);
+            } catch (e) {
+                display = payload;
+            }
+        }
+
+        response.textContent = display;
         if (payload && payload.api_steps) {
             renderFirmxApiSteps(payload.api_steps);
         }
@@ -1179,5 +1223,47 @@
         updateFirmxSignersPanel();
         updateSummaries();
     });
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    async function saveFirmxApiKey() {
+        const apiKey = document.getElementById('firmxApiKeyInput').value.trim();
+        if (!apiKey) {
+            alert('Por favor, ingresa una API Key válida.');
+            return;
+        }
+        try {
+            const response = await fetch('/api/firmx/config/save/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ api_key: apiKey })
+            });
+            const data = await response.json();
+            if (data.status === 'success') {
+                alert('API Key guardada correctamente.');
+                location.reload();
+            } else {
+                alert('Error al guardar: ' + (data.error || 'Desconocido'));
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Error de conexión al guardar la API Key.');
+        }
+    }
 </script>
 {% endblock %}

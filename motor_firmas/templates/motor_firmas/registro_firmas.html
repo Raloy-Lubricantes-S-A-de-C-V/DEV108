@@ -99,6 +99,11 @@
                 const end = e.target.selectionEnd;
                 e.target.value = e.target.value.toUpperCase();
                 try { e.target.setSelectionRange(start, end); } catch(err) {}
+            } else if (type === 'email') {
+                const start = e.target.selectionStart;
+                const end = e.target.selectionEnd;
+                e.target.value = e.target.value.toLowerCase();
+                try { e.target.setSelectionRange(start, end); } catch(err) {}
             }
         }
     });
