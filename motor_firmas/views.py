@@ -712,7 +712,13 @@ def _parse_json_field(raw_value, default):
 
 
 def _usuario_tiene_permiso(owner_email, permiso):
-    colaborador = _mongo_find_one(DirectorioFirmas, {'email': _normalizar_email(owner_email)})
+    email = _normalizar_email(owner_email)
+    # Superadmins tienen todos los permisos
+    admin_obj = _mongo_find_one(AdministradorPortal, {'email': email})
+    if _admin_es_global(admin_obj):
+        return True
+
+    colaborador = _mongo_find_one(DirectorioFirmas, {'email': email})
     permisos = getattr(colaborador, 'permisos_portal', []) if colaborador else []
     permisos = _json_or_default(permisos, [])
     return permiso in permisos
@@ -1629,6 +1635,9 @@ def portal_login(request):
             if otp_record:
                 _mongo_delete_document(OTPLogin, otp_record)
             request.session['owner_email'] = email
+            # Si es administrador, también marcamos sesión de admin
+            if _mongo_find_one(AdministradorPortal, {'email': email}):
+                request.session['admin_email'] = email
             return JsonResponse({"status": "success"})
         return JsonResponse({"error": "PIN incorrecto."}, status=403)
     if request.session.get('owner_email'): return redirect('portal_dashboard')
@@ -1670,14 +1679,21 @@ def portal_dashboard(request):
     tiene_carpeta_dominio = _mongo_find_one(CarpetaDominio, {'dominio': dominio}) is not None
 
     colaborador = _mongo_find_one(DirectorioFirmas, {'email': owner_email})
-    permisos = getattr(colaborador, 'permisos_portal', []) if colaborador else []
-    permisos = _json_or_default(permisos, [])
+    permisos = _json_or_default(getattr(colaborador, 'permisos_portal', []), [])
+
+    admin_obj = _mongo_find_one(AdministradorPortal, {'email': owner_email})
+    es_admin = _admin_es_global(admin_obj)
+    if es_admin:
+        # Superadmins tienen acceso a todo
+        for p in ['api_tester', 'plantillas', 'firmx']:
+            if p not in permisos: permisos.append(p)
 
     return render(request, 'motor_firmas/portal_dashboard.html', {
         'owner_email': owner_email, 
         'documentos': lista_docs,
         'tiene_carpeta_dominio': tiene_carpeta_dominio,
-        'permisos': permisos
+        'permisos': permisos,
+        'es_admin': es_admin
     })
 
 
@@ -1692,6 +1708,9 @@ def portal_firmx(request):
     areas = _mongo_find(AreaFirmex, sort=[('nombre', 1)])
 
     is_admin = bool(request.session.get('admin_email'))
+    if not is_admin:
+        is_admin = _mongo_find_one(AdministradorPortal, {'email': owner_email}) is not None
+
     api_key = ""
     if is_admin:
         config = ConfiguracionFirmex.objects.first()
@@ -2323,6 +2342,9 @@ def admin_login(request):
             if otp_record:
                 _mongo_delete_document(OTPLogin, otp_record)
             request.session['admin_email'] = email
+            # Si también es colaborador, marcamos sesión de owner
+            if _mongo_find_one(DirectorioFirmas, {'email': email}):
+                request.session['owner_email'] = email
             return JsonResponse({"status": "success"})
         return JsonResponse({"error": "PIN incorrecto."}, status=403)
     if request.session.get('admin_email'): return redirect('admin_dashboard')
@@ -2360,12 +2382,16 @@ def admin_dashboard(request):
         {'id': str(c.id), 'dominio': c.dominio, 'drive_folder_id': c.drive_folder_id}
         for c in _mongo_find(CarpetaDominio, {}, [('dominio', 1)])
     ]
+
+    es_usuario = _mongo_find_one(DirectorioFirmas, {'email': admin_email}) is not None
+
     return render(request, 'motor_firmas/admin_dashboard.html',
                   {'admin_email': admin_email, 'docs_json': json.dumps(docs_json),
                    'saved_config': json.dumps(_json_or_default(getattr(admin_obj, 'configuracion_dashboard', {}), {})),
                    'plantillas': plantillas,
                    'carpetas_dominio': json.dumps(carpetas_dominio),
-                   'es_superadmin': getattr(admin_obj, 'es_superadmin', False)})
+                   'es_superadmin': _admin_es_global(admin_obj),
+                   'es_usuario': es_usuario})
 
 
 def admin_logout(request):
@@ -2408,10 +2434,10 @@ def admin_api(request, accion):
             u_id = data.get('id')
             usr = _mongo_find_one_by_id(DirectorioFirmas, u_id)
             if usr:
-                if not getattr(admin_actual, 'es_superadmin', False) and admin_actual.email != 'pjimenezb@raloy.com.mx' and getattr(usr, 'tecnico_asignado', None) != admin_actual.email:
+                if not _admin_es_global(admin_actual) and getattr(usr, 'tecnico_asignado', None) != admin_actual.email:
                     return JsonResponse({"error": "No tienes permiso."}, status=403)
                 update_doc = {'permisos_portal': data.get('permisos', [])}
-                if (getattr(admin_actual, 'es_superadmin', False) or admin_actual.email == 'pjimenezb@raloy.com.mx') and 'tecnico_asignado' in data:
+                if _admin_es_global(admin_actual) and 'tecnico_asignado' in data:
                     update_doc['tecnico_asignado'] = data.get('tecnico_asignado')
                 if 'notificar_celular' in data:
                     update_doc['notificar_celular'] = data.get('notificar_celular')
@@ -2423,14 +2449,14 @@ def admin_api(request, accion):
             u_id = data.get('id')
             usr = _mongo_find_one_by_id(DirectorioFirmas, u_id)
             if usr:
-                if not getattr(admin_actual, 'es_superadmin', False) and getattr(usr, 'tecnico_asignado', None) != admin_actual.email:
+                if not _admin_es_global(admin_actual) and getattr(usr, 'tecnico_asignado', None) != admin_actual.email:
                     return JsonResponse({"error": "No tienes permiso."}, status=403)
                 _mongo_delete_document(DirectorioFirmas, usr)
                 return JsonResponse({"status": "success", "msg": "Usuario eliminado."})
             return JsonResponse({"error": "Usuario no encontrado."}, status=404)
             
         elif accion == 'actualizar_admin':
-            if not getattr(admin_actual, 'es_superadmin', False): return JsonResponse({"error": "Solo superadmin."}, status=403)
+            if not _admin_es_global(admin_actual): return JsonResponse({"error": "Solo superadmin."}, status=403)
             a_id = data.get('id')
             a_obj = _mongo_find_one_by_id(AdministradorPortal, a_id)
             if a_obj:
@@ -2439,7 +2465,7 @@ def admin_api(request, accion):
             return JsonResponse({"error": "No encontrado."}, status=404)
             
         elif accion == 'eliminar_admin':
-            if not getattr(admin_actual, 'es_superadmin', False): return JsonResponse({"error": "Solo superadmin."}, status=403)
+            if not _admin_es_global(admin_actual): return JsonResponse({"error": "Solo superadmin."}, status=403)
             a_id = data.get('id')
             a_obj = _mongo_find_one_by_id(AdministradorPortal, a_id)
             if a_obj:
@@ -2722,7 +2748,7 @@ def admin_administradores(request):
     admin_obj = _mongo_find_one(AdministradorPortal, {'email': admin_email})
     if not admin_obj:
         raise Http404("Administrador no encontrado")
-    if not getattr(admin_obj, 'es_superadmin', False):
+    if not _admin_es_global(admin_obj):
         return HttpResponse("<h1>Acceso denegado. Solo superadministradores.</h1>", status=403)
         
     admins = _mongo_find(AdministradorPortal, {}, [('email', 1)])

@@ -79,7 +79,7 @@
             </div>
         </div>
         <div class="flex flex-col sm:flex-row gap-3">
-            {% if request.session.admin_email %}
+            {% if request.session.admin_email or es_admin %}
             <a href="{% url 'admin_dashboard' %}" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-secondary-container text-primary font-bold text-sm hover:bg-secondary-fixed-dim transition-colors">
                 <span class="material-symbols-outlined text-[18px]">admin_panel_settings</span>
                 Panel Admin
