@@ -2061,9 +2061,13 @@ def firmx_obtener_qr(request, document_id):
 @csrf_exempt
 def firmx_enviar_notificaciones(request, document_id):
     owner_email = request.session.get('owner_email')
-    if not owner_email:
+    admin_email = request.session.get('admin_email')
+    
+    if not owner_email and not admin_email:
         return JsonResponse({"error": "No autenticado"}, status=403)
-    if not _usuario_tiene_permiso(owner_email, 'firmx'):
+        
+    usuario_verificador = owner_email or admin_email
+    if not _usuario_tiene_permiso(usuario_verificador, 'firmx'):
         return JsonResponse({"error": "No tienes permiso para usar FIRMX."}, status=403)
     
     clean_id = str(document_id or '').strip()
@@ -2074,7 +2078,12 @@ def firmx_enviar_notificaciones(request, document_id):
     
     # Obtener correos de los firmantes
     firmantes = _normalizar_firmantes(proceso_doc.get('firmantes', []))
-    emails = [f.get('email') for f in firmantes if f.get('email')]
+    
+    email_filter = request.GET.get('email')
+    if email_filter:
+        emails = [f.get('email') for f in firmantes if f.get('email') == email_filter]
+    else:
+        emails = [f.get('email') for f in firmantes if f.get('email')]
     
     if not emails:
         return JsonResponse({"error": "No se encontraron correos de firmantes para notificar."}, status=400)

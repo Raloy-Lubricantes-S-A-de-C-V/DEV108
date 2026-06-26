@@ -95,6 +95,15 @@
                             <span class="material-symbols-outlined text-[14px]">calendar_today</span>
                             {{ proceso.created_at|date:"d/m/Y H:i:s" }}
                         </p>
+                        <div class="mt-3">
+                            <button type="button" onclick="toggleOriginalDocument()" class="inline-flex items-center gap-1.5 text-primary hover:text-primary-container font-bold text-xs transition-colors">
+                                <span class="material-symbols-outlined text-[18px]">visibility</span>
+                                Ver Documento Original
+                            </button>
+                        </div>
+                        <div id="originalDocumentContainer" class="hidden mt-4 rounded-xl border border-outline-variant overflow-hidden shadow-inner bg-white">
+                            <iframe class="document-frame h-[500px] w-full border-0" src="{{ pdf_url }}"></iframe>
+                        </div>
                     </div>
                 </div>
             </li>
@@ -142,7 +151,7 @@
                                     <span class="material-symbols-outlined text-[14px]">hourglass_empty</span>
                                     Esperando acción del usuario...
                                 </div>
-                                {% if admin_can_resend and not es_firmx %}
+                                {% if admin_can_resend %}
                                     <div class="pt-3">
                                         <button type="button"
                                                 data-token="{{ proceso.token_acceso }}"
@@ -271,19 +280,34 @@
         statusBox.textContent = '';
         statusBox.className = 'resend-status text-xs font-bold mt-2';
 
+        const isFirmx = "{{ es_firmx }}" === "True";
+
         try {
-            const res = await fetch('/api/admin-action/reenviar_firma/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    token: button.dataset.token,
-                    firmante_token: button.dataset.firmanteToken,
-                    email: button.dataset.email
-                })
+            let url = '/api/admin-action/reenviar_firma/';
+            let method = 'POST';
+            let headers = { 'Content-Type': 'application/json' };
+            let body = JSON.stringify({
+                token: button.dataset.token,
+                firmante_token: button.dataset.firmanteToken,
+                email: button.dataset.email
+            });
+
+            if (isFirmx) {
+                const firmxId = "{{ proceso.summary_data.firmx_id }}";
+                const email = button.dataset.email;
+                url = `/api/firmx/documents/${firmxId}/notify/?email=${encodeURIComponent(email)}`;
+                headers = { 'X-CSRFToken': '{{ csrf_token }}' };
+                body = null;
+            }
+
+            const res = await fetch(url, {
+                method: method,
+                headers: headers,
+                body: body
             });
             const payload = await res.json();
             if (!res.ok) throw new Error(payload.error || 'No se pudo reenviar.');
-            statusBox.textContent = `Solicitud enviada nuevamente ${payload.fecha || ''}`;
+            statusBox.textContent = isFirmx ? "¡Invitación FIRMX reenviada!" : `Solicitud enviada nuevamente ${payload.fecha || ''}`;
             statusBox.classList.add('text-status-success');
         } catch (error) {
             statusBox.textContent = error.message;
@@ -291,6 +315,15 @@
         } finally {
             button.disabled = false;
             button.innerHTML = originalHtml;
+        }
+    }
+
+    function toggleOriginalDocument() {
+        const container = document.getElementById('originalDocumentContainer');
+        if (container.classList.contains('hidden')) {
+            container.classList.remove('hidden');
+        } else {
+            container.classList.add('hidden');
         }
     }
 </script>
