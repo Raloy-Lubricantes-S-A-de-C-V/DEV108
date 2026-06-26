@@ -475,7 +475,7 @@
                         <span style="color: ${colorProgress};">${doc.firmas_hechas} / ${doc.total_firmas}</span>
                     </div>
                     <div class="progress-container">
-                        <div class="progress-bar ${doc.status === 'COMPLETED' ? 'completed' : ''}" style="width: ${doc.porcentaje}%;"></div>
+                        <div class="progress-bar ${doc.status === 'COMPLETED' ? 'completed' : ''}" style="width: ${doc.porcentaje}%; background-color: ${colorProgress};"></div>
                     </div>
                 </div>
             `;
@@ -542,7 +542,7 @@
                         <span style="color:${colorProgress};">${doc.porcentaje}%</span>
                     </div>
                     <div class="progress-container">
-                        <div class="progress-bar ${doc.status === 'COMPLETED' ? 'completed' : ''}" style="width: ${doc.porcentaje}%;"></div>
+                        <div class="progress-bar ${doc.status === 'COMPLETED' ? 'completed' : ''}" style="width: ${doc.porcentaje}%; background-color: ${colorProgress};"></div>
                     </div>
                 </div>
             `;
