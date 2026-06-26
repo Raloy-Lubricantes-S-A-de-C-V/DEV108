@@ -1315,6 +1315,7 @@ def _firmx_sync_status(clean_id):
                 hubo_cambio = False
                 for f_fx in firmantes_firmx:
                     email_fx = f_fx.get('email')
+                    nombre_fx = f_fx.get('name')
                     if not email_fx: continue
                     
                     f_status = str(f_fx.get('status') or f_fx.get('state') or '').lower()
@@ -1327,9 +1328,31 @@ def _firmx_sync_status(clean_id):
                     
                     for f_loc in firmantes_locales:
                         if _normalizar_email(f_loc.get('email')) == _normalizar_email(email_fx):
-                            if esta_firmado and not f_loc.get('fecha_firma'):
-                                f_loc['fecha_firma'] = f_fx.get('signed_at') or f_fx.get('updated_at') or _datetime_for_mongo().isoformat()
+                            # Sincronizar nombre si viene de FIRMX
+                            if nombre_fx and f_loc.get('nombre') != nombre_fx:
+                                f_loc['nombre'] = nombre_fx
                                 hubo_cambio = True
+
+                            if esta_firmado:
+                                # Intentar obtener la fecha real de FIRMX
+                                fecha_real = f_fx.get('signed_at') or f_fx.get('updated_at')
+                                if not fecha_real:
+                                    # Fallback a digital_fingerprints
+                                    fps = doc_obj.get('digital_fingerprints') or []
+                                    for fp in fps:
+                                        if email_fx in fp and ("firmó" in fp.lower() or "signed" in fp.lower()):
+                                            import re
+                                            match_f = re.search(r'(\d{4}[-/]\d{2}[-/]\d{2}\s+\d{2}:\d{2}:\d{2})', fp)
+                                            if match_f:
+                                                fecha_real = match_f.group(1)
+                                                break
+                                
+                                if not fecha_real:
+                                    fecha_real = _datetime_for_mongo().isoformat()
+                                
+                                if not f_loc.get('fecha_firma'):
+                                    f_loc['fecha_firma'] = fecha_real
+                                    hubo_cambio = True
                 
                 if hubo_cambio:
                     db.motor_firmas_procesofirma.update_one(
@@ -1361,6 +1384,11 @@ def vista_trazabilidad(request, token):
             sync_error = error_msg
 
     firmantes = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
+    if es_firmx:
+        # Ordenar dinámicamente: firmados primero (por fecha), luego pendientes
+        firmantes.sort(key=lambda x: (0 if x.get('fecha_firma') else 1, str(x.get('fecha_firma') or '')))
+        proceso.firmantes = firmantes
+
     total_firmas = len(firmantes)
     firmas_hechas = sum(1 for firmante in firmantes if firmante.get('fecha_firma'))
     admin_email = request.session.get('admin_email')
