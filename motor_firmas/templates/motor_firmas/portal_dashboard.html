@@ -302,7 +302,8 @@
             total_firmas: {{ item.total_firmas }},
             firmas_hechas: {{ item.firmas_hechas }},
             porcentaje: {{ item.porcentaje }},
-            can_adjust: {% if item.proceso.status == 'COMPLETED' %}true{% else %}false{% endif %}
+            can_adjust: {% if item.proceso.status == 'COMPLETED' %}true{% else %}false{% endif %},
+            firmx_id: "{{ item.proceso.summary_data.firmx_id|default:'' }}"
         }{% if not forloop.last %},{% endif %}
         {% endfor %}
     ];

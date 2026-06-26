@@ -2188,13 +2188,17 @@ def firmx_obtener_status(request, document_id):
     try:
         db = _mongo_database()
         firmx_data = response_data.get('data', {})
-        firmx_status_raw = firmx_data.get('document_status', 'waiting_for_signatures')
+        if isinstance(firmx_data, list) and len(firmx_data) > 0:
+            # A veces viene como lista en 'data'
+            firmx_data = firmx_data[0]
+            
+        firmx_status_raw = str(firmx_data.get('document_status') or firmx_data.get('status') or 'waiting_for_signatures').lower()
         
         # Mapear estado
         local_status = 'FIRMX_WAITING'
-        if firmx_status_raw == 'completed':
+        if firmx_status_raw in ['completed', 'signed', 'finalized']:
             local_status = 'COMPLETED'
-        elif firmx_status_raw == 'cancelled':
+        elif firmx_status_raw in ['cancelled', 'rejected', 'deleted']:
             local_status = 'CANCELLED'
             
         # Actualizar en DB
@@ -2211,7 +2215,8 @@ def firmx_obtener_status(request, document_id):
         )
 
         # Opcional: Sincronizar firmantes locales si FIRMX reporta firmas
-        firmantes_firmx = firmx_data.get('signers') or firmx_data.get('signatures') or []
+        # Intentar varias llaves comunes para la lista de firmantes
+        firmantes_firmx = firmx_data.get('signers') or firmx_data.get('signatures') or firmx_data.get('documents_signers') or []
         if firmantes_firmx:
             proceso_doc = db.motor_firmas_procesofirma.find_one({"summary_data.firmx_id": clean_id})
             if proceso_doc:
@@ -2220,13 +2225,15 @@ def firmx_obtener_status(request, document_id):
                 for f_fx in firmantes_firmx:
                     email_fx = f_fx.get('email')
                     if not email_fx: continue
-                    # FIRMX suele usar 'signed' o 'completed' para el estado del firmante
-                    esta_firmado = f_fx.get('status') in ['signed', 'completed'] or f_fx.get('signed_at')
+                    
+                    # Intentar detectar si está firmado por varias llaves
+                    f_status = str(f_fx.get('status') or '').lower()
+                    esta_firmado = f_status in ['signed', 'completed', 'finalized'] or f_fx.get('signed_at') or f_fx.get('signed') == True
                     
                     for f_loc in firmantes_locales:
                         if _normalizar_email(f_loc.get('email')) == _normalizar_email(email_fx):
                             if esta_firmado and not f_loc.get('fecha_firma'):
-                                f_loc['fecha_firma'] = f_fx.get('signed_at') or _datetime_for_mongo().isoformat()
+                                f_loc['fecha_firma'] = f_fx.get('signed_at') or f_fx.get('updated_at') or _datetime_for_mongo().isoformat()
                                 hubo_cambio = True
                 
                 if hubo_cambio:
