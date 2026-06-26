@@ -26,18 +26,6 @@
                                 </button>
                                 <div id="firmxNotifyStatus" class="text-[10px] font-bold mt-1"></div>
                             {% endif %}
-                            {% if can_refresh_status %}
-                                <div class="flex flex-col items-center gap-1 mt-2">
-                                    <button type="button" 
-                                            onclick="refreshFirmxStatus()" 
-                                            id="firmxStatusButton"
-                                            class="inline-flex items-center justify-center gap-2 bg-secondary text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-secondary-container transition-colors shadow-sm w-full">
-                                        <span class="material-symbols-outlined text-[16px]">refresh</span>
-                                        ACTUALIZAR AVANCE
-                                    </button>
-                                    <span class="text-[9px] text-text-muted italic text-center">Consulta firmas en tiempo real desde FIRMX</span>
-                                </div>
-                            {% endif %}
                         </div>
                     {% endif %}
                 </div>
@@ -278,29 +266,6 @@
             status.textContent = e.message;
             btn.innerHTML = '<span class="material-symbols-outlined text-[16px]">send</span> REINTENTAR ENVÍO';
         } finally {
-            btn.disabled = false;
-        }
-    }
-
-    async function refreshFirmxStatus() {
-        const btn = document.getElementById('firmxStatusButton');
-        const firmxId = "{{ proceso.summary_data.firmx_id }}";
-        if (!firmxId) return;
-
-        btn.disabled = true;
-        const originalHtml = btn.innerHTML;
-        btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[16px]">sync</span> ACTUALIZANDO...';
-
-        try {
-            const res = await fetch(`/api/firmx/documents/${firmxId}/status/`);
-            const payload = await res.json();
-            if (!res.ok) throw new Error(payload.error || 'Error al actualizar.');
-            
-            // Recargar para ver los cambios
-            location.reload();
-        } catch (e) {
-            alert(e.message);
-            btn.innerHTML = originalHtml;
             btn.disabled = false;
         }
     }

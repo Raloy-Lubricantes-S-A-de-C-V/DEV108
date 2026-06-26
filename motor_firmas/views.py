@@ -1232,9 +1232,101 @@ def procesar_firma(request, token, firmante_token=None):
                 pass
 
 
+def _firmx_sync_status(clean_id):
+    """
+    Sincroniza el estado de un documento con FIRMX y actualiza la base de datos local.
+    Retorna (success, data_or_error_message).
+    """
+    try:
+        url = _firmx_url(f'/documents/api/{clean_id}/')
+        headers = _firmx_headers()
+        response = requests.get(url, headers=headers, timeout=_firmx_timeout())
+        response_data = _json_response_from_requests(response)
+        
+        if not 200 <= response.status_code < 300:
+            return False, f"FIRMX Error {response.status_code}: {response_data.get('error') or 'Error desconocido'}"
+
+        db = _mongo_database()
+        firmx_data = response_data.get('data', {})
+        if isinstance(firmx_data, list) and len(firmx_data) > 0:
+            firmx_data = firmx_data[0]
+            
+        if not isinstance(firmx_data, dict):
+            return False, "Estructura de datos de FIRMX inesperada (no es un objeto)."
+
+        # Mapear estado del documento
+        # FIRMX v1 suele usar document_status, status o state
+        status_key = 'document_status' if 'document_status' in firmx_data else ('status' if 'status' in firmx_data else 'state')
+        firmx_status_raw = str(firmx_data.get(status_key) or 'waiting_for_signatures').lower()
+        
+        local_status = 'FIRMX_WAITING'
+        if firmx_status_raw in ['completed', 'signed', 'finalized', 'finalizado', 'completado']:
+            local_status = 'COMPLETED'
+        elif firmx_status_raw in ['cancelled', 'rejected', 'deleted', 'cancelado', 'rechazado', 'eliminado']:
+            local_status = 'CANCELLED'
+            
+        # Actualizar en DB
+        db.motor_firmas_procesofirma.update_one(
+            {"summary_data.firmx_id": clean_id},
+            {
+                "$set": {
+                    "status": local_status,
+                    "summary_data.firmx_status_raw": firmx_status_raw,
+                    "summary_data.firmx_response": response_data,
+                    "updated_at": _datetime_for_mongo()
+                }
+            }
+        )
+
+        # Sincronizar firmantes
+        firmantes_firmx = firmx_data.get('signers') or firmx_data.get('signatures') or firmx_data.get('documents_signers') or []
+        if firmantes_firmx:
+            proceso_doc = db.motor_firmas_procesofirma.find_one({"summary_data.firmx_id": clean_id})
+            if proceso_doc:
+                firmantes_locales = _normalizar_firmantes(proceso_doc.get('firmantes', []))
+                hubo_cambio = False
+                for f_fx in firmantes_firmx:
+                    email_fx = f_fx.get('email')
+                    if not email_fx: continue
+                    
+                    f_status = str(f_fx.get('status') or '').lower()
+                    # Mapeo flexible de estado de firma
+                    esta_firmado = f_status in ['signed', 'completed', 'finalized', 'firmado'] or \
+                                   f_fx.get('signed_at') or \
+                                   f_fx.get('signed') is True
+                    
+                    for f_loc in firmantes_locales:
+                        if _normalizar_email(f_loc.get('email')) == _normalizar_email(email_fx):
+                            if esta_firmado and not f_loc.get('fecha_firma'):
+                                f_loc['fecha_firma'] = f_fx.get('signed_at') or f_fx.get('updated_at') or _datetime_for_mongo().isoformat()
+                                hubo_cambio = True
+                
+                if hubo_cambio:
+                    db.motor_firmas_procesofirma.update_one(
+                        {"_id": proceso_doc['_id']},
+                        {"$set": {"firmantes": firmantes_locales}}
+                    )
+
+        return True, response_data
+
+    except Exception as e:
+        return False, str(e)
+
+
 def vista_trazabilidad(request, token):
     proceso = _get_proceso_por_token_or_404(token)
     summary_data = getattr(proceso, 'summary_data', {})
+    
+    # Sincronización automática con FIRMX si aplica
+    es_firmx = bool(summary_data.get('firmx_id'))
+    if es_firmx and proceso.status != 'COMPLETED' and proceso.status != 'CANCELLED':
+        firmx_id = summary_data.get('firmx_id')
+        success, _ = _firmx_sync_status(firmx_id)
+        if success:
+            # Refrescar el objeto proceso tras la actualización en DB
+            proceso = _get_proceso_por_token_or_404(token)
+            summary_data = getattr(proceso, 'summary_data', {})
+
     firmantes = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
     total_firmas = len(firmantes)
     firmas_hechas = sum(1 for firmante in firmantes if firmante.get('fecha_firma'))
@@ -1258,7 +1350,6 @@ def vista_trazabilidad(request, token):
                       'firmas_hechas': firmas_hechas,
                       'admin_can_resend': bool(admin_tiene_acceso and proceso.status in ['PROCESSING', 'FIRMX_WAITING']),
                       'admin_can_adjust': bool(admin_tiene_acceso and proceso.status == 'COMPLETED'),
-                      'can_refresh_status': bool((admin_tiene_acceso or owner_tiene_acceso) and es_firmx and proceso.status != 'COMPLETED'),
                       'es_firmx': es_firmx,
                       'qr_firmx_url': qr_firmx_url,
                   })
@@ -2163,94 +2254,23 @@ def firmx_obtener_status(request, document_id):
     if not clean_id:
         return JsonResponse({"error": "ID de documento FIRMX inválido."}, status=400)
 
-    firmx_debug = {}
-    try:
-        firmx_debug["firmx_curl"] = _firmx_curl_preview('GET', f'/documents/api/{clean_id}/')
-        
-        response = requests.get(
-            _firmx_url(f'/documents/api/{clean_id}/'),
-            headers=_firmx_headers(),
-            timeout=_firmx_timeout(),
-        )
-        response_data = _json_response_from_requests(response)
-    except Exception as e:
-        return JsonResponse({"error": f"Error contactando FIRMX: {e}", **firmx_debug}, status=502)
-
-    if not 200 <= response.status_code < 300:
+    firmx_debug = {
+        "firmx_curl": _firmx_curl_preview('GET', f'/documents/api/{clean_id}/')
+    }
+    
+    success, result = _firmx_sync_status(clean_id)
+    
+    if success:
         return JsonResponse({
-            "error": "FIRMX no pudo obtener el estado del documento.",
-            "firmx_status": response.status_code,
-            "firmx_response": response_data,
-            **firmx_debug,
+            "status": "success",
+            "firmx_response": result,
+            **firmx_debug
+        })
+    else:
+        return JsonResponse({
+            "error": f"Error contactando FIRMX: {result}",
+            **firmx_debug
         }, status=502)
-
-    # Actualizar el proceso local con la nueva información
-    try:
-        db = _mongo_database()
-        firmx_data = response_data.get('data', {})
-        if isinstance(firmx_data, list) and len(firmx_data) > 0:
-            # A veces viene como lista en 'data'
-            firmx_data = firmx_data[0]
-            
-        firmx_status_raw = str(firmx_data.get('document_status') or firmx_data.get('status') or 'waiting_for_signatures').lower()
-        
-        # Mapear estado
-        local_status = 'FIRMX_WAITING'
-        if firmx_status_raw in ['completed', 'signed', 'finalized']:
-            local_status = 'COMPLETED'
-        elif firmx_status_raw in ['cancelled', 'rejected', 'deleted']:
-            local_status = 'CANCELLED'
-            
-        # Actualizar en DB
-        db.motor_firmas_procesofirma.update_one(
-            {"summary_data.firmx_id": clean_id},
-            {
-                "$set": {
-                    "status": local_status,
-                    "summary_data.firmx_status_raw": firmx_status_raw,
-                    "summary_data.firmx_response": response_data,
-                    "updated_at": _datetime_for_mongo()
-                }
-            }
-        )
-
-        # Opcional: Sincronizar firmantes locales si FIRMX reporta firmas
-        # Intentar varias llaves comunes para la lista de firmantes
-        firmantes_firmx = firmx_data.get('signers') or firmx_data.get('signatures') or firmx_data.get('documents_signers') or []
-        if firmantes_firmx:
-            proceso_doc = db.motor_firmas_procesofirma.find_one({"summary_data.firmx_id": clean_id})
-            if proceso_doc:
-                firmantes_locales = _normalizar_firmantes(proceso_doc.get('firmantes', []))
-                hubo_cambio = False
-                for f_fx in firmantes_firmx:
-                    email_fx = f_fx.get('email')
-                    if not email_fx: continue
-                    
-                    # Intentar detectar si está firmado por varias llaves
-                    f_status = str(f_fx.get('status') or '').lower()
-                    esta_firmado = f_status in ['signed', 'completed', 'finalized'] or f_fx.get('signed_at') or f_fx.get('signed') == True
-                    
-                    for f_loc in firmantes_locales:
-                        if _normalizar_email(f_loc.get('email')) == _normalizar_email(email_fx):
-                            if esta_firmado and not f_loc.get('fecha_firma'):
-                                f_loc['fecha_firma'] = f_fx.get('signed_at') or f_fx.get('updated_at') or _datetime_for_mongo().isoformat()
-                                hubo_cambio = True
-                
-                if hubo_cambio:
-                    db.motor_firmas_procesofirma.update_one(
-                        {"_id": proceso_doc['_id']},
-                        {"$set": {"firmantes": firmantes_locales}}
-                    )
-
-    except Exception as e:
-        print(f"Error actualizando estado FIRMX local: {e}")
-
-    return JsonResponse({
-        "status": "success",
-        "firmx_status": response.status_code,
-        "firmx_response": response_data,
-        **firmx_debug,
-    })
 
 
 def portal_logout(request):
