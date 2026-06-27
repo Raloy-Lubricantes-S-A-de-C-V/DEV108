@@ -1400,8 +1400,19 @@ def vista_trazabilidad(request, token):
 
     es_firmx = bool(summary_data.get('firmx_id'))
     qr_firmx_url = ""
-    if es_firmx and summary_data.get('qr_local_path'):
-        qr_firmx_url = f"{settings.MEDIA_URL}{summary_data['qr_local_path']}"
+    qrs_firmx = []
+    if es_firmx:
+        if summary_data.get('qr_local_path'):
+            qr_firmx_url = f"{settings.MEDIA_URL}{summary_data['qr_local_path']}"
+        
+        qrs_raw = summary_data.get('qrs', [])
+        if qrs_raw:
+            for q in qrs_raw:
+                qrs_firmx.append({
+                    'email': q.get('email', 'Firmante'),
+                    'url': f"{settings.MEDIA_URL}{q['qr_local_path']}" if q.get('qr_local_path') else "",
+                    'link': q.get('url_qr_code', '')
+                })
 
     return render(request, 'motor_firmas/trazabilidad.html',
                   {
@@ -1413,6 +1424,7 @@ def vista_trazabilidad(request, token):
                       'admin_can_adjust': bool(admin_tiene_acceso and proceso.status == 'COMPLETED'),
                       'es_firmx': es_firmx,
                       'qr_firmx_url': qr_firmx_url,
+                      'qrs_firmx': qrs_firmx,
                       'sync_error': sync_error,
                   })
 
@@ -2159,18 +2171,29 @@ def firmx_obtener_qr(request, document_id):
         }, status=502)
 
     content_type = response.headers.get('content-type', '')
-    qr_base64 = None
+    qrs_descargados = []
     
     if content_type.lower().startswith('image/'):
-        qr_base64 = base64.b64encode(response.content).decode('ascii')
+        qr_b64 = base64.b64encode(response.content).decode('ascii')
+        qrs_descargados.append({
+            'email': 'Documento',
+            'qr_base64': qr_b64,
+            'url_qr_code': None
+        })
     else:
-        # Intentar extraer del JSON (data[0].qr_code) según respuesta del usuario
         data_list = response_data.get('data', [])
-        if isinstance(data_list, list) and len(data_list) > 0:
-            qr_base64 = data_list[0].get('qr_code')
+        if isinstance(data_list, list):
+            for item in data_list:
+                qr_b64 = item.get('qr_code')
+                if qr_b64:
+                    qrs_descargados.append({
+                        'email': item.get('email') or 'Sin Email',
+                        'qr_base64': qr_b64,
+                        'url_qr_code': item.get('url_qr_code')
+                    })
 
     api_steps = []
-    if qr_base64:
+    if qrs_descargados:
         # Trazabilidad y guardado local
         try:
             db = _mongo_database()
@@ -2178,29 +2201,39 @@ def firmx_obtener_qr(request, document_id):
             
             if proceso_doc:
                 ref_id = proceso_doc.get('reference_id')
-                qr_filename = f"{ref_id}_qr.png"
-                qr_path = os.path.join(settings.MEDIA_ROOT, qr_filename)
-                
-                # Guardar imagen
-                os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
-                with open(qr_path, "wb") as f:
-                    f.write(base64.b64decode(qr_base64))
-                
-                # Actualizar resumen y pasos
                 summary_data = proceso_doc.get('summary_data', {})
-                summary_data['qr_local_path'] = qr_filename
+                lista_qrs_local = []
                 
-                # Guardar también la URL de firma para el paso de notificaciones
-                data_list = response_data.get('data', [])
-                if isinstance(data_list, list) and len(data_list) > 0:
-                    summary_data['url_qr_code'] = data_list[0].get('url_qr_code')
+                os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
+                
+                for i, qr_info in enumerate(qrs_descargados):
+                    email_slug = re.sub(r'[^a-zA-Z0-9]', '_', qr_info['email'])
+                    qr_filename = f"{ref_id}_qr_{i}_{email_slug}.png"
+                    qr_path = os.path.join(settings.MEDIA_ROOT, qr_filename)
+                    
+                    with open(qr_path, "wb") as f:
+                        f.write(base64.b64decode(qr_info['qr_base64']))
+                    
+                    item_qr = {
+                        'email': qr_info['email'],
+                        'qr_local_path': qr_filename,
+                        'url_qr_code': qr_info['url_qr_code']
+                    }
+                    lista_qrs_local.append(item_qr)
+                    
+                    # Compatibilidad con lógica anterior (primer QR)
+                    if i == 0:
+                        summary_data['qr_local_path'] = qr_filename
+                        summary_data['url_qr_code'] = qr_info['url_qr_code']
+                
+                summary_data['qrs'] = lista_qrs_local
                 
                 api_steps = summary_data.get('api_steps', [])
                 api_steps.append({
                     "step": "Obtención de QR",
                     "timestamp": _datetime_for_mongo().isoformat(),
                     "status": "success",
-                    "details": "QR guardado localmente"
+                    "details": f"Se obtuvieron {len(qrs_descargados)} códigos QR."
                 })
                 summary_data['api_steps'] = api_steps
                 
@@ -2212,7 +2245,12 @@ def firmx_obtener_qr(request, document_id):
                 return JsonResponse({
                     "status": "success",
                     "firmx_status": response.status_code,
-                    "qr_image": f"data:image/png;base64,{qr_base64}",
+                    "qr_image": f"data:image/png;base64,{qrs_descargados[0]['qr_base64']}",
+                    "qrs": [{
+                        'email': q['email'],
+                        'qr_image': f"data:image/png;base64,{q['qr_base64']}",
+                        'url_qr_code': q['url_qr_code']
+                    } for q in qrs_descargados],
                     "api_steps": api_steps,
                     **firmx_debug,
                 })
@@ -2224,7 +2262,12 @@ def firmx_obtener_qr(request, document_id):
         "firmx_status": response.status_code,
         "content_type": content_type,
         "firmx_response": response_data,
-        "qr_image": f"data:image/png;base64,{qr_base64}" if qr_base64 else None,
+        "qr_image": f"data:image/png;base64,{qrs_descargados[0]['qr_base64']}" if qrs_descargados else None,
+        "qrs": [{
+            'email': q['email'],
+            'qr_image': f"data:image/png;base64,{q['qr_base64']}",
+            'url_qr_code': q['url_qr_code']
+        } for q in qrs_descargados],
         "api_steps": api_steps,
         **firmx_debug,
     })
@@ -2251,7 +2294,7 @@ def firmx_enviar_notificaciones(request, document_id):
     
     email_filter = request.GET.get('email')
     if email_filter:
-        emails = [f.get('email') for f in firmantes if f.get('email') == email_filter]
+        emails = [f.get('email') for f in firmantes if _normalizar_email(f.get('email')) == _normalizar_email(email_filter)]
     else:
         emails = [f.get('email') for f in firmantes if f.get('email')]
     
@@ -2260,57 +2303,71 @@ def firmx_enviar_notificaciones(request, document_id):
     
     # Recuperar URL de firma
     summary_data = proceso_doc.get('summary_data', {})
-    url_firma = summary_data.get('url_qr_code')
     
-    if not url_firma:
-        return JsonResponse({"error": "No se encontró la URL de firma. Primero debes obtener el QR (Paso 4)."}, status=400)
+    # Mapeo de URLs por email si existen múltiples QRs (normalizando email)
+    qrs_map = {_normalizar_email(q.get('email')): q.get('url_qr_code') for q in summary_data.get('qrs', []) if q.get('email')}
+    
+    url_firma = summary_data.get('url_qr_code') # Fallback al primero
+    
+    # Enviar notificaciones individuales para asegurar que cada uno reciba su URL de firma correcta
+    api_steps = summary_data.get('api_steps', [])
+    notificados_con_exito = []
+    errores = []
+    
+    for email in emails:
+        # Buscar URL específica para este correo, fallback a la general (primera obtenida)
+        url_especifica = qrs_map.get(_normalizar_email(email)) or url_firma
+        
+        payload_n8n = {
+            "correos_destino": email,
+            "reference_id": proceso_doc.get('reference_id', 'N/A'),
+            "url_firma": url_especifica,
+            "subject": "Firma Digital Raloy - FIRMX",
+            "titulo": "Firma Digital Raloy - FIRMX",
+            "texto_boton": "IR A FIRMA",
+            "mensaje": "Se requiere su firma para el documento: " + summary_data.get('document_name', 'Documento FIRMX')
+        }
+        
+        try:
+            response_n8n = requests.post(N8N_WEBHOOK_NOTIFICAR_FIRMX, json=payload_n8n, timeout=20)
+            if 200 <= response_n8n.status_code < 300:
+                notificados_con_exito.append(email)
+            else:
+                errores.append(f"{email} (Status {response_n8n.status_code})")
+        except Exception as e:
+            errores.append(f"{email} (Error: {str(e)})")
 
-    # Preparar payload para N8N basado en el JSON proporcionado
-    payload_n8n = {
-        "correos_destino": ",".join(emails),
-        "reference_id": proceso_doc.get('reference_id', 'N/A'),
-        "url_firma": url_firma,
-        "subject": "Firma Digital Raloy - FIRMX",
-        "titulo": "Firma Digital Raloy - FIRMX",
-        "texto_boton": "IR A FIRMA",
-        "mensaje": "Se requiere su firma para el documento: " + summary_data.get('document_name', 'Documento FIRMX')
-    }
+    # Registrar en trazabilidad
+    hubo_exito = len(notificados_con_exito) > 0
+    api_steps.append({
+        "step": "Envío de Notificaciones",
+        "timestamp": _datetime_for_mongo().isoformat(),
+        "status": "success" if not errores else ("partial" if hubo_exito else "error"),
+        "details": f"Notificados: {', '.join(notificados_con_exito)}. Errores: {', '.join(errores)}" if errores else f"Notificación enviada a: {', '.join(notificados_con_exito)}"
+    })
     
     try:
-        response = requests.post(N8N_WEBHOOK_NOTIFICAR_FIRMX, json=payload_n8n, timeout=20)
-        
-        # Trazabilidad
-        api_steps = summary_data.get('api_steps', [])
-        success = 200 <= response.status_code < 300
-        
-        api_steps.append({
-            "step": "Envío de Notificaciones",
-            "timestamp": _datetime_for_mongo().isoformat(),
-            "status": "success" if success else "error",
-            "details": f"Notificación enviada a: {', '.join(emails)}" if success else f"Error al enviar: {response.status_code}"
-        })
-        
         db.motor_firmas_procesofirma.update_one(
             {"_id": proceso_doc['_id']},
             {"$set": {"summary_data.api_steps": api_steps}}
         )
         
-        if not success:
+        if not notificados_con_exito and errores:
             return JsonResponse({
-                "error": "El servidor de correos (N8N) respondió con error.",
-                "n8n_status": response.status_code,
+                "error": "No se pudo enviar ninguna notificación a través de N8N.",
+                "detalles": errores,
                 "api_steps": api_steps
             }, status=502)
             
         return JsonResponse({
-            "status": "success",
-            "n8n_status": response.status_code,
-            "sent_to": emails,
+            "status": "success" if not errores else "partial",
+            "sent_to": notificados_con_exito,
+            "errors": errores,
             "api_steps": api_steps
         })
         
     except Exception as e:
-        return JsonResponse({"error": f"Error contactando con el servicio de notificaciones: {e}"}, status=502)
+        return JsonResponse({"error": f"Error actualizando trazabilidad: {e}"}, status=502)
 
 
 @csrf_exempt

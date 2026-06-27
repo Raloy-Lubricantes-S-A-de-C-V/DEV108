@@ -1046,6 +1046,33 @@
     function renderQrFromPayload(payload) {
         const frame = document.getElementById('firmxQrFrame');
         frame.innerHTML = '';
+        frame.className = 'firmx-qr-frame'; // Reset a estilo por defecto
+
+        const qrs = payload.qrs || [];
+        if (qrs.length > 0) {
+            if (qrs.length > 1) {
+                frame.className = 'bg-white rounded-xl border border-outline-variant p-3 grid grid-cols-2 gap-3';
+            }
+            qrs.forEach(qr => {
+                const container = document.createElement('div');
+                container.className = 'flex flex-col items-center gap-1.5 p-2 border border-outline-variant rounded-lg bg-surface-container-low shadow-sm';
+                
+                const img = document.createElement('img');
+                img.src = qr.qr_image;
+                img.alt = `QR FIRMX - ${qr.email}`;
+                img.className = 'w-full h-auto object-contain';
+                
+                const label = document.createElement('div');
+                label.className = 'text-[9px] font-bold text-primary break-all text-center leading-tight';
+                label.textContent = qr.email;
+                
+                container.appendChild(img);
+                container.appendChild(label);
+                frame.appendChild(container);
+            });
+            return;
+        }
+
         const qrCandidate = payload.qr_image || extractQrCandidate(payload.firmx_response);
         if (!qrCandidate) {
             frame.innerHTML = '<span class="material-symbols-outlined text-outline text-5xl">qr_code_2</span>';
