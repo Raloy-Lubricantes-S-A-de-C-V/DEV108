@@ -1287,9 +1287,14 @@ def _firmx_sync_status(clean_id):
                 []
             )
 
-        # URLs de documentos firmados y certificados
-        file_url = doc_obj.get('file_url')
-        cert_url = doc_obj.get('file_url_certificate')
+        # URLs de documentos firmados y certificados (FIRMX a veces los entrega con espacios)
+        def _clean_url(u):
+            return u.strip() if isinstance(u, str) else u
+        file_url = _clean_url(doc_obj.get('file_url'))
+        cert_url = _clean_url(doc_obj.get('file_url_certificate'))
+        download_file_url = _clean_url(doc_obj.get('download_file_url'))
+        download_cert_url = _clean_url(doc_obj.get('download_certificate_url'))
+        archivo_url = _clean_url(doc_obj.get('archivo') or doc_obj.get('file'))
 
         # Actualizar en DB
         update_fields = {
@@ -1302,6 +1307,12 @@ def _firmx_sync_status(clean_id):
             update_fields["summary_data.firmx_file_url"] = file_url
         if cert_url:
             update_fields["summary_data.firmx_certificate_url"] = cert_url
+        if download_file_url:
+            update_fields["summary_data.firmx_download_file_url"] = download_file_url
+        if download_cert_url:
+            update_fields["summary_data.firmx_download_certificate_url"] = download_cert_url
+        if archivo_url:
+            update_fields["summary_data.firmx_archivo_url"] = archivo_url
 
         db.motor_firmas_procesofirma.update_one(
             {"summary_data.firmx_id": clean_id},
@@ -1414,10 +1425,28 @@ def vista_trazabilidad(request, token):
                     'link': q.get('url_qr_code', '')
                 })
 
+    # URLs FIRMX para visualizar documento original y certificado
+    firmx_file_url = summary_data.get('firmx_file_url') or ''
+    firmx_certificate_url = summary_data.get('firmx_certificate_url') or ''
+    firmx_download_file_url = summary_data.get('firmx_download_file_url') or ''
+    firmx_download_certificate_url = summary_data.get('firmx_download_certificate_url') or ''
+
+    pdf_url_local = f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}"
+    # En modo FIRMX, el documento original a mostrar es el devuelto por FIRMX (file_url);
+    # el certificado/final es file_url_certificate.
+    pdf_url_original = firmx_file_url if es_firmx and firmx_file_url else pdf_url_local
+    pdf_url_certificate = firmx_certificate_url if es_firmx and firmx_certificate_url else pdf_url_local
+
     return render(request, 'motor_firmas/trazabilidad.html',
                   {
                       'proceso': proceso,
-                      'pdf_url': f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}",
+                      'pdf_url': pdf_url_local,
+                      'pdf_url_original': pdf_url_original,
+                      'pdf_url_certificate': pdf_url_certificate,
+                      'firmx_file_url': firmx_file_url,
+                      'firmx_certificate_url': firmx_certificate_url,
+                      'firmx_download_file_url': firmx_download_file_url,
+                      'firmx_download_certificate_url': firmx_download_certificate_url,
                       'total_firmas': total_firmas,
                       'firmas_hechas': firmas_hechas,
                       'admin_can_resend': bool(admin_tiene_acceso and proceso.status in ['PROCESSING', 'FIRMX_WAITING']),
