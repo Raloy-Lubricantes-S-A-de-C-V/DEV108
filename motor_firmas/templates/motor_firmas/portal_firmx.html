@@ -241,22 +241,12 @@
                         <div id="firmxStepTwoSummary" class="firmx-summary-list"></div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <label class="flex items-center gap-3 bg-white border border-outline-variant p-4 rounded-lg">
-                            <input id="firmxNotifySigners" type="checkbox" checked class="h-5 w-5 rounded border-outline-variant text-primary focus:ring-primary">
-                            <span class="text-sm font-semibold text-primary">Notificar firmantes</span>
-                        </label>
-                        <label class="flex items-center gap-3 bg-white border border-outline-variant p-4 rounded-lg">
-                            <input id="firmxNotifyViewers" type="checkbox" checked class="h-5 w-5 rounded border-outline-variant text-primary focus:ring-primary">
-                            <span class="text-sm font-semibold text-primary">Notificar visualizadores</span>
-                        </label>
-                    </div>
+                    <!-- Notificaciones y recordatorio ocultos: siempre deshabilitadas / recordatorio fijo a 1 día -->
+                    <input id="firmxNotifySigners" type="checkbox" class="hidden">
+                    <input id="firmxNotifyViewers" type="checkbox" class="hidden">
+                    <input id="firmxReminder" type="hidden" value="cada 1 dia">
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-semibold text-on-surface-variant mb-2">Recordatorio</label>
-                            <input id="firmxReminder" type="text" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" placeholder="Ej. cada 2 días">
-                        </div>
+                    <div class="grid grid-cols-1 md:grid-cols-1 gap-4">
                         <div class="space-y-4">
                             <div>
                                 <label class="block text-sm font-semibold text-on-surface-variant mb-1">Empresa (Etiqueta 1)</label>
@@ -344,12 +334,16 @@
                         <h2 class="text-2xl font-bold text-primary mt-1">Enviar notificaciones por correo</h2>
                     </div>
 
-                    <div class="bg-surface-container-low border border-outline-variant rounded-xl p-5 text-on-surface-variant">
-                        <p class="text-sm mb-4">Se enviará un correo a todos los firmantes con el enlace para realizar la firma digital en FIRMX.</p>
-                        <div class="flex items-center gap-3 text-primary font-bold">
+                    <div class="bg-surface-container-low border border-outline-variant rounded-xl p-4 text-on-surface-variant">
+                        <p class="text-sm">Envía individualmente el enlace de firma a cada firmante. Cada tarjeta muestra el QR correspondiente y su correo. Cuando todos hayan sido notificados, regresarás al dashboard.</p>
+                        <div class="flex items-center gap-3 text-primary font-bold mt-2">
                             <span class="material-symbols-outlined">mail</span>
                             <span>Asunto: Firma Digital Raloy - FIRMX</span>
                         </div>
+                    </div>
+
+                    <div id="firmxSignerCards" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- tarjetas por firmante inyectadas por JS -->
                     </div>
 
                     <div id="firmxNotifyState" class="hidden bg-status-success-container text-status-success border border-status-success rounded-xl p-4 text-sm font-bold">
@@ -361,7 +355,7 @@
                             <span class="material-symbols-outlined text-[18px]">arrow_back</span>
                             Anterior (QR)
                         </button>
-                        <button id="firmxNotifyButton" type="button" onclick="sendFirmxNotifications()" class="inline-flex items-center justify-center gap-2 bg-primary text-white px-8 py-3 rounded-lg font-bold hover:bg-primary-container transition-colors shadow-lg">
+                        <button id="firmxNotifyButton" type="button" onclick="sendFirmxNotifications()" class="hidden inline-flex items-center justify-center gap-2 bg-primary text-white px-8 py-3 rounded-lg font-bold hover:bg-primary-container transition-colors shadow-lg">
                             <span class="material-symbols-outlined text-[20px]">send</span>
                             ENVIAR A TODOS LOS FIRMANTES
                         </button>
@@ -463,6 +457,8 @@
     let lastFirmxQrType = '';
     let lastFirmxNotifyMsg = '';
     let lastFirmxNotifyType = '';
+    let lastFirmxQrPayload = null;
+    let firmxNotifiedEmails = new Set();
     let firmxSelectedFile = null;
     let firmxPdfObjectUrl = '';
     let firmxPdfDocument = null;
@@ -776,8 +772,6 @@
 
     function notificationSummaryHtml() {
         return `
-            <div><strong>Notificar firmantes:</strong> ${document.getElementById('firmxNotifySigners').checked ? 'Sí' : 'No'}</div>
-            <div><strong>Notificar visualizadores:</strong> ${document.getElementById('firmxNotifyViewers').checked ? 'Sí' : 'No'}</div>
             <div><strong>Etiquetas:</strong> ${escapeHtml(collectTags().map(item => item.tag).join(', ') || 'Sin etiquetas')}</div>
             <div><strong>Visualizadores:</strong> ${escapeHtml(parsePeopleTextarea(document.getElementById('firmxViewers').value).length || 0)}</div>
         `;
@@ -908,6 +902,9 @@
                 stateBox.classList.remove('hidden');
                 stateBox.textContent = lastFirmxNotifyMsg;
             }
+        }
+        if (target === 5) {
+            renderFirmxSignerCards(lastFirmxQrPayload || {});
         }
 
         if (lastFirmxRegistrationMsg && target >= 4) {
@@ -1200,6 +1197,8 @@
             if (payload.firmx_curl) updateCurlPreview('qr', payload.firmx_curl);
             if (!res.ok) throw new Error(payload.error || 'No se pudo obtener el QR.');
             renderQrFromPayload(payload);
+            lastFirmxQrPayload = payload;
+            renderFirmxSignerCards(payload);
             setFirmxStatus('QR obtenido desde FIRMX.', 'ok');
             setFinalState('QR obtenido desde FIRMX. Revisa el panel lateral.', 'ok');
         } catch (error) {
@@ -1246,7 +1245,117 @@
         }
     }
 
+    function renderFirmxSignerCards(payload) {
+        const container = document.getElementById('firmxSignerCards');
+        if (!container) return;
+        const qrs = (payload && Array.isArray(payload.qrs)) ? payload.qrs : [];
+        if (!qrs.length) {
+            container.innerHTML = '<div class="col-span-full text-sm italic text-on-surface-variant">Aún no hay QR disponibles. Obtén el QR en el paso anterior.</div>';
+            return;
+        }
+        // Construir mapa nombre por email a partir de los firmantes capturados
+        const { signers } = collectSigners(false);
+        const nameByEmail = {};
+        signers.forEach(s => { if (s && s.email) nameByEmail[s.email.toLowerCase()] = s.name || ''; });
+
+        container.innerHTML = '';
+        qrs.forEach((qr, idx) => {
+            const email = (qr.email || '').toLowerCase();
+            const nombre = nameByEmail[email] || '';
+            const alreadySent = firmxNotifiedEmails.has(email);
+            const safeEmail = escapeHtml(qr.email || 'Sin email');
+            const safeName = escapeHtml(nombre || 'Firmante');
+            const card = document.createElement('div');
+            card.className = 'bg-white border border-outline-variant rounded-xl p-4 shadow-sm flex flex-col gap-3';
+            card.dataset.email = email;
+            card.innerHTML = `
+                <div class="flex items-start justify-between gap-2">
+                    <div>
+                        <div class="text-xs font-bold text-outline uppercase">Firmante ${idx + 1}</div>
+                        <div class="text-sm font-bold text-primary">${safeName}</div>
+                        <div class="text-xs text-on-surface-variant break-all">${safeEmail}</div>
+                    </div>
+                    <span data-role="check" class="material-symbols-outlined text-status-success ${alreadySent ? '' : 'hidden'}" title="Enviado">check_circle</span>
+                </div>
+                <div class="flex justify-center bg-surface-container-low rounded-lg p-2 border border-outline-variant">
+                    ${qr.qr_image ? `<img src="${qr.qr_image}" alt="QR ${safeEmail}" class="w-40 h-40 object-contain">` : '<span class="material-symbols-outlined text-5xl text-outline">qr_code_2</span>'}
+                </div>
+                ${qr.url_qr_code ? `<a href="${qr.url_qr_code}" target="_blank" class="text-[10px] text-primary underline break-all text-center">${escapeHtml(qr.url_qr_code)}</a>` : ''}
+                <button type="button" data-role="send-btn" onclick="sendFirmxNotificationForEmail('${encodeURIComponent(qr.email || '')}', this)" class="inline-flex items-center justify-center gap-2 ${alreadySent ? 'bg-secondary-container text-primary' : 'bg-primary text-white'} px-4 py-2 rounded-lg font-bold hover:opacity-90 transition-colors">
+                    <span class="material-symbols-outlined text-[18px]">${alreadySent ? 'refresh' : 'send'}</span>
+                    ${alreadySent ? 'Reenviar' : 'Enviar'}
+                </button>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    async function sendFirmxNotificationForEmail(emailEncoded, btn) {
+        const id = firmxDocumentId || document.getElementById('firmxDocumentIdManual').value.trim();
+        if (!id) {
+            setFirmxStatus('No hay un ID de documento para notificar.', 'error');
+            return;
+        }
+        const email = decodeURIComponent(emailEncoded || '');
+        if (!email || email === 'Sin Email') {
+            setFirmxStatus('Este QR no tiene un correo asociado válido.', 'error');
+            return;
+        }
+
+        const card = btn.closest('[data-email]');
+        const check = card ? card.querySelector('[data-role="check"]') : null;
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[18px]">sync</span> Enviando...';
+
+        if (!window.confirm(`¿Confirmas enviar el enlace de firma a ${email}?`)) {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+            return;
+        }
+
+        try {
+            const url = `/api/firmx/documents/${encodeURIComponent(id)}/notify/?email=${encodeURIComponent(email)}`;
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') }
+            });
+            const payload = await parseFetchPayload(res);
+            setFirmxResponse(payload);
+            if (!res.ok) throw new Error(payload.error || 'Error al enviar notificación.');
+
+            firmxNotifiedEmails.add(email.toLowerCase());
+            if (check) check.classList.remove('hidden');
+            btn.classList.remove('bg-primary', 'text-white');
+            btn.classList.add('bg-secondary-container', 'text-primary');
+            btn.innerHTML = '<span class="material-symbols-outlined text-[18px]">refresh</span> Reenviar';
+            setFirmxStatus(`Enlace enviado a ${email}.`, 'ok');
+
+            // ¿Ya enviamos a todos los firmantes con QR?
+            const qrs = (lastFirmxQrPayload && Array.isArray(lastFirmxQrPayload.qrs)) ? lastFirmxQrPayload.qrs : [];
+            const totales = qrs.map(q => (q.email || '').toLowerCase()).filter(e => e && e !== 'sin email');
+            const todosEnviados = totales.length > 0 && totales.every(e => firmxNotifiedEmails.has(e));
+            if (todosEnviados) {
+                const stateBox = document.getElementById('firmxNotifyState');
+                if (stateBox) {
+                    stateBox.textContent = 'Todos los firmantes han sido notificados. Regresando al dashboard...';
+                    stateBox.classList.remove('hidden');
+                }
+                lastFirmxNotifyMsg = 'Todos los firmantes han sido notificados.';
+                lastFirmxNotifyType = 'ok';
+                setTimeout(() => { window.location.href = "{% url 'portal_dashboard' %}"; }, 1800);
+            }
+        } catch (error) {
+            setFirmxStatus(error.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+            return;
+        }
+        btn.disabled = false;
+    }
+
     async function sendFirmxNotifications() {
+        // Compatibilidad: ahora el envío se hace tarjeta por tarjeta. Este botón queda oculto.
         const id = firmxDocumentId || document.getElementById('firmxDocumentIdManual').value.trim();
         if (!id) {
             setFirmxStatus('No hay un ID de documento para notificar.', 'error');
@@ -1256,13 +1365,13 @@
         const btn = document.getElementById('firmxNotifyButton');
         const sidebarBtn = document.getElementById('firmxNotifySidebarButton');
         const stateBox = document.getElementById('firmxNotifyState');
-        
+
         btn.disabled = true;
         if (sidebarBtn) sidebarBtn.disabled = true;
 
         btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[20px]">sync</span> ENVIANDO...';
         if (sidebarBtn) sidebarBtn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[18px]">sync</span> ENVIANDO...';
-        
+
         stateBox.classList.add('hidden');
 
         try {
@@ -1276,12 +1385,12 @@
             if (!res.ok) throw new Error(payload.error || 'Error al enviar notificaciones.');
 
             stateBox.classList.remove('hidden');
-            const okMsg = `Notificaciones enviadas correctamente a: ${payload.sent_to.join(', ')}`;
+            const okMsg = `Notificaciones enviadas correctamente a: ${(payload.sent_to || []).join(', ')}`;
             stateBox.textContent = okMsg;
             lastFirmxNotifyMsg = okMsg;
             lastFirmxNotifyType = 'ok';
             setFirmxStatus('Notificaciones enviadas.', 'ok');
-            
+
         } catch (error) {
             setFirmxStatus(error.message, 'error');
             alert(error.message);
