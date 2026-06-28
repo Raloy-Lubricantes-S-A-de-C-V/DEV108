@@ -1925,10 +1925,11 @@ def portal_dashboard(request):
     sync_count = 0
     lista_docs = []
     for doc in documentos:
-        summary_data = getattr(doc, 'summary_data', {})
+        summary_data = getattr(doc, 'summary_data', {}) or {}
         firmx_id = summary_data.get('firmx_id')
+        doc_status = getattr(doc, 'status', '')
         
-        if firmx_id and doc.status not in ['COMPLETED', 'CANCELLED'] and sync_count < 5:
+        if firmx_id and doc_status not in ['COMPLETED', 'CANCELLED'] and sync_count < 5:
             success, _ = _firmx_sync_status(firmx_id)
             if success:
                 # Refrescar documento tras sync
@@ -2766,10 +2767,11 @@ def admin_dashboard(request):
     docs_json = []
     sync_count = 0
     for d in todos_docs:
-        summary_data = getattr(d, 'summary_data', {})
+        summary_data = getattr(d, 'summary_data', {}) or {}
         firmx_id = summary_data.get('firmx_id')
+        doc_status = getattr(d, 'status', '')
         
-        if firmx_id and d.status not in ['COMPLETED', 'CANCELLED'] and sync_count < 5:
+        if firmx_id and doc_status not in ['COMPLETED', 'CANCELLED'] and sync_count < 5:
             success, _ = _firmx_sync_status(firmx_id)
             if success:
                 # Refrescar documento tras sync
