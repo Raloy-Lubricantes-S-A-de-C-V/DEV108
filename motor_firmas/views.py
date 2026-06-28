@@ -1381,10 +1381,15 @@ def vista_trazabilidad(request, token):
     proceso = _get_proceso_por_token_or_404(token)
     summary_data = getattr(proceso, 'summary_data', {})
     
-    # Sincronización automática con FIRMX si aplica
+    # Sincronización automática con FIRMX si aplica.
+    # Importante: también re-sincronizamos cuando el proceso está COMPLETED
+    # porque los URLs de Google Cloud Storage (file_url / file_url_certificate)
+    # que devuelve FIRMX están firmados con un parámetro Expires= y caducan.
+    # Cada llamada al status de FIRMX regenera URLs frescos, evitando el
+    # error "ExpiredToken / Request signature expired" al renderizar los PDFs.
     es_firmx = bool(summary_data.get('firmx_id'))
     sync_error = None
-    if es_firmx and proceso.status != 'COMPLETED' and proceso.status != 'CANCELLED':
+    if es_firmx and proceso.status != 'CANCELLED':
         firmx_id = summary_data.get('firmx_id')
         success, error_msg = _firmx_sync_status(firmx_id)
         if success:
