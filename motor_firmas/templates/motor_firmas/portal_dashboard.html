@@ -302,7 +302,7 @@
             total_firmas: {{ item.total_firmas }},
             firmas_hechas: {{ item.firmas_hechas }},
             porcentaje: {{ item.porcentaje }},
-            can_adjust: {% if item.proceso.status == 'COMPLETED' %}true{% else %}false{% endif %},
+            can_adjust: {% if item.proceso.status == 'COMPLETED' and not item.proceso.summary_data.firmx_id %}true{% else %}false{% endif %},
             firmx_id: "{{ item.proceso.summary_data.firmx_id|default:'' }}"
         }{% if not forloop.last %},{% endif %}
         {% endfor %}
@@ -460,6 +460,14 @@
         return { badgeClass, statusText, colorProgress };
     }
 
+    function isCompletedFirmx(doc) {
+        return doc.status === 'COMPLETED' && Boolean(doc.firmx_id);
+    }
+
+    function firmxDocumentUrl(doc) {
+        return `/portal/ver-documento/${doc.token}/`;
+    }
+
     function crearTarjeta(doc) {
         const div = document.createElement('div');
         const { badgeClass, statusText, colorProgress } = statusMeta(doc);
@@ -487,7 +495,14 @@
             `;
         }
 
-        const footerActions = doc.status === 'COMPLETED'
+        const footerActions = isCompletedFirmx(doc)
+            ? `
+                <a href="${firmxDocumentUrl(doc)}" target="_blank" rel="noopener noreferrer" class="doc-action-btn w-full">
+                    <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+                    Ver documento
+                </a>
+            `
+            : doc.status === 'COMPLETED'
             ? `
                 <div class="doc-actions">
                     <a href="/trazabilidad/${doc.token}/" target="_blank" class="doc-action-btn">
@@ -547,7 +562,14 @@
                 </div>
             `;
 
-        const actions = doc.status === 'COMPLETED'
+        const actions = isCompletedFirmx(doc)
+            ? `
+                <a href="${firmxDocumentUrl(doc)}" target="_blank" rel="noopener noreferrer" class="doc-list-action">
+                    <span class="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+                    Documento
+                </a>
+            `
+            : doc.status === 'COMPLETED'
             ? `
                 <a href="/trazabilidad/${doc.token}/" target="_blank" class="doc-list-action">
                     <span class="material-symbols-outlined text-[16px]">visibility</span>

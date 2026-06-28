@@ -1455,7 +1455,7 @@ def vista_trazabilidad(request, token):
                       'total_firmas': total_firmas,
                       'firmas_hechas': firmas_hechas,
                       'admin_can_resend': bool(admin_tiene_acceso and proceso.status in ['PROCESSING', 'FIRMX_WAITING']),
-                      'admin_can_adjust': bool(admin_tiene_acceso and proceso.status == 'COMPLETED'),
+                      'admin_can_adjust': bool(admin_tiene_acceso and proceso.status == 'COMPLETED' and not es_firmx),
                       'es_firmx': es_firmx,
                       'qr_firmx_url': qr_firmx_url,
                       'qrs_firmx': qrs_firmx,
@@ -1479,6 +1479,41 @@ def vista_trazabilidad_qr(request, codigo):
     if not token:
         return HttpResponse("El codigo QR de trazabilidad no contiene un proceso valido.", status=403)
     return redirect('vista_trazabilidad', token=token)
+
+
+def _firmx_url_documento_visible(proceso):
+    summary_data = getattr(proceso, 'summary_data', {}) or {}
+    for key in (
+        'firmx_file_url',
+        'firmx_download_file_url',
+        'firmx_certificate_url',
+        'firmx_download_certificate_url',
+        'firmx_archivo_url',
+    ):
+        url = summary_data.get(key)
+        if isinstance(url, str) and url.strip():
+            return url.strip()
+    return f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}"
+
+
+def portal_ver_documento(request, token):
+    proceso = _get_proceso_por_token_or_404(token)
+    acceso = _resolver_acceso_proceso(request, proceso)
+    if not acceso:
+        if request.session.get('owner_email') or request.session.get('admin_email'):
+            return HttpResponse("<h1>No tienes acceso a este documento.</h1>", status=403)
+        return redirect('portal_login')
+
+    summary_data = getattr(proceso, 'summary_data', {}) or {}
+    firmx_id = summary_data.get('firmx_id')
+    if not firmx_id or proceso.status != 'COMPLETED':
+        return redirect('vista_trazabilidad', token=token)
+
+    success, _ = _firmx_sync_status(firmx_id)
+    if success:
+        proceso = _get_proceso_por_token_or_404(token)
+
+    return redirect(_firmx_url_documento_visible(proceso))
 
 
 def generar_qr_trazabilidad(request, token):
@@ -1564,6 +1599,9 @@ def _vista_ajustar_firmas(request, token, rol_requerido):
     if proceso.status != 'COMPLETED':
         return HttpResponse("<h1>El documento debe estar cerrado para ajustar firmas.</h1>", status=403)
 
+    if (getattr(proceso, 'summary_data', {}) or {}).get('firmx_id'):
+        return HttpResponse("<h1>Los documentos FIRMX finalizados se visualizan directamente desde FIRMX y no permiten ajuste de firmas.</h1>", status=403)
+
     firmantes = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
     return_url = '/admin-portal/dashboard/' if rol_requerido == 'admin' else '/portal/dashboard/'
     return render(request, 'motor_firmas/ajustar_firmas.html', {
@@ -1603,6 +1641,9 @@ def guardar_ajuste_firmas(request, token):
 
     if proceso.status != 'COMPLETED':
         return JsonResponse({"error": "El documento debe estar cerrado para ajustar firmas."}, status=400)
+
+    if (getattr(proceso, 'summary_data', {}) or {}).get('firmx_id'):
+        return JsonResponse({"error": "Los documentos FIRMX finalizados no permiten ajuste de firmas."}, status=400)
 
     firmantes_actuales = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
     ajustes_recibidos = data.get('firmantes')
@@ -2742,7 +2783,8 @@ def admin_dashboard(request):
                           'dominio': owner_doc.split('@')[1] if '@' in owner_doc else 'N/A',
                           'status': getattr(d, 'status', 'UNKNOWN'), 'fecha': created_at.strftime("%Y-%m-%d %H:%M:%S") if created_at else '',
                           'progreso': f"{sum(1 for f in firmantes if f.get('fecha_firma'))}/{len(firmantes)}",
-                          'can_adjust': getattr(d, 'status', '') == 'COMPLETED'})
+                          'firmx_id': firmx_id or '',
+                          'can_adjust': getattr(d, 'status', '') == 'COMPLETED' and not firmx_id})
     carpetas_dominio = [
         {'id': str(c.id), 'dominio': c.dominio, 'drive_folder_id': c.drive_folder_id}
         for c in _mongo_find(CarpetaDominio, {}, [('dominio', 1)])
