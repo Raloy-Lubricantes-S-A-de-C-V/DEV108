@@ -2172,7 +2172,47 @@ def firmx_obtener_qr(request, document_id):
 
     content_type = response.headers.get('content-type', '')
     qrs_descargados = []
-    
+
+    # Pre-cargar firmantes locales asociados al proceso (orden de envío) para
+    # poder mapear por índice cuando FIRMX no devuelve email en cada QR.
+    firmantes_locales_orden = []
+    try:
+        db_pre = _mongo_database()
+        proceso_pre = db_pre.motor_firmas_procesofirma.find_one({"summary_data.firmx_id": clean_id})
+        if proceso_pre:
+            firmantes_locales_orden = _normalizar_firmantes(proceso_pre.get('firmantes', [])) or []
+    except Exception as _e:
+        firmantes_locales_orden = []
+
+    def _extraer_email_item(item, idx):
+        """Extrae el correo del firmante del item de FIRMX probando múltiples
+        claves conocidas; si no hay, mapea por orden con los firmantes locales."""
+        if not isinstance(item, dict):
+            email_fallback = None
+        else:
+            email_fallback = None
+            # Claves planas posibles
+            for k in ('email', 'signer_email', 'correo', 'correo_electronico',
+                      'mail', 'user_email'):
+                v = item.get(k)
+                if isinstance(v, str) and v.strip():
+                    return v.strip()
+            # Objetos anidados posibles
+            for k in ('signer', 'firmante', 'user', 'usuario'):
+                sub = item.get(k)
+                if isinstance(sub, dict):
+                    for kk in ('email', 'correo', 'correo_electronico', 'mail'):
+                        vv = sub.get(kk)
+                        if isinstance(vv, str) and vv.strip():
+                            return vv.strip()
+        # Fallback: mapear por índice contra firmantes locales
+        if idx < len(firmantes_locales_orden):
+            f = firmantes_locales_orden[idx] or {}
+            em = f.get('email') if isinstance(f, dict) else None
+            if isinstance(em, str) and em.strip():
+                return em.strip()
+        return email_fallback or 'Sin Email'
+
     if content_type.lower().startswith('image/'):
         qr_b64 = base64.b64encode(response.content).decode('ascii')
         qrs_descargados.append({
@@ -2183,13 +2223,13 @@ def firmx_obtener_qr(request, document_id):
     else:
         data_list = response_data.get('data', [])
         if isinstance(data_list, list):
-            for item in data_list:
-                qr_b64 = item.get('qr_code')
+            for idx, item in enumerate(data_list):
+                qr_b64 = item.get('qr_code') if isinstance(item, dict) else None
                 if qr_b64:
                     qrs_descargados.append({
-                        'email': item.get('email') or 'Sin Email',
+                        'email': _extraer_email_item(item, idx),
                         'qr_base64': qr_b64,
-                        'url_qr_code': item.get('url_qr_code')
+                        'url_qr_code': item.get('url_qr_code') if isinstance(item, dict) else None
                     })
 
     api_steps = []
