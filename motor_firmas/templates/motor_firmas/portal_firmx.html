@@ -132,22 +132,11 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <input id="firmxSignatureType" type="hidden" value="SIMPLE_BIOMETRIC">
-                            <label class="block text-sm font-semibold text-on-surface-variant mb-2">Firma aplicada</label>
-                            <div class="firmx-locked-setting">
-                                <span class="material-symbols-outlined text-primary">lock</span>
-                                <div>
-                                    <strong>Biométrica simple</strong>
-                                    <span>Configuración fija para este flujo.</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-on-surface-variant mb-2">Fecha límite</label>
-                            <input id="firmxDeadline" type="date" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
-                        </div>
+                    <input id="firmxSignatureType" type="hidden" value="SIMPLE_BIOMETRIC">
+
+                    <div class="max-w-md">
+                        <label class="block text-sm font-semibold text-on-surface-variant mb-2">Fecha límite</label>
+                        <input id="firmxDeadline" type="date" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
                     </div>
 
                     <div>
@@ -794,7 +783,6 @@
         return `
             <div><strong>Documento:</strong> ${escapeHtml(getDocumentName() || 'Sin nombre')}</div>
             <div><strong>Archivo:</strong> ${escapeHtml(fileName)}</div>
-            <div><strong>Firma:</strong> Biométrica simple</div>
             <div><strong>Fecha límite:</strong> ${escapeHtml(document.getElementById('firmxDeadline').value || 'Pendiente')}</div>
         `;
     }
