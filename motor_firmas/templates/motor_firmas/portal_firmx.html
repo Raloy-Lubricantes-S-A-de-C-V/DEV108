@@ -488,7 +488,8 @@
     document.addEventListener('input', function (e) {
         if (e.target.tagName === 'INPUT') {
             const type = e.target.type.toLowerCase();
-            if (type !== 'email' && type !== 'password' && !e.target.classList.contains('no-uppercase')) {
+            const uppercaseTypes = ['text', 'search', 'tel'];
+            if (uppercaseTypes.includes(type) && !e.target.classList.contains('no-uppercase')) {
                 const start = e.target.selectionStart;
                 const end = e.target.selectionEnd;
                 e.target.value = e.target.value.toUpperCase();
