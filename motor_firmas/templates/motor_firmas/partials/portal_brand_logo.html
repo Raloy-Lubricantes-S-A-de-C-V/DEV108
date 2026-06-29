@@ -1,11 +1,9 @@
 {% if marca_portal %}
-    {% if marca_portal.logo_is_default %}
-        <img src="{{ marca_portal.logo_url }}" alt="{{ marca_portal.nombre }}" class="portal-brand-logo {{ brand_logo_class|default:'shrink-0' }}">
-    {% else %}
-        <div class="portal-brand-logo-box {{ brand_logo_box_class|default:'shrink-0' }}">
-            <img src="{{ marca_portal.logo_url }}" alt="{{ marca_portal.nombre }}" class="portal-brand-logo">
-        </div>
-    {% endif %}
+    <div class="portal-brand-logo-box {{ brand_logo_box_class|default:brand_logo_class|default:'shrink-0' }}">
+        <img src="{{ marca_portal.logo_url }}" alt="{{ marca_portal.nombre }}" class="portal-brand-logo">
+    </div>
 {% else %}
-    <img src="/static/motor_firmas/img/raloy-logo-inverted.svg" alt="Raloy Lubricantes" class="raloy-logo-sm {{ brand_logo_class|default:'shrink-0' }}">
+    <div class="portal-brand-logo-box {{ brand_logo_box_class|default:brand_logo_class|default:'shrink-0' }}">
+        <img src="/static/motor_firmas/img/raloy-logo.svg" alt="Raloy Lubricantes" class="portal-brand-logo">
+    </div>
 {% endif %}

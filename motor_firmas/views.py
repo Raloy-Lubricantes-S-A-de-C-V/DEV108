@@ -39,7 +39,8 @@ QR_TRAZABILIDAD_SALT = "motor_firmas.trazabilidad_qr"
 QR_TRAZABILIDAD_MAX_AGE_SECONDS = getattr(settings, "QR_TRAZABILIDAD_MAX_AGE_SECONDS", 60 * 60 * 24 * 30)
 BRAND_DEFAULT_DOMAIN = "raloy.com.mx"
 BRAND_DEFAULT_COLOR = "#162839"
-BRAND_DEFAULT_LOGO_URL = "/static/motor_firmas/img/raloy-logo-inverted.svg"
+BRAND_DEFAULT_LOGO_URL = "/static/motor_firmas/img/raloy-logo.svg"
+BRAND_LEGACY_INVERTED_LOGO_URL = "/static/motor_firmas/img/raloy-logo-inverted.svg"
 BRAND_DEFAULT_NAME = "Raloy Lubricantes"
 BRAND_LOGO_ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 
@@ -192,6 +193,8 @@ def _marca_payload(dominio='', carpeta=None):
 
     raw_logo_url = (getattr(carpeta, 'logo_url', '') if carpeta else '') or ''
     logo_url = raw_logo_url or BRAND_DEFAULT_LOGO_URL
+    if logo_url == BRAND_LEGACY_INVERTED_LOGO_URL:
+        logo_url = BRAND_DEFAULT_LOGO_URL
     dominio = _normalizar_dominio(dominio or getattr(carpeta, 'dominio', '') if carpeta else dominio)
     nombre = BRAND_DEFAULT_NAME if dominio == BRAND_DEFAULT_DOMAIN else (dominio.upper() if dominio else BRAND_DEFAULT_NAME)
     on_color = _on_color_for_hex(color)
@@ -242,7 +245,7 @@ def _asegurar_marca_raloy_actual():
     updates = {}
     if not getattr(carpeta, 'brand_color', ''):
         updates['brand_color'] = BRAND_DEFAULT_COLOR
-    if not getattr(carpeta, 'logo_url', ''):
+    if not getattr(carpeta, 'logo_url', '') or getattr(carpeta, 'logo_url', '') == BRAND_LEGACY_INVERTED_LOGO_URL:
         updates['logo_url'] = BRAND_DEFAULT_LOGO_URL
         updates['logo_path'] = ''
     if updates:
