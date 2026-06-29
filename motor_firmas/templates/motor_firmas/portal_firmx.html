@@ -428,10 +428,45 @@
 
             {% if es_admin_firmx %}
             <section class="firmx-side-section bg-surface-container-low">
-                <h2 class="text-lg font-bold text-primary mb-3">Estado de integración</h2>
-                <p class="text-sm text-text-muted mb-3">Base FIRMX:</p>
-                <div class="text-xs bg-white border border-outline-variant rounded-lg p-3 break-all">{{ firmx_base_url }}</div>
-                <div class="mt-4 text-sm font-semibold text-outline">Configuración visible solo para administración.</div>
+                <h2 class="text-lg font-bold text-primary mb-3">Base FIRMX</h2>
+                <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Endpoint activo o nuevo</label>
+                <input id="firmxBaseUrlInput" type="url" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" value="{{ firmx_base_url }}" placeholder="https://stage.firmx.../digisign/api/v1">
+                <button type="button" onclick="saveFirmxBaseUrl()" class="w-full mt-3 bg-primary text-white px-4 py-3 rounded-lg font-bold hover:bg-primary-container transition-colors">
+                    Guardar y activar
+                </button>
+                <div id="firmxBaseUrlStatus" class="hidden mt-3 text-sm font-bold"></div>
+
+                <div class="mt-5 border-t border-outline-variant pt-4">
+                    <h3 class="text-sm font-bold text-primary mb-3">Historial de endpoints</h3>
+                    <div class="space-y-3">
+                        {% for endpoint in firmx_base_urls %}
+                        <div class="bg-white border border-outline-variant rounded-lg p-3">
+                            <div class="flex flex-col gap-3">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="text-xs text-on-surface-variant break-all">{{ endpoint.url }}</div>
+                                    {% if endpoint.active %}
+                                    <span class="shrink-0 text-[10px] font-bold uppercase bg-status-success/10 text-status-success px-2 py-1 rounded-full">Activo</span>
+                                    {% endif %}
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    {% if not endpoint.active %}
+                                    <button type="button" onclick="activateFirmxBaseUrl('{{ endpoint.url|escapejs }}')" class="inline-flex items-center gap-1 text-xs font-bold text-primary border border-outline-variant px-3 py-2 rounded-lg hover:bg-surface-container">
+                                        <span class="material-symbols-outlined text-[16px]">check_circle</span>
+                                        Activar
+                                    </button>
+                                    <button type="button" onclick="deleteFirmxBaseUrl('{{ endpoint.url|escapejs }}')" class="inline-flex items-center gap-1 text-xs font-bold text-status-danger border border-outline-variant px-3 py-2 rounded-lg hover:bg-error-container">
+                                        <span class="material-symbols-outlined text-[16px]">delete</span>
+                                        Eliminar
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="text-sm text-on-surface-variant italic">No hay endpoints guardados.</div>
+                        {% endfor %}
+                    </div>
+                </div>
             </section>
 
             <section class="firmx-side-section">
@@ -1448,7 +1483,8 @@
         document.getElementById('firmxSubmitButton').addEventListener('click', registerFirmxDocument);
         document.getElementById('firmxQrButton').addEventListener('click', loadFirmxQr);
         document.getElementById('firmxAddSignerButton').addEventListener('click', () => addFirmxSigner());
-        document.getElementById('firmxDocumentIdManual').addEventListener('input', (event) => {
+        const manualFirmxIdInput = document.getElementById('firmxDocumentIdManual');
+        if (manualFirmxIdInput) manualFirmxIdInput.addEventListener('input', (event) => {
             const hasId = !!event.target.value.trim();
             document.getElementById('firmxQrButton').disabled = !hasId && !firmxDocumentId;
             document.getElementById('firmxMainQrButton').disabled = !hasId && !firmxDocumentId;
@@ -1506,6 +1542,65 @@
             console.error(err);
             alert('Error de conexión al guardar la API Key.');
         }
+    }
+
+    function setFirmxBaseUrlStatus(message, type = 'muted') {
+        const el = document.getElementById('firmxBaseUrlStatus');
+        if (!el) return;
+        el.className = `mt-3 text-sm font-bold ${type === 'error' ? 'text-status-danger' : type === 'ok' ? 'text-status-success' : 'text-outline'}`;
+        el.textContent = message || '';
+        el.classList.toggle('hidden', !message);
+    }
+
+    async function updateFirmxBaseUrlConfig(payload, successMessage) {
+        setFirmxBaseUrlStatus('Guardando configuración...', 'muted');
+        try {
+            const response = await fetch('/api/firmx/config/save/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            if (!response.ok || data.status !== 'success') {
+                throw new Error(data.error || 'No se pudo guardar la Base FIRMX.');
+            }
+            setFirmxBaseUrlStatus(successMessage || data.message || 'Base FIRMX actualizada.', 'ok');
+            window.setTimeout(() => window.location.reload(), 700);
+        } catch (error) {
+            setFirmxBaseUrlStatus(error.message, 'error');
+        }
+    }
+
+    function saveFirmxBaseUrl() {
+        const input = document.getElementById('firmxBaseUrlInput');
+        const baseUrl = input ? input.value.trim() : '';
+        if (!baseUrl) {
+            setFirmxBaseUrlStatus('Captura una Base FIRMX válida.', 'error');
+            if (input) input.focus();
+            return;
+        }
+        updateFirmxBaseUrlConfig(
+            { base_url_action: 'save_base_url', base_url: baseUrl },
+            'Base FIRMX guardada y activada.'
+        );
+    }
+
+    function activateFirmxBaseUrl(baseUrl) {
+        updateFirmxBaseUrlConfig(
+            { base_url_action: 'activate_base_url', base_url: baseUrl },
+            'Base FIRMX activada.'
+        );
+    }
+
+    function deleteFirmxBaseUrl(baseUrl) {
+        if (!window.confirm('¿Eliminar este endpoint del historial de Base FIRMX?')) return;
+        updateFirmxBaseUrlConfig(
+            { base_url_action: 'delete_base_url', base_url: baseUrl },
+            'Endpoint eliminado.'
+        );
     }
 
     function toggleFirmxApiKeyVisibility() {

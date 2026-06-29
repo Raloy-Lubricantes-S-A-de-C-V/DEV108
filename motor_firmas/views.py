@@ -9,7 +9,7 @@ import base64
 import shlex
 from datetime import datetime, timedelta
 from types import SimpleNamespace
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from django.conf import settings
 from django.core import signing
 from django.http import JsonResponse, HttpResponse, Http404
@@ -625,8 +625,75 @@ def _firmx_headers():
     }
 
 
+def _normalizar_firmx_base_url(base_url):
+    clean_url = str(base_url or '').strip().rstrip('/')
+    parsed = urlparse(clean_url)
+    if not clean_url or parsed.scheme not in ('http', 'https') or not parsed.netloc:
+        raise ValueError("La Base FIRMX debe ser una URL http(s) válida.")
+    return clean_url
+
+
+def _firmx_base_url_default():
+    return _normalizar_firmx_base_url(getattr(settings, 'FIRMX_API_BASE_URL', ''))
+
+
+def _firmx_configuracion_urls():
+    config = _mongo_find_one(ConfiguracionFirmex)
+    default_url = _firmx_base_url_default()
+
+    active_url = ''
+    for field in ('firmx_base_url', 'base_url', 'active_base_url'):
+        raw_value = getattr(config, field, '') if config else ''
+        if raw_value:
+            try:
+                active_url = _normalizar_firmx_base_url(raw_value)
+                break
+            except ValueError:
+                active_url = ''
+
+    if not active_url:
+        active_url = default_url
+
+    raw_urls = _json_or_default(getattr(config, 'base_urls', []), []) if config else []
+    endpoints = []
+    seen = set()
+
+    def add_endpoint(raw_url, created_at='', updated_at=''):
+        try:
+            clean_url = _normalizar_firmx_base_url(raw_url)
+        except ValueError:
+            return
+        if clean_url in seen:
+            return
+        seen.add(clean_url)
+        endpoints.append({
+            'url': clean_url,
+            'created_at': str(created_at or ''),
+            'updated_at': str(updated_at or ''),
+            'active': clean_url == active_url,
+        })
+
+    for item in raw_urls:
+        if isinstance(item, dict):
+            add_endpoint(item.get('url'), item.get('created_at'), item.get('updated_at'))
+        else:
+            add_endpoint(item)
+
+    add_endpoint(active_url)
+
+    return {
+        'active_base_url': active_url,
+        'base_urls': endpoints,
+        'config': config,
+    }
+
+
+def _firmx_base_url_actual():
+    return _firmx_configuracion_urls()['active_base_url']
+
+
 def _firmx_url(path):
-    base_url = getattr(settings, 'FIRMX_API_BASE_URL', '').rstrip('/')
+    base_url = _firmx_base_url_actual()
     return f"{base_url}/{path.lstrip('/')}"
 
 
@@ -1985,10 +2052,12 @@ def portal_firmx(request):
             api_key = getattr(config, 'api_key', '')
         else:
             api_key = getattr(settings, 'FIRMX_API_KEY', '')
+    firmx_url_config = _firmx_configuracion_urls()
 
     return render(request, 'motor_firmas/portal_firmx.html', {
         'owner_email': owner_email,
-        'firmx_base_url': getattr(settings, 'FIRMX_API_BASE_URL', ''),
+        'firmx_base_url': firmx_url_config['active_base_url'],
+        'firmx_base_urls': firmx_url_config['base_urls'],
         'es_admin_firmx': is_admin,
         'firmx_api_key': api_key,
         'empresas': empresas,
@@ -2007,16 +2076,71 @@ def firmx_guardar_config(request):
     try:
         data = json.loads(request.body)
         api_key = data.get('api_key')
+        base_url_action = data.get('base_url_action')
+        updates = {}
 
         if api_key is not None:
-            # Usar ayudante de MongoDB para evitar fallos del ORM Djongo
-            _mongo_update_or_insert_by_query(ConfiguracionFirmex, {}, {
-                'api_key': api_key.strip(),
-                'updated_at': _datetime_for_mongo()
-            })
-            return JsonResponse({"status": "success", "message": "API Key guardada correctamente"})
-        else:
-            return JsonResponse({"error": "Falta api_key"}, status=400)
+            updates['api_key'] = api_key.strip()
+
+        if base_url_action:
+            config_urls = _firmx_configuracion_urls()
+            active_url = config_urls['active_base_url']
+            endpoints = [
+                {
+                    'url': item['url'],
+                    'created_at': item.get('created_at') or _datetime_for_mongo().isoformat(),
+                    'updated_at': item.get('updated_at') or '',
+                }
+                for item in config_urls['base_urls']
+            ]
+
+            def find_endpoint(url):
+                for endpoint in endpoints:
+                    if endpoint['url'] == url:
+                        return endpoint
+                return None
+
+            if base_url_action == 'save_base_url':
+                clean_url = _normalizar_firmx_base_url(data.get('base_url'))
+                endpoint = find_endpoint(clean_url)
+                now_label = _datetime_for_mongo().isoformat()
+                if endpoint:
+                    endpoint['updated_at'] = now_label
+                else:
+                    endpoints.append({'url': clean_url, 'created_at': now_label, 'updated_at': now_label})
+                active_url = clean_url
+            elif base_url_action == 'activate_base_url':
+                clean_url = _normalizar_firmx_base_url(data.get('base_url'))
+                endpoint = find_endpoint(clean_url)
+                if not endpoint:
+                    return JsonResponse({"error": "Ese endpoint no existe en el historial."}, status=404)
+                endpoint['updated_at'] = _datetime_for_mongo().isoformat()
+                active_url = clean_url
+            elif base_url_action == 'delete_base_url':
+                clean_url = _normalizar_firmx_base_url(data.get('base_url'))
+                if clean_url == active_url:
+                    return JsonResponse({"error": "No puedes eliminar la Base FIRMX activa. Activa otra antes de eliminarla."}, status=400)
+                endpoints = [endpoint for endpoint in endpoints if endpoint['url'] != clean_url]
+            else:
+                return JsonResponse({"error": "Acción de Base FIRMX inválida."}, status=400)
+
+            updates['firmx_base_url'] = active_url
+            updates['base_urls'] = endpoints
+
+        if not updates:
+            return JsonResponse({"error": "No se recibió configuración para guardar."}, status=400)
+
+        updates['updated_at'] = _datetime_for_mongo()
+        _mongo_update_or_insert_by_query(ConfiguracionFirmex, {}, updates)
+        response_config = _firmx_configuracion_urls()
+        return JsonResponse({
+            "status": "success",
+            "message": "Configuración FIRMX guardada correctamente.",
+            "active_base_url": response_config['active_base_url'],
+            "base_urls": response_config['base_urls'],
+        })
+    except ValueError as e:
+        return JsonResponse({"error": str(e)}, status=400)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
 
