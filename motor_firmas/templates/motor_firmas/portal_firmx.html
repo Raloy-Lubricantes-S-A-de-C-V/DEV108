@@ -1,7 +1,7 @@
 {% extends "motor_firmas/base.html" %}
 
 {% block title %}FIRMX - Firma Legal{% endblock %}
-{% block body_class %}bg-background min-h-screen text-text-main py-6 px-4 md:px-6{% endblock %}
+{% block body_class %}portal-branded bg-background min-h-screen text-text-main py-6 px-4 md:px-6{% endblock %}
 
 {% block extra_head %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
@@ -66,9 +66,9 @@
 <div class="max-w-7xl mx-auto">
     <header class="bg-primary text-white rounded-xl px-6 py-5 mb-6 shadow-soft">
         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
-            <div>
-                <img src="/static/motor_firmas/img/raloy-logo-inverted.svg" alt="Raloy Lubricantes" class="raloy-logo-sm mb-5">
-                <a href="/portal/dashboard/" class="inline-flex items-center gap-2 text-primary-fixed-dim hover:text-white text-sm font-semibold mb-5 transition-colors">
+	            <div>
+	                {% include "motor_firmas/partials/portal_brand_logo.html" with brand_logo_class="mb-5" brand_logo_box_class="mb-5" %}
+	                <a href="/portal/dashboard/" class="inline-flex items-center gap-2 text-primary-fixed-dim hover:text-white text-sm font-semibold mb-5 transition-colors">
                     <span class="material-symbols-outlined text-[18px]">arrow_back</span>
                     Volver al panel
                 </a>

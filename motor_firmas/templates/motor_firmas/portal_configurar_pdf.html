@@ -1,7 +1,7 @@
 {% extends "motor_firmas/base.html" %}
 
-{% block title %}Configurar Firmas - Raloy{% endblock %}
-{% block body_class %}bg-background min-h-screen lg:h-screen text-text-main p-4 md:p-5 box-border flex flex-col lg:flex-row gap-5 overflow-hidden{% endblock %}
+{% block title %}Configurar Firmas - {{ marca_portal.nombre|default:"Raloy" }}{% endblock %}
+{% block body_class %}portal-branded bg-background min-h-screen lg:h-screen text-text-main p-4 md:p-5 box-border flex flex-col lg:flex-row gap-5 overflow-hidden{% endblock %}
 
 {% block extra_head %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
@@ -36,10 +36,10 @@
     </div>
 </section>
 
-<aside class="w-full lg:w-[360px] bg-white rounded-xl shadow-sm border border-outline-variant flex flex-col overflow-hidden">
-    <header class="bg-primary text-white p-5 text-center">
-        <img src="/static/motor_firmas/img/raloy-logo-inverted.svg" alt="Raloy Lubricantes" class="raloy-logo-sm mx-auto mb-4">
-        <h1 class="text-xl font-bold">Panel de Firmantes</h1>
+	<aside class="w-full lg:w-[360px] bg-white rounded-xl shadow-sm border border-outline-variant flex flex-col overflow-hidden">
+	    <header class="bg-primary text-white p-5 text-center">
+	        {% include "motor_firmas/partials/portal_brand_logo.html" with brand_logo_class="mx-auto mb-4" brand_logo_box_class="mx-auto mb-4" %}
+	        <h1 class="text-xl font-bold">Panel de Firmantes</h1>
         <p class="text-sm text-primary-fixed-dim mt-1">Agrega y arrastra al PDF</p>
     </header>
 

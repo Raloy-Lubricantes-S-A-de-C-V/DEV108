@@ -1,14 +1,14 @@
 {% extends "motor_firmas/base.html" %}
 
-{% block title %}Usar Plantilla - Raloy{% endblock %}
-{% block body_class %}bg-background min-h-screen text-text-main py-8 px-4{% endblock %}
+{% block title %}Usar Plantilla - {{ marca_portal.nombre|default:"Raloy" }}{% endblock %}
+{% block body_class %}portal-branded bg-background min-h-screen text-text-main py-8 px-4{% endblock %}
 
 {% block content %}
 <div class="max-w-4xl mx-auto">
-    <main class="bg-white rounded-xl shadow-sm border border-outline-variant overflow-hidden">
-        <header class="bg-primary text-white p-6 md:p-8">
-            <img src="/static/motor_firmas/img/raloy-logo-inverted.svg" alt="Raloy Lubricantes" class="raloy-logo-sm mb-6">
-            <a href="/portal/plantillas/" class="inline-flex items-center gap-2 text-primary-fixed-dim hover:text-white text-sm font-semibold mb-6 transition-colors">
+	    <main class="bg-white rounded-xl shadow-sm border border-outline-variant overflow-hidden">
+	        <header class="bg-primary text-white p-6 md:p-8">
+	            {% include "motor_firmas/partials/portal_brand_logo.html" with brand_logo_class="mb-6" brand_logo_box_class="mb-6" %}
+	            <a href="/portal/plantillas/" class="inline-flex items-center gap-2 text-primary-fixed-dim hover:text-white text-sm font-semibold mb-6 transition-colors">
                 <span class="material-symbols-outlined text-[18px]">arrow_back</span>
                 Volver a Mis Plantillas
             </a>

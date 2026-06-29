@@ -1,14 +1,14 @@
 {% extends "motor_firmas/base.html" %}
 
-{% block title %}Mis Plantillas de Firma - Raloy{% endblock %}
-{% block body_class %}bg-background min-h-screen text-text-main py-8 px-4 md:px-8{% endblock %}
+{% block title %}Mis Plantillas de Firma - {{ marca_portal.nombre|default:"Raloy" }}{% endblock %}
+{% block body_class %}portal-branded bg-background min-h-screen text-text-main py-8 px-4 md:px-8{% endblock %}
 
 {% block content %}
 <div class="max-w-7xl mx-auto">
-    <header class="bg-primary text-white rounded-xl px-6 py-5 mb-8 shadow-soft flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div class="flex items-center gap-4">
-            <img src="/static/motor_firmas/img/raloy-logo-inverted.svg" alt="Raloy Lubricantes" class="raloy-logo-sm shrink-0">
-            <div>
+	    <header class="bg-primary text-white rounded-xl px-6 py-5 mb-8 shadow-soft flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+	        <div class="flex items-center gap-4">
+	            {% include "motor_firmas/partials/portal_brand_logo.html" with brand_logo_class="shrink-0" brand_logo_box_class="shrink-0" %}
+	            <div>
                 <h1 class="text-xl md:text-2xl font-bold">Mis Plantillas de Firma</h1>
                 <p class="text-sm text-primary-fixed-dim">Usuario: <strong>{{ owner_email }}</strong></p>
             </div>

@@ -62,44 +62,6 @@
     .qr-status { display: none; margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.88rem; font-weight: 700; }
     .qr-status.ok { display: block; background: #d3f9d8; color: #1f7a44; }
 	    .qr-status.error { display: block; background: #ffdad6; color: #93000a; }
-	    :root {
-	        --portal-primary: {{ marca_portal.color|default:"#162839" }};
-	        --portal-primary-hover: {{ marca_portal.color_hover|default:"#2c3e50" }};
-	        --portal-primary-soft: {{ marca_portal.color_soft|default:"#d1e4fb" }};
-	        --portal-on-primary: {{ marca_portal.on_color|default:"#ffffff" }};
-	    }
-	    .portal-brand-logo { display: block; max-width: 9.5rem; max-height: 3.25rem; object-fit: contain; }
-	    .portal-brand-logo-box { min-width: 8rem; max-width: 10rem; height: 3.25rem; display: flex; align-items: center; justify-content: center; padding: 0.45rem 0.65rem; border-radius: 0.5rem; background: rgba(255,255,255,0.96); }
-	    .portal-branded .bg-primary,
-	    .portal-branded .api-btn-send,
-	    .portal-branded .qr-preview-head { background-color: var(--portal-primary) !important; color: var(--portal-on-primary) !important; }
-	    .portal-branded .hover\:bg-primary-container:hover,
-	    .portal-branded .bg-primary-container,
-	    .portal-branded .view-toggle-btn.active { background-color: var(--portal-primary-hover) !important; }
-	    .portal-branded .text-primary,
-	    .portal-branded .doc-card-title,
-	    .portal-branded .progress-header,
-	    .portal-branded .group-header,
-	    .portal-branded .doc-list-title,
-	    .portal-branded .doc-list-group td,
-	    .portal-branded .doc-action-btn,
-	    .portal-branded .doc-list-action,
-	    .portal-branded .view-toggle-btn { color: var(--portal-primary) !important; }
-	    .portal-branded .bg-primary .text-primary,
-	    .portal-branded .bg-primary-container .text-primary,
-	    .portal-branded .view-toggle-btn.active,
-	    .portal-branded .text-primary-fixed-dim { color: var(--portal-on-primary) !important; }
-	    .portal-branded .text-primary-fixed-dim { opacity: 0.78; }
-	    .portal-branded .progress-bar,
-	    .portal-branded .doc-card { background-color: var(--portal-primary) !important; }
-	    .portal-branded .doc-card { border-top-color: var(--portal-primary) !important; background-color: #ffffff !important; }
-	    .portal-branded .doc-card.completed { border-top-color: #27ae60 !important; }
-	    .portal-branded .doc-card.cancelled { border-top-color: #e74c3c !important; }
-	    .portal-branded .progress-bar.completed { background-color: #27ae60 !important; }
-	    .portal-branded .doc-action-btn:hover,
-	    .portal-branded .doc-list-action:hover { border-color: var(--portal-primary) !important; background-color: var(--portal-primary-soft) !important; }
-	    .portal-branded .focus\:ring-primary:focus { --tw-ring-color: var(--portal-primary) !important; }
-	    .portal-branded .focus\:border-primary:focus { border-color: var(--portal-primary) !important; }
 	    @media screen and (max-width: 420px) {
 	        .doc-action-btn { font-size: 0.76rem; padding-left: 0.35rem; padding-right: 0.35rem; }
 	    }
@@ -110,13 +72,7 @@
 <div class="max-w-7xl mx-auto">
 	    <header class="bg-primary text-white rounded-xl px-6 py-5 mb-8 shadow-soft flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 	        <div class="flex items-center gap-4">
-	            {% if marca_portal.logo_is_default %}
-	                <img src="{{ marca_portal.logo_url }}" alt="{{ marca_portal.nombre }}" class="portal-brand-logo shrink-0">
-	            {% else %}
-	                <div class="portal-brand-logo-box shrink-0">
-	                    <img src="{{ marca_portal.logo_url }}" alt="{{ marca_portal.nombre }}" class="portal-brand-logo">
-	                </div>
-	            {% endif %}
+	            {% include "motor_firmas/partials/portal_brand_logo.html" with brand_logo_class="shrink-0" brand_logo_box_class="shrink-0" %}
 	            <div>
 	                <h1 class="text-xl md:text-2xl font-bold">Mi Portal de Documentos</h1>
                 <p class="text-sm text-primary-fixed-dim">Sesión: <strong>{{ owner_email }}</strong></p>
@@ -334,7 +290,7 @@
 
 {% block scripts %}
 <script>
-    const rawData = [
+	    const rawData = [
         {% for item in documentos %}
         {
             reference_id: "{{ item.proceso.reference_id }}",
@@ -349,8 +305,9 @@
             can_adjust: {% if item.proceso.status == 'COMPLETED' and not item.proceso.summary_data.firmx_id %}true{% else %}false{% endif %},
             firmx_id: "{{ item.proceso.summary_data.firmx_id|default:'' }}"
         }{% if not forloop.last %},{% endif %}
-        {% endfor %}
-    ];
+	        {% endfor %}
+	    ];
+	    const portalNeutralColor = getComputedStyle(document.documentElement).getPropertyValue('--portal-text-strong').trim() || '#202124';
 
     function getStoredViewMode() {
         try {
@@ -495,7 +452,7 @@
     }
 
     function statusMeta(doc) {
-        let badgeClass = 'bg-processing'; let statusText = 'EN PROCESO'; let colorProgress = '#162839';
+	        let badgeClass = 'bg-processing'; let statusText = 'EN PROCESO'; let colorProgress = portalNeutralColor;
         if(doc.status === 'COMPLETED') { badgeClass = 'bg-completed'; statusText = 'COMPLETADO'; colorProgress = '#27ae60'; }
         if(doc.status === 'CANCELLED') { badgeClass = 'bg-cancelled'; statusText = 'CANCELADO'; }
         if(doc.status === 'FIRMX_WAITING' || (doc.firmx_id && doc.status === 'PROCESSING')) { 

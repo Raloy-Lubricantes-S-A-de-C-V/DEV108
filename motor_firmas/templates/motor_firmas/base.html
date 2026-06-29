@@ -273,6 +273,85 @@
             .api-col:first-child { border-right: none; border-bottom: 1px solid #e1e3e4; }
             iframe.document-frame { height: 520px; }
         }
+        {% if marca_portal %}
+        :root {
+            --portal-primary: {{ marca_portal.color|default:"#162839" }};
+            --portal-primary-hover: {{ marca_portal.color_hover|default:"#2c3e50" }};
+            --portal-primary-soft: {{ marca_portal.color_soft|default:"#d1e4fb" }};
+            --portal-on-primary: {{ marca_portal.on_color|default:"#ffffff" }};
+            --portal-text-strong: #202124;
+        }
+        .portal-brand-logo { display: block; max-width: 9.5rem; max-height: 3.25rem; object-fit: contain; }
+        .portal-brand-logo-box {
+            min-width: 8rem;
+            max-width: 10rem;
+            height: 3.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.45rem 0.65rem;
+            border-radius: 0.5rem;
+            background: rgba(255, 255, 255, 0.96);
+        }
+        body.portal-branded .bg-primary,
+        body.portal-branded .api-btn-send,
+        body.portal-branded .qr-preview-head,
+        body.portal-branded .firmx-step-button.active {
+            background-color: var(--portal-primary) !important;
+            color: var(--portal-on-primary) !important;
+        }
+        body.portal-branded .hover\:bg-primary-container:hover,
+        body.portal-branded .bg-primary-container {
+            background-color: var(--portal-primary-hover) !important;
+            color: var(--portal-on-primary) !important;
+        }
+        body.portal-branded .file\:bg-primary::file-selector-button {
+            background-color: var(--portal-primary) !important;
+            color: var(--portal-on-primary) !important;
+        }
+        body.portal-branded .text-primary,
+        body.portal-branded .doc-card-title,
+        body.portal-branded .progress-header,
+        body.portal-branded .group-header,
+        body.portal-branded .doc-list-title,
+        body.portal-branded .doc-list-group td,
+        body.portal-branded .doc-action-btn,
+        body.portal-branded .doc-list-action,
+        body.portal-branded .view-toggle-btn,
+        body.portal-branded .firmx-section-title,
+        body.portal-branded .firmx-summary-list strong,
+        body.portal-branded .firmx-locked-setting strong {
+            color: var(--portal-text-strong) !important;
+        }
+        body.portal-branded .bg-primary .text-primary,
+        body.portal-branded .bg-primary-container .text-primary,
+        body.portal-branded .view-toggle-btn.active {
+            color: var(--portal-on-primary) !important;
+        }
+        body.portal-branded .text-primary-fixed-dim {
+            color: var(--portal-on-primary) !important;
+            opacity: 0.78;
+        }
+        body.portal-branded .progress-bar {
+            background-color: var(--portal-text-strong);
+        }
+        body.portal-branded .doc-card,
+        body.portal-branded .template-card,
+        body.portal-branded article.bg-white.rounded-xl {
+            border-top: 4px solid var(--portal-text-strong) !important;
+        }
+        body.portal-branded .doc-card.completed { border-top-color: #27ae60 !important; }
+        body.portal-branded .doc-card.cancelled { border-top-color: #e74c3c !important; }
+        body.portal-branded .progress-bar.completed { background-color: #27ae60 !important; }
+        body.portal-branded .doc-action-btn:hover,
+        body.portal-branded .doc-list-action:hover {
+            border-color: var(--portal-primary) !important;
+            background-color: var(--portal-primary-soft) !important;
+        }
+        body.portal-branded .focus\:ring-primary:focus { --tw-ring-color: var(--portal-primary) !important; }
+        body.portal-branded .focus\:border-primary:focus { border-color: var(--portal-primary) !important; }
+        body.portal-branded .border-primary { border-color: var(--portal-primary) !important; }
+        {% endif %}
     </style>
     {% block extra_head %}{% endblock %}
 </head>

@@ -214,6 +214,15 @@ def _marca_por_email(email):
     return _marca_payload(dominio, carpeta)
 
 
+def _portal_context(owner_email, **extra):
+    context = {
+        'owner_email': owner_email,
+        'marca_portal': _marca_por_email(owner_email),
+    }
+    context.update(extra)
+    return context
+
+
 def _carpeta_dominio_payload(carpeta):
     marca = _marca_payload(getattr(carpeta, 'dominio', ''), carpeta)
     return {
@@ -1825,14 +1834,17 @@ def _vista_ajustar_firmas(request, token, rol_requerido):
 
     firmantes = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
     return_url = '/admin-portal/dashboard/' if rol_requerido == 'admin' else '/portal/dashboard/'
-    return render(request, 'motor_firmas/ajustar_firmas.html', {
+    context = {
         'proceso': proceso,
         'rol': rol_requerido,
         'actor_email': acceso['email'],
         'return_url': return_url,
         'pdf_url': f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}?v={int(timezone.now().timestamp())}",
         'firmantes_json': json.dumps(_datos_ajuste_firmantes(firmantes), ensure_ascii=False),
-    })
+    }
+    if rol_requerido == 'owner':
+        context['marca_portal'] = _marca_por_email(acceso['email'])
+    return render(request, 'motor_firmas/ajustar_firmas.html', context)
 
 
 @ensure_csrf_cookie
@@ -2176,14 +2188,13 @@ def portal_dashboard(request):
         for p in ['api_tester', 'plantillas', 'firmx']:
             if p not in permisos: permisos.append(p)
 
-    return render(request, 'motor_firmas/portal_dashboard.html', {
-        'owner_email': owner_email, 
-        'documentos': lista_docs,
-        'tiene_carpeta_dominio': tiene_carpeta_dominio,
-        'permisos': permisos,
-        'es_admin': es_admin,
-        'marca_portal': _marca_por_email(owner_email),
-    })
+    return render(request, 'motor_firmas/portal_dashboard.html', _portal_context(
+        owner_email,
+        documentos=lista_docs,
+        tiene_carpeta_dominio=tiene_carpeta_dominio,
+        permisos=permisos,
+        es_admin=es_admin,
+    ))
 
 
 def portal_firmx(request):
@@ -2209,15 +2220,15 @@ def portal_firmx(request):
             api_key = getattr(settings, 'FIRMX_API_KEY', '')
     firmx_url_config = _firmx_configuracion_urls()
 
-    return render(request, 'motor_firmas/portal_firmx.html', {
-        'owner_email': owner_email,
-        'firmx_base_url': firmx_url_config['active_base_url'],
-        'firmx_base_urls': firmx_url_config['base_urls'],
-        'es_admin_firmx': is_admin,
-        'firmx_api_key': api_key,
-        'empresas': empresas,
-        'areas': areas,
-    })
+    return render(request, 'motor_firmas/portal_firmx.html', _portal_context(
+        owner_email,
+        firmx_base_url=firmx_url_config['active_base_url'],
+        firmx_base_urls=firmx_url_config['base_urls'],
+        es_admin_firmx=is_admin,
+        firmx_api_key=api_key,
+        empresas=empresas,
+        areas=areas,
+    ))
 
 
 @csrf_exempt
@@ -2817,8 +2828,11 @@ def portal_plantillas(request):
             p.variables = _json_or_default(getattr(p, 'variables', []), [])
             p.firmantes_config = _json_or_default(getattr(p, 'firmantes_config', []), [])
             permitidas.append(p)
-    return render(request, 'motor_firmas/portal_plantillas.html',
-                  {'plantillas': permitidas, 'owner_email': owner_email})
+    return render(
+        request,
+        'motor_firmas/portal_plantillas.html',
+        _portal_context(owner_email, plantillas=permitidas),
+    )
 
 
 def portal_usar_plantilla(request, plantilla_id):
@@ -2830,8 +2844,11 @@ def portal_usar_plantilla(request, plantilla_id):
     plantilla.variables = _json_or_default(plantilla.variables, [])
     plantilla.firmantes_config = _json_or_default(plantilla.firmantes_config, [])
     plantilla.usuarios_permitidos = _json_or_default(plantilla.usuarios_permitidos, [])
-    return render(request, 'motor_firmas/portal_usar_plantilla.html',
-                  {'plantilla': plantilla, 'owner_email': owner_email})
+    return render(
+        request,
+        'motor_firmas/portal_usar_plantilla.html',
+        _portal_context(owner_email, plantilla=plantilla),
+    )
 
 
 # ================= VISTAS DE PDFS LIBRES (DRAG & DROP) =================
@@ -2840,7 +2857,11 @@ def portal_pdfs_usuario(request):
     if not owner_email: return redirect('portal_login')
     pdfs = _mongo_find(DocumentoPDFUsuario, {'owner_email': owner_email}, [('created_at', -1)])
 
-    return render(request, 'motor_firmas/portal_pdfs_usuario.html', {'pdfs': pdfs, 'owner_email': owner_email})
+    return render(
+        request,
+        'motor_firmas/portal_pdfs_usuario.html',
+        _portal_context(owner_email, pdfs=pdfs),
+    )
 
 
 @csrf_exempt
@@ -2871,7 +2892,7 @@ def eliminar_pdf_usuario(request, pdf_id):
 def portal_subir_pdf(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
-    return render(request, 'motor_firmas/portal_subir_pdf.html', {'owner_email': owner_email})
+    return render(request, 'motor_firmas/portal_subir_pdf.html', _portal_context(owner_email))
 
 
 @csrf_exempt
@@ -2926,8 +2947,11 @@ def portal_configurar_pdf(request, pdf_id):
     if not doc:
         raise Http404("Documento PDF no encontrado")
     pdf_url = f"{settings.MEDIA_URL}{getattr(doc, 'archivo_local', '')}"
-    return render(request, 'motor_firmas/portal_configurar_pdf.html',
-                  {'doc': doc, 'pdf_url': pdf_url, 'owner_email': owner_email})
+    return render(
+        request,
+        'motor_firmas/portal_configurar_pdf.html',
+        _portal_context(owner_email, doc=doc, pdf_url=pdf_url),
+    )
 
 
 @csrf_exempt
