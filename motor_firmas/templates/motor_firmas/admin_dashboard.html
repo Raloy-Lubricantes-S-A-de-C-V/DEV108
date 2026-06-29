@@ -142,6 +142,7 @@
                     <h2 class="font-bold text-primary">Carpetas por Dominio</h2>
                 </div>
                 <div class="space-y-4 mb-5">
+                    <input id="inpCarpetaId" type="hidden">
                     <div>
                         <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Dominio</label>
                         <input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="inpDominio" list="listaDominios" placeholder="Ej. raloy.com.mx" type="text">
@@ -151,7 +152,26 @@
                         <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">ID Google Drive</label>
                         <input class="no-uppercase w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="inpDriveDom" placeholder="1bDP1Q..." type="text">
                     </div>
-                    <button class="bg-primary hover:bg-primary-container text-white w-full py-3 rounded-lg text-sm font-bold transition-colors" onclick="guardarCarpetaDominio()">Guardar Carpeta</button>
+                    <div>
+                        <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Color principal HEX</label>
+                        <div class="grid grid-cols-[1fr_52px] gap-3 items-center">
+                            <input class="no-uppercase w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="inpBrandColor" maxlength="7" placeholder="#162839" type="text" value="#162839">
+                            <input class="h-12 w-full rounded-lg border border-outline-variant bg-white p-1" id="inpBrandColorPicker" type="color" value="#162839" title="Color principal">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Logo del aplicativo</label>
+                        <div class="flex items-center gap-3 rounded-lg border border-outline-variant bg-surface-container-low p-3">
+                            <div id="previewLogoWrap" class="h-12 w-24 rounded bg-primary flex items-center justify-center p-2 shrink-0">
+                                <img id="previewLogoDominio" src="/static/motor_firmas/img/raloy-logo-inverted.svg" alt="Logo" class="max-h-full max-w-full object-contain">
+                            </div>
+                            <input class="no-uppercase block w-full text-xs text-on-surface-variant file:mr-3 file:rounded-lg file:border-0 file:bg-secondary-container file:px-3 file:py-2 file:text-xs file:font-bold file:text-primary hover:file:bg-secondary-fixed-dim" id="inpLogoDom" accept="image/png,image/jpeg,image/webp" type="file">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
+                        <button id="btnGuardarCarpeta" class="bg-primary hover:bg-primary-container text-white w-full py-3 rounded-lg text-sm font-bold transition-colors" onclick="guardarCarpetaDominio()">Guardar Configuración</button>
+                        <button id="btnNuevaCarpeta" class="hidden bg-surface-container-high text-primary px-4 py-3 rounded-lg text-sm font-bold hover:bg-surface-dim transition-colors" onclick="resetCarpetaDominioForm()">Nueva</button>
+                    </div>
                 </div>
                 <h3 class="text-xs font-bold text-on-surface-variant uppercase mb-3 pb-2 border-b border-outline-variant">Configuraciones Activas</h3>
                 <div class="max-h-[200px] overflow-y-auto space-y-3 pr-1" id="listCarpetasDominio"></div>
@@ -220,12 +240,26 @@
     const tableBody = document.getElementById('tableBody');
     const selGroup = document.getElementById('selGroup');
     const filFolio = document.getElementById('filFolio');
-    const filDominio = document.getElementById('filDominio');
-    const filFechaIni = document.getElementById('filFechaIni');
-    const filFechaFin = document.getElementById('filFechaFin');
+	    const filDominio = document.getElementById('filDominio');
+	    const filFechaIni = document.getElementById('filFechaIni');
+	    const filFechaFin = document.getElementById('filFechaFin');
+	    const defaultBrandColor = '#162839';
+	    const defaultLogoUrl = '/static/motor_firmas/img/raloy-logo-inverted.svg';
+	    const inpCarpetaId = document.getElementById('inpCarpetaId');
+	    const inpDominio = document.getElementById('inpDominio');
+	    const inpDriveDom = document.getElementById('inpDriveDom');
+	    const inpBrandColor = document.getElementById('inpBrandColor');
+	    const inpBrandColorPicker = document.getElementById('inpBrandColorPicker');
+	    const inpLogoDom = document.getElementById('inpLogoDom');
+	    const previewLogoDominio = document.getElementById('previewLogoDominio');
+	    const previewLogoWrap = document.getElementById('previewLogoWrap');
+	    const btnNuevaCarpeta = document.getElementById('btnNuevaCarpeta');
 
     function init() {
-        const dominios = [...new Set(rawData.map(d => d.dominio))];
+	        const dominios = [...new Set([
+	            ...rawData.map(d => d.dominio),
+	            ...carpetasDominio.map(c => c.dominio)
+	        ])];
 
         dominios.forEach(dom => {
             const opt = document.createElement('option'); opt.value = dom; opt.innerText = dom;
@@ -246,44 +280,155 @@
         if(savedConfig.filFechaIni) filFechaIni.value = savedConfig.filFechaIni;
         if(savedConfig.filFechaFin) filFechaFin.value = savedConfig.filFechaFin;
 
-        [selGroup, filDominio, filFechaIni, filFechaFin].forEach(el => el.addEventListener('change', renderTable));
-        filFolio.addEventListener('keyup', renderTable);
+	        [selGroup, filDominio, filFechaIni, filFechaFin].forEach(el => el.addEventListener('change', renderTable));
+	        filFolio.addEventListener('keyup', renderTable);
+	        inpBrandColor.addEventListener('input', syncBrandColorFromText);
+	        inpBrandColorPicker.addEventListener('input', syncBrandColorFromPicker);
+	        inpLogoDom.addEventListener('change', previewSelectedLogo);
 
-        renderTable();
-        renderCarpetasDominio();
-    }
+	        renderTable();
+	        renderCarpetasDominio();
+	        actualizarPreviewMarca();
+	    }
 
-    function renderCarpetasDominio() {
-        const container = document.getElementById('listCarpetasDominio');
-        container.innerHTML = '';
+	    function escapeHtml(value) {
+	        return String(value ?? '')
+	            .replace(/&/g, '&amp;')
+	            .replace(/</g, '&lt;')
+	            .replace(/>/g, '&gt;')
+	            .replace(/"/g, '&quot;')
+	            .replace(/'/g, '&#039;');
+	    }
+
+	    function normalizeHex(value) {
+	        let color = String(value || '').trim();
+	        if (!color) return defaultBrandColor;
+	        if (!color.startsWith('#')) color = `#${color}`;
+	        return /^#[0-9a-fA-F]{6}$/.test(color) ? color.toUpperCase() : '';
+	    }
+
+	    function syncBrandColorFromText() {
+	        const color = normalizeHex(inpBrandColor.value);
+	        if (color) {
+	            inpBrandColor.value = color;
+	            inpBrandColorPicker.value = color;
+	            actualizarPreviewMarca();
+	        }
+	    }
+
+	    function syncBrandColorFromPicker() {
+	        inpBrandColor.value = inpBrandColorPicker.value.toUpperCase();
+	        actualizarPreviewMarca();
+	    }
+
+	    function actualizarPreviewMarca() {
+	        const color = normalizeHex(inpBrandColor.value) || defaultBrandColor;
+	        previewLogoWrap.style.backgroundColor = color;
+	    }
+
+	    function previewSelectedLogo() {
+	        const file = inpLogoDom.files && inpLogoDom.files[0];
+	        if (!file) return;
+	        previewLogoDominio.src = URL.createObjectURL(file);
+	    }
+
+	    function renderCarpetasDominio() {
+	        const container = document.getElementById('listCarpetasDominio');
+	        container.innerHTML = '';
 
         if (carpetasDominio.length === 0) {
             container.innerHTML = '<p class="text-xs text-outline text-center py-4 italic">No hay carpetas configuradas.</p>';
             return;
         }
 
-        carpetasDominio.forEach(c => {
-            container.innerHTML += `
-                <div class="bg-surface-container-low p-3 rounded-xl border border-outline-variant relative group">
-                    <strong class="block text-xs text-primary mb-1">@${c.dominio}</strong>
-                    <span class="text-[10px] text-on-surface-variant break-all block pr-6">ID: ${c.drive_folder_id}</span>
-                    <button onclick="eliminarCarpetaDominio(${c.id})" class="absolute top-3 right-3 text-status-danger hover:opacity-80">
-                        <span class="material-symbols-outlined text-[16px]">close</span>
-                    </button>
-                </div>
-            `;
-        });
-    }
+	        carpetasDominio.forEach(c => {
+	            const card = document.createElement('div');
+	            card.className = 'bg-surface-container-low p-3 rounded-xl border border-outline-variant relative group';
+	            card.innerHTML = `
+	                <div class="flex items-start gap-3 pr-7">
+	                    <div class="h-10 w-16 rounded flex items-center justify-center p-1.5 shrink-0" style="background:${escapeHtml(c.brand_color || defaultBrandColor)}">
+	                        <img src="${escapeHtml(c.logo_preview_url || defaultLogoUrl)}" alt="Logo ${escapeHtml(c.dominio)}" class="max-h-full max-w-full object-contain">
+	                    </div>
+	                    <div class="min-w-0">
+	                        <strong class="block text-xs text-primary mb-1">@${escapeHtml(c.dominio)}</strong>
+	                        <span class="text-[10px] text-on-surface-variant break-all block">ID: ${escapeHtml(c.drive_folder_id)}</span>
+	                        <span class="inline-flex items-center gap-1 text-[10px] text-on-surface-variant mt-2">
+	                            <span class="inline-block h-3 w-3 rounded-full border border-outline-variant" style="background:${escapeHtml(c.brand_color || defaultBrandColor)}"></span>
+	                            ${escapeHtml(c.brand_color || defaultBrandColor)}
+	                        </span>
+	                    </div>
+	                </div>
+	                <div class="mt-3 flex gap-2">
+	                    <button type="button" data-edit class="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline">
+	                        <span class="material-symbols-outlined text-[15px]">edit</span> Editar
+	                    </button>
+	                </div>
+	                <button type="button" data-delete class="absolute top-3 right-3 text-status-danger hover:opacity-80">
+	                    <span class="material-symbols-outlined text-[16px]">close</span>
+	                </button>
+	            `;
+	            card.querySelector('[data-edit]').addEventListener('click', () => editarCarpetaDominio(c.id));
+	            card.querySelector('[data-delete]').addEventListener('click', () => eliminarCarpetaDominio(c.id));
+	            container.appendChild(card);
+	        });
+	    }
 
-    function guardarCarpetaDominio() {
-        const dominio = document.getElementById('inpDominio').value;
-        const drive_folder_id = document.getElementById('inpDriveDom').value;
-        if(!dominio || !drive_folder_id) return alert("Completa ambos campos");
+	    function editarCarpetaDominio(id) {
+	        const config = carpetasDominio.find(c => String(c.id) === String(id));
+	        if (!config) return;
+	        inpCarpetaId.value = config.id;
+	        inpDominio.value = config.dominio || '';
+	        inpDriveDom.value = config.drive_folder_id || '';
+	        inpBrandColor.value = normalizeHex(config.brand_color) || defaultBrandColor;
+	        inpBrandColorPicker.value = inpBrandColor.value;
+	        inpLogoDom.value = '';
+	        previewLogoDominio.src = config.logo_preview_url || defaultLogoUrl;
+	        btnNuevaCarpeta.classList.remove('hidden');
+	        actualizarPreviewMarca();
+	    }
 
-        ejecutarAccion('guardar_carpeta_dominio', {dominio, drive_folder_id}).then(() => {
-            window.location.reload();
-        });
-    }
+	    function resetCarpetaDominioForm() {
+	        inpCarpetaId.value = '';
+	        inpDominio.value = '';
+	        inpDriveDom.value = '';
+	        inpBrandColor.value = defaultBrandColor;
+	        inpBrandColorPicker.value = defaultBrandColor;
+	        inpLogoDom.value = '';
+	        previewLogoDominio.src = defaultLogoUrl;
+	        btnNuevaCarpeta.classList.add('hidden');
+	        actualizarPreviewMarca();
+	    }
+
+	    function guardarCarpetaDominio() {
+	        const dominio = inpDominio.value.trim();
+	        const drive_folder_id = inpDriveDom.value.trim();
+	        const brand_color = normalizeHex(inpBrandColor.value);
+	        if(!dominio || !drive_folder_id) return alert("Completa dominio e ID de Google Drive");
+	        if(!brand_color) return alert("El color debe tener formato HEX, por ejemplo #162839");
+
+	        const formData = new FormData();
+	        formData.append('id', inpCarpetaId.value);
+	        formData.append('dominio', dominio);
+	        formData.append('drive_folder_id', drive_folder_id);
+	        formData.append('brand_color', brand_color);
+	        if (inpLogoDom.files && inpLogoDom.files[0]) {
+	            formData.append('logo', inpLogoDom.files[0]);
+	        }
+
+	        fetch('/api/admin-action/guardar_carpeta_dominio/', {
+	            method: 'POST',
+	            body: formData
+	        })
+	        .then(r => r.json())
+	        .then(data => {
+	            if (data.status !== 'success') {
+	                alert("Error: " + (data.error || 'No se pudo guardar'));
+	                throw new Error(data.error || 'No se pudo guardar');
+	            }
+	            if (data.msg) alert(data.msg);
+	            window.location.reload();
+	        });
+	    }
 
     function eliminarCarpetaDominio(id) {
         if(confirm("¿Seguro de eliminar esta configuración de carpeta para el dominio?")) {

@@ -37,6 +37,11 @@ N8N_WEBHOOK_NOTIFICAR_FIRMX = "https://n8n.raloy.com.mx/webhook/notificar-firmx"
 PUBLIC_BASE_URL = "https://dsign.raloy.com.mx"
 QR_TRAZABILIDAD_SALT = "motor_firmas.trazabilidad_qr"
 QR_TRAZABILIDAD_MAX_AGE_SECONDS = getattr(settings, "QR_TRAZABILIDAD_MAX_AGE_SECONDS", 60 * 60 * 24 * 30)
+BRAND_DEFAULT_DOMAIN = "raloy.com.mx"
+BRAND_DEFAULT_COLOR = "#162839"
+BRAND_DEFAULT_LOGO_URL = "/static/motor_firmas/img/raloy-logo-inverted.svg"
+BRAND_DEFAULT_NAME = "Raloy Lubricantes"
+BRAND_LOGO_ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 
 _MONGO_CLIENT = None
 
@@ -85,6 +90,155 @@ def _normalizar_firmantes(firmantes):
 
 def _normalizar_email(email):
     return str(email or '').strip().lower()
+
+
+def _normalizar_dominio(dominio):
+    dominio = str(dominio or '').strip().lower()
+    return dominio[1:] if dominio.startswith('@') else dominio
+
+
+def _dominio_de_email(email):
+    email = _normalizar_email(email)
+    return email.split('@', 1)[1] if '@' in email else ''
+
+
+def _normalizar_hex_color(color, default=BRAND_DEFAULT_COLOR):
+    color = str(color or '').strip()
+    if not color:
+        return default
+    if not color.startswith('#'):
+        color = f"#{color}"
+    color = color.upper()
+    if not re.fullmatch(r'#[0-9A-F]{6}', color):
+        raise ValueError("El color debe tener formato HEX, por ejemplo #162839.")
+    return color
+
+
+def _rgb_from_hex(hex_color):
+    color = _normalizar_hex_color(hex_color)
+    return tuple(int(color[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def _shade_hex_color(hex_color, factor):
+    red, green, blue = _rgb_from_hex(hex_color)
+    channels = []
+    for channel in (red, green, blue):
+        if factor < 0:
+            value = channel * (1 + factor)
+        else:
+            value = channel + (255 - channel) * factor
+        channels.append(max(0, min(255, int(round(value)))))
+    return f"#{channels[0]:02X}{channels[1]:02X}{channels[2]:02X}"
+
+
+def _on_color_for_hex(hex_color):
+    red, green, blue = _rgb_from_hex(hex_color)
+    luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255
+    return "#162839" if luminance > 0.68 else "#FFFFFF"
+
+
+def _guardar_logo_dominio(logo_file, dominio):
+    if not logo_file:
+        return None
+
+    extension = os.path.splitext(logo_file.name or '')[1].lower()
+    if extension not in BRAND_LOGO_ALLOWED_EXTENSIONS:
+        raise ValueError("El logo debe ser PNG, JPG, JPEG o WEBP.")
+
+    content_type = str(getattr(logo_file, 'content_type', '') or '')
+    if content_type and not content_type.startswith('image/'):
+        raise ValueError("El archivo seleccionado no parece ser una imagen.")
+
+    safe_domain = re.sub(r'[^a-z0-9.-]+', '-', _normalizar_dominio(dominio)).strip('.-') or 'dominio'
+    rel_dir = os.path.join('branding', safe_domain)
+    abs_dir = os.path.join(settings.MEDIA_ROOT, rel_dir)
+    os.makedirs(abs_dir, exist_ok=True)
+
+    filename = f"logo-{uuid.uuid4().hex[:12]}{extension}"
+    rel_path = os.path.join(rel_dir, filename)
+    abs_path = os.path.join(settings.MEDIA_ROOT, rel_path)
+    with open(abs_path, 'wb+') as destination:
+        for chunk in logo_file.chunks():
+            destination.write(chunk)
+
+    normalized_path = rel_path.replace(os.sep, '/')
+    return {
+        'logo_path': normalized_path,
+        'logo_url': f"{settings.MEDIA_URL.rstrip('/')}/{normalized_path}",
+    }
+
+
+def _eliminar_logo_dominio(logo_path):
+    logo_path = str(logo_path or '').replace('\\', '/')
+    if not logo_path.startswith('branding/'):
+        return
+    full_path = os.path.abspath(os.path.join(settings.MEDIA_ROOT, logo_path))
+    media_root = os.path.abspath(settings.MEDIA_ROOT)
+    if not full_path.startswith(media_root):
+        return
+    try:
+        if os.path.exists(full_path):
+            os.remove(full_path)
+    except OSError:
+        pass
+
+
+def _marca_payload(dominio='', carpeta=None):
+    raw_color = getattr(carpeta, 'brand_color', '') if carpeta else ''
+    try:
+        color = _normalizar_hex_color(raw_color, BRAND_DEFAULT_COLOR)
+    except ValueError:
+        color = BRAND_DEFAULT_COLOR
+
+    raw_logo_url = (getattr(carpeta, 'logo_url', '') if carpeta else '') or ''
+    logo_url = raw_logo_url or BRAND_DEFAULT_LOGO_URL
+    dominio = _normalizar_dominio(dominio or getattr(carpeta, 'dominio', '') if carpeta else dominio)
+    nombre = BRAND_DEFAULT_NAME if dominio == BRAND_DEFAULT_DOMAIN else (dominio.upper() if dominio else BRAND_DEFAULT_NAME)
+    on_color = _on_color_for_hex(color)
+    return {
+        'dominio': dominio,
+        'nombre': nombre,
+        'color': color,
+        'color_hover': _shade_hex_color(color, -0.16),
+        'color_soft': _shade_hex_color(color, 0.82),
+        'on_color': on_color,
+        'on_color_muted': on_color,
+        'logo_url': logo_url,
+        'logo_is_default': logo_url == BRAND_DEFAULT_LOGO_URL,
+    }
+
+
+def _marca_por_email(email):
+    dominio = _dominio_de_email(email)
+    carpeta = _mongo_find_one(CarpetaDominio, {'dominio': dominio}) if dominio else None
+    return _marca_payload(dominio, carpeta)
+
+
+def _carpeta_dominio_payload(carpeta):
+    marca = _marca_payload(getattr(carpeta, 'dominio', ''), carpeta)
+    return {
+        'id': str(getattr(carpeta, 'id', '')),
+        'dominio': getattr(carpeta, 'dominio', ''),
+        'drive_folder_id': getattr(carpeta, 'drive_folder_id', ''),
+        'brand_color': marca['color'],
+        'logo_url': getattr(carpeta, 'logo_url', '') or '',
+        'logo_preview_url': marca['logo_url'],
+    }
+
+
+def _asegurar_marca_raloy_actual():
+    carpeta = _mongo_find_one(CarpetaDominio, {'dominio': BRAND_DEFAULT_DOMAIN})
+    if not carpeta:
+        return
+    updates = {}
+    if not getattr(carpeta, 'brand_color', ''):
+        updates['brand_color'] = BRAND_DEFAULT_COLOR
+    if not getattr(carpeta, 'logo_url', ''):
+        updates['logo_url'] = BRAND_DEFAULT_LOGO_URL
+        updates['logo_path'] = ''
+    if updates:
+        updates['updated_at'] = _datetime_for_mongo()
+        _mongo_update_document(CarpetaDominio, carpeta, updates)
 
 
 def _indice_actual_cero(proceso):
@@ -2009,7 +2163,7 @@ def portal_dashboard(request):
         lista_docs.append({'proceso': doc, 'total_firmas': tot, 'firmas_hechas': hechas,
                            'porcentaje': int((hechas / tot) * 100) if tot > 0 else 0})
 
-    dominio = owner_email.split('@')[1] if '@' in owner_email else ''
+    dominio = _dominio_de_email(owner_email)
     tiene_carpeta_dominio = _mongo_find_one(CarpetaDominio, {'dominio': dominio}) is not None
 
     colaborador = _mongo_find_one(DirectorioFirmas, {'email': owner_email})
@@ -2027,7 +2181,8 @@ def portal_dashboard(request):
         'documentos': lista_docs,
         'tiene_carpeta_dominio': tiene_carpeta_dominio,
         'permisos': permisos,
-        'es_admin': es_admin
+        'es_admin': es_admin,
+        'marca_portal': _marca_por_email(owner_email),
     })
 
 
@@ -2911,8 +3066,9 @@ def admin_dashboard(request):
                           'progreso': f"{sum(1 for f in firmantes if f.get('fecha_firma'))}/{len(firmantes)}",
                           'firmx_id': firmx_id or '',
                           'can_adjust': getattr(d, 'status', '') == 'COMPLETED' and not firmx_id})
+    _asegurar_marca_raloy_actual()
     carpetas_dominio = [
-        {'id': str(c.id), 'dominio': c.dominio, 'drive_folder_id': c.drive_folder_id}
+        _carpeta_dominio_payload(c)
         for c in _mongo_find(CarpetaDominio, {}, [('dominio', 1)])
     ]
 
@@ -2958,10 +3114,14 @@ def admin_api(request, accion):
         return JsonResponse({"error": "Sesión de admin inválida"}, status=403)
     
     if request.method == 'POST':
-        try:
-            data = json.loads(request.body or '{}')
-        except ValueError:
-            return JsonResponse({"error": "JSON inválido."}, status=400)
+        content_type = request.META.get('CONTENT_TYPE', '')
+        if content_type.startswith('multipart/form-data'):
+            data = request.POST.copy()
+        else:
+            try:
+                data = json.loads(request.body or '{}')
+            except ValueError:
+                return JsonResponse({"error": "JSON inválido."}, status=400)
         
         if accion == 'actualizar_usuario':
             u_id = data.get('id')
@@ -3161,17 +3321,63 @@ def admin_api(request, accion):
                 _mongo_delete_document(PlantillaFormulario, plantilla)
             return JsonResponse({"status": "success", "msg": "Plantilla eliminada."})
         elif accion == 'guardar_carpeta_dominio':
-            dominio, folder_id = data.get('dominio', '').strip().lower(), data.get('drive_folder_id', '').strip()
-            if not dominio or not folder_id: return JsonResponse({"error": "Faltan campos"}, status=400)
-            _mongo_update_or_insert_by_query(
-                CarpetaDominio,
-                {'dominio': dominio},
-                {'drive_folder_id': str(folder_id), 'created_at': _datetime_for_mongo()},
-            )
-            return JsonResponse({"status": "success", "msg": "Carpeta asignada."})
+            dominio = _normalizar_dominio(data.get('dominio'))
+            folder_id = str(data.get('drive_folder_id', '')).strip()
+            carpeta_id = str(data.get('id', '') or '').strip()
+            if not dominio or not folder_id:
+                return JsonResponse({"error": "Faltan dominio e ID de Google Drive."}, status=400)
+
+            try:
+                brand_color = _normalizar_hex_color(data.get('brand_color'), BRAND_DEFAULT_COLOR)
+            except ValueError as e:
+                return JsonResponse({"error": str(e)}, status=400)
+
+            carpeta_actual = _mongo_find_one_by_id(CarpetaDominio, carpeta_id) if carpeta_id else None
+            carpeta_mismo_dominio = _mongo_find_one(CarpetaDominio, {'dominio': dominio})
+            if carpeta_actual and carpeta_mismo_dominio and str(getattr(carpeta_actual, 'id', '')) != str(getattr(carpeta_mismo_dominio, 'id', '')):
+                return JsonResponse({"error": "Ya existe una configuración para ese dominio."}, status=400)
+
+            updates = {
+                'dominio': dominio,
+                'drive_folder_id': folder_id,
+                'brand_color': brand_color,
+                'updated_at': _datetime_for_mongo(),
+            }
+
+            if dominio == BRAND_DEFAULT_DOMAIN and not getattr(carpeta_actual or carpeta_mismo_dominio, 'logo_url', ''):
+                updates['logo_url'] = BRAND_DEFAULT_LOGO_URL
+                updates['logo_path'] = ''
+
+            try:
+                logo_data = _guardar_logo_dominio(request.FILES.get('logo'), dominio)
+            except ValueError as e:
+                return JsonResponse({"error": str(e)}, status=400)
+
+            if logo_data:
+                old_logo_path = getattr(carpeta_actual or carpeta_mismo_dominio, 'logo_path', '')
+                updates.update(logo_data)
+            else:
+                old_logo_path = ''
+
+            if carpeta_actual:
+                _mongo_update_document(CarpetaDominio, carpeta_actual, updates)
+                carpeta_guardada = carpeta_actual
+            else:
+                updates['created_at'] = getattr(carpeta_mismo_dominio, 'created_at', None) or _datetime_for_mongo()
+                carpeta_guardada, _ = _mongo_update_or_insert_by_query(CarpetaDominio, {'dominio': dominio}, updates)
+
+            if logo_data and old_logo_path and old_logo_path != updates.get('logo_path'):
+                _eliminar_logo_dominio(old_logo_path)
+
+            return JsonResponse({
+                "status": "success",
+                "msg": "Configuración de dominio guardada.",
+                "carpeta": _carpeta_dominio_payload(carpeta_guardada),
+            })
         elif accion == 'eliminar_carpeta_dominio':
             carpeta = _mongo_find_one_by_id(CarpetaDominio, data.get('id'))
             if carpeta:
+                _eliminar_logo_dominio(getattr(carpeta, 'logo_path', ''))
                 _mongo_delete_document(CarpetaDominio, carpeta)
             return JsonResponse({"status": "success", "msg": "Configuración eliminada."})
     return JsonResponse({"error": "Acción inválida"}, status=400)

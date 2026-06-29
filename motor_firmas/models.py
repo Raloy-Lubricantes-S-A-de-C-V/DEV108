@@ -97,7 +97,11 @@ class AdministradorPortal(models.Model):
 class CarpetaDominio(models.Model):
     dominio = models.CharField(max_length=100, unique=True)
     drive_folder_id = models.CharField(max_length=200)
+    brand_color = models.CharField(max_length=7, default="#162839")
+    logo_url = models.CharField(max_length=500, blank=True, null=True)
+    logo_path = models.CharField(max_length=500, blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
 
 class AreaFirmex(models.Model):
