@@ -1,9 +1,9 @@
 {% if marca_portal %}
-    <div class="portal-brand-logo-box {{ brand_logo_box_class|default:brand_logo_class|default:'shrink-0' }}">
+    <div class="portal-brand-logo-box {% if brand_logo_box_class %}{{ brand_logo_box_class }}{% elif brand_logo_class %}{{ brand_logo_class }}{% else %}shrink-0{% endif %}">
         <img src="{{ marca_portal.logo_url }}" alt="{{ marca_portal.nombre }}" class="portal-brand-logo">
     </div>
 {% else %}
-    <div class="portal-brand-logo-box {{ brand_logo_box_class|default:brand_logo_class|default:'shrink-0' }}">
+    <div class="portal-brand-logo-box {% if brand_logo_box_class %}{{ brand_logo_box_class }}{% elif brand_logo_class %}{{ brand_logo_class }}{% else %}shrink-0{% endif %}">
         <img src="/static/motor_firmas/img/raloy-logo.svg" alt="Raloy Lubricantes" class="portal-brand-logo">
     </div>
 {% endif %}
