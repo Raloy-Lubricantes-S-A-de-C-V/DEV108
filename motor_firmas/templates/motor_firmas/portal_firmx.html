@@ -1263,7 +1263,13 @@
         } finally {
             btn.disabled = false;
             mainBtn.disabled = false;
-            btn.textContent = 'Obtener QR para firmar';
+            if (lastFirmxQrPayload) {
+                btn.textContent = 'Volver a consultar QR';
+                mainBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">check_circle</span> QR consultado';
+            } else {
+                btn.textContent = 'Obtener QR para firmar';
+                mainBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">qr_code_2</span> Obtener QR para firmar';
+            }
         }
     }
 
