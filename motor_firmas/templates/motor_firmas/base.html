@@ -351,6 +351,108 @@
         body.portal-branded .focus\:ring-primary:focus { --tw-ring-color: var(--portal-primary) !important; }
         body.portal-branded .focus\:border-primary:focus { border-color: var(--portal-primary) !important; }
         body.portal-branded .border-primary { border-color: var(--portal-primary) !important; }
+        body.portal-branded a.bg-primary,
+        body.portal-branded button.bg-primary,
+        body.portal-branded a.bg-primary-container,
+        body.portal-branded button.bg-primary-container,
+        body.portal-branded .portal-brand-action,
+        body.portal-branded .view-toggle-btn.active {
+            background-color: #ffffff !important;
+            color: var(--portal-primary) !important;
+            border: 1px solid var(--portal-primary) !important;
+        }
+        body.portal-branded a.bg-primary:hover,
+        body.portal-branded button.bg-primary:hover,
+        body.portal-branded a.bg-primary-container:hover,
+        body.portal-branded button.bg-primary-container:hover,
+        body.portal-branded .portal-brand-action:hover,
+        body.portal-branded .view-toggle-btn.active:hover {
+            background-color: var(--portal-primary-soft) !important;
+            color: var(--portal-primary) !important;
+        }
+        body.portal-branded .file\:bg-primary::file-selector-button {
+            background-color: #ffffff !important;
+            color: var(--portal-primary) !important;
+            border: 1px solid var(--portal-primary) !important;
+        }
+        body.portal-branded a.bg-secondary-container:not(.portal-api-button),
+        body.portal-branded button.bg-secondary-container:not(.portal-api-button) {
+            background-color: #ffffff !important;
+            color: var(--portal-primary) !important;
+            border: 1px solid var(--portal-primary) !important;
+        }
+        body.portal-branded a.bg-secondary-container:not(.portal-api-button):hover,
+        body.portal-branded button.bg-secondary-container:not(.portal-api-button):hover {
+            background-color: var(--portal-primary-soft) !important;
+        }
+        body.portal-branded a.bg-status-success,
+        body.portal-branded button.bg-status-success {
+            background-color: #ffffff !important;
+            color: #1f7a44 !important;
+            border: 1px solid #27ae60 !important;
+        }
+        body.portal-branded a.bg-status-success:hover,
+        body.portal-branded button.bg-status-success:hover {
+            background-color: #d3f9d8 !important;
+            color: #1f7a44 !important;
+        }
+        body.portal-branded a.bg-status-danger,
+        body.portal-branded button.bg-status-danger,
+        body.portal-branded button.border-status-danger {
+            background-color: #ffffff !important;
+            color: #93000a !important;
+            border: 1px solid #e74c3c !important;
+        }
+        body.portal-branded a.bg-status-danger:hover,
+        body.portal-branded button.bg-status-danger:hover,
+        body.portal-branded button.border-status-danger:hover {
+            background-color: #ffdad6 !important;
+            color: #93000a !important;
+        }
+        body.portal-branded a.bg-surface-slate,
+        body.portal-branded button.bg-surface-slate {
+            background-color: #ffffff !important;
+            color: var(--portal-text-strong) !important;
+            border: 1px solid #34495e !important;
+        }
+        body.portal-branded .doc-action-btn,
+        body.portal-branded .doc-list-action,
+        body.portal-branded a.border.bg-white.text-primary,
+        body.portal-branded button.border.bg-white.text-primary {
+            background-color: #ffffff !important;
+            color: var(--portal-primary) !important;
+            border-color: var(--portal-primary) !important;
+        }
+        body.portal-branded .doc-action-btn:hover,
+        body.portal-branded .doc-list-action:hover,
+        body.portal-branded a.border.bg-white.text-primary:hover,
+        body.portal-branded button.border.bg-white.text-primary:hover {
+            background-color: var(--portal-primary-soft) !important;
+            color: var(--portal-primary) !important;
+        }
+        body.portal-branded .portal-api-button,
+        body.portal-branded .api-btn-send {
+            background-color: #ffffff !important;
+            color: #171a1d !important;
+            border: 1px solid #c4c6cd !important;
+        }
+        body.portal-branded .portal-api-button:hover,
+        body.portal-branded .api-btn-send:hover {
+            background-color: #f3f4f5 !important;
+            color: #171a1d !important;
+        }
+        body.portal-branded .firmx-step-button.active {
+            background-color: #ffffff !important;
+            color: var(--portal-primary) !important;
+            border-color: var(--portal-primary) !important;
+        }
+        body.portal-branded .firmx-step-button.active .firmx-step-index {
+            background-color: var(--portal-primary) !important;
+            color: var(--portal-on-primary) !important;
+        }
+        body.portal-branded .firmx-step-button.active .firmx-step-subtitle {
+            color: #666666 !important;
+        }
         {% endif %}
     </style>
     {% block extra_head %}{% endblock %}

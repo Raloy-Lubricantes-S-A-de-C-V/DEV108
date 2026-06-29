@@ -101,7 +101,7 @@
 
         <div class="flex flex-wrap gap-3">
             {% if 'api_tester' in permisos %}
-            <button onclick="openApiTester()" class="inline-flex items-center gap-2 bg-secondary-container text-primary px-5 py-3 rounded-lg font-bold hover:bg-secondary-fixed-dim transition-colors">
+            <button onclick="openApiTester()" class="portal-api-button inline-flex items-center gap-2 bg-secondary-container text-primary px-5 py-3 rounded-lg font-bold hover:bg-secondary-fixed-dim transition-colors">
                 <span class="material-symbols-outlined">bolt</span>
                 Probar API (Webhook)
             </button>
@@ -120,7 +120,7 @@
             {% endif %}
 
             {% if 'firmx' in permisos %}
-            <a href="{% url 'portal_firmx' %}" class="inline-flex items-center gap-3 text-white px-5 py-3 rounded-lg font-bold hover:opacity-90 transition-opacity" style="background-color:#2d9be8;">
+            <a href="{% url 'portal_firmx' %}" class="portal-brand-action inline-flex items-center gap-3 text-white px-5 py-3 rounded-lg font-bold hover:opacity-90 transition-opacity" style="background-color:#2d9be8;">
                 <img src="/static/motor_firmas/img/firmx-logo.png" alt="FIRMX" class="h-7 w-auto rounded-sm">
                 FIRMX
             </a>
