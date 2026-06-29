@@ -280,6 +280,9 @@
             --portal-primary-soft: {{ marca_portal.color_soft|default:"#d1e4fb" }};
             --portal-on-primary: {{ marca_portal.on_color|default:"#ffffff" }};
             --portal-text-strong: #202124;
+            --portal-text-darker: #171a1d;
+            --portal-firmx-blue: #2d9be8;
+            --portal-firmx-blue-soft: #e7f4ff;
         }
         .portal-brand-logo { display: block; max-width: 9.5rem; max-height: 3.25rem; object-fit: contain; }
         .portal-brand-logo-box {
@@ -355,35 +358,33 @@
         body.portal-branded button.bg-primary,
         body.portal-branded a.bg-primary-container,
         body.portal-branded button.bg-primary-container,
-        body.portal-branded .portal-brand-action,
         body.portal-branded .view-toggle-btn.active {
             background-color: #ffffff !important;
-            color: var(--portal-primary) !important;
-            border: 1px solid var(--portal-primary) !important;
+            color: var(--portal-text-strong) !important;
+            border: 1px solid var(--portal-text-strong) !important;
         }
         body.portal-branded a.bg-primary:hover,
         body.portal-branded button.bg-primary:hover,
         body.portal-branded a.bg-primary-container:hover,
         body.portal-branded button.bg-primary-container:hover,
-        body.portal-branded .portal-brand-action:hover,
         body.portal-branded .view-toggle-btn.active:hover {
-            background-color: var(--portal-primary-soft) !important;
-            color: var(--portal-primary) !important;
+            background-color: #f3f4f5 !important;
+            color: var(--portal-text-strong) !important;
         }
         body.portal-branded .file\:bg-primary::file-selector-button {
             background-color: #ffffff !important;
-            color: var(--portal-primary) !important;
-            border: 1px solid var(--portal-primary) !important;
+            color: var(--portal-text-strong) !important;
+            border: 1px solid var(--portal-text-strong) !important;
         }
         body.portal-branded a.bg-secondary-container:not(.portal-api-button),
         body.portal-branded button.bg-secondary-container:not(.portal-api-button) {
             background-color: #ffffff !important;
-            color: var(--portal-primary) !important;
-            border: 1px solid var(--portal-primary) !important;
+            color: var(--portal-text-strong) !important;
+            border: 1px solid var(--portal-text-strong) !important;
         }
         body.portal-branded a.bg-secondary-container:not(.portal-api-button):hover,
         body.portal-branded button.bg-secondary-container:not(.portal-api-button):hover {
-            background-color: var(--portal-primary-soft) !important;
+            background-color: #f3f4f5 !important;
         }
         body.portal-branded a.bg-status-success,
         body.portal-branded button.bg-status-success {
@@ -420,26 +421,53 @@
         body.portal-branded a.border.bg-white.text-primary,
         body.portal-branded button.border.bg-white.text-primary {
             background-color: #ffffff !important;
-            color: var(--portal-primary) !important;
-            border-color: var(--portal-primary) !important;
+            color: var(--portal-text-strong) !important;
+            border-color: var(--portal-text-strong) !important;
         }
         body.portal-branded .doc-action-btn:hover,
         body.portal-branded .doc-list-action:hover,
         body.portal-branded a.border.bg-white.text-primary:hover,
         body.portal-branded button.border.bg-white.text-primary:hover {
-            background-color: var(--portal-primary-soft) !important;
-            color: var(--portal-primary) !important;
+            background-color: #f3f4f5 !important;
+            color: var(--portal-text-strong) !important;
         }
         body.portal-branded .portal-api-button,
         body.portal-branded .api-btn-send {
             background-color: #ffffff !important;
-            color: #171a1d !important;
+            color: var(--portal-text-darker) !important;
             border: 1px solid #c4c6cd !important;
         }
         body.portal-branded .portal-api-button:hover,
         body.portal-branded .api-btn-send:hover {
             background-color: #f3f4f5 !important;
-            color: #171a1d !important;
+            color: var(--portal-text-darker) !important;
+        }
+        body.portal-branded .portal-pdf-button {
+            background-color: #ffffff !important;
+            color: var(--portal-primary) !important;
+            border: 1px solid var(--portal-primary) !important;
+        }
+        body.portal-branded .portal-pdf-button:hover {
+            background-color: var(--portal-primary-soft) !important;
+            color: var(--portal-primary) !important;
+        }
+        body.portal-branded .portal-template-button {
+            background-color: #ffffff !important;
+            color: #1f7a44 !important;
+            border: 1px solid #27ae60 !important;
+        }
+        body.portal-branded .portal-template-button:hover {
+            background-color: #d3f9d8 !important;
+            color: #1f7a44 !important;
+        }
+        body.portal-branded .portal-firmx-button {
+            background-color: #ffffff !important;
+            color: var(--portal-firmx-blue) !important;
+            border: 1px solid var(--portal-firmx-blue) !important;
+        }
+        body.portal-branded .portal-firmx-button:hover {
+            background-color: var(--portal-firmx-blue-soft) !important;
+            color: var(--portal-firmx-blue) !important;
         }
         body.portal-branded .firmx-step-button.active {
             background-color: #ffffff !important;

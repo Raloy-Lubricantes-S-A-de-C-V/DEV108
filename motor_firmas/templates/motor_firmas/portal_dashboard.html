@@ -107,20 +107,20 @@
             </button>
             {% endif %}
 
-            <a href="{% url 'portal_pdfs_usuario' %}" class="inline-flex items-center gap-2 bg-primary text-white px-5 py-3 rounded-lg font-bold hover:bg-primary-container transition-colors">
+            <a href="{% url 'portal_pdfs_usuario' %}" class="portal-pdf-button inline-flex items-center gap-2 bg-primary text-white px-5 py-3 rounded-lg font-bold hover:bg-primary-container transition-colors">
                 <span class="material-symbols-outlined">picture_as_pdf</span>
                 Trabajar PDF para Firma
             </a>
 
             {% if 'plantillas' in permisos %}
-            <a href="{% url 'portal_plantillas' %}" class="inline-flex items-center gap-2 bg-status-success text-white px-5 py-3 rounded-lg font-bold hover:opacity-90 transition-opacity">
+            <a href="{% url 'portal_plantillas' %}" class="portal-template-button inline-flex items-center gap-2 bg-status-success text-white px-5 py-3 rounded-lg font-bold hover:opacity-90 transition-opacity">
                 <span class="material-symbols-outlined">dynamic_form</span>
                 Usar Plantilla
             </a>
             {% endif %}
 
             {% if 'firmx' in permisos %}
-            <a href="{% url 'portal_firmx' %}" class="portal-brand-action inline-flex items-center gap-3 text-white px-5 py-3 rounded-lg font-bold hover:opacity-90 transition-opacity" style="background-color:#2d9be8;">
+            <a href="{% url 'portal_firmx' %}" class="portal-firmx-button inline-flex items-center gap-3 text-white px-5 py-3 rounded-lg font-bold hover:opacity-90 transition-opacity" style="background-color:#2d9be8;">
                 <img src="/static/motor_firmas/img/firmx-logo.png" alt="FIRMX" class="h-7 w-auto rounded-sm">
                 FIRMX
             </a>
