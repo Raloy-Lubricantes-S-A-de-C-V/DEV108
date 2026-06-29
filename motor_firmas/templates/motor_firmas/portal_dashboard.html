@@ -497,10 +497,16 @@
 
         const footerActions = isCompletedFirmx(doc)
             ? `
-                <a href="${firmxDocumentUrl(doc)}" target="_blank" rel="noopener noreferrer" class="doc-action-btn w-full">
-                    <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span>
-                    Ver documento
-                </a>
+                <div class="doc-actions">
+                    <a href="/trazabilidad/${doc.token}/" target="_blank" rel="noopener noreferrer" class="doc-action-btn">
+                        <span class="material-symbols-outlined text-[18px]">visibility</span>
+                        Ver trazabilidad
+                    </a>
+                    <a href="${firmxDocumentUrl(doc)}" target="_blank" rel="noopener noreferrer" class="doc-action-btn">
+                        <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+                        Ver documento
+                    </a>
+                </div>
             `
             : doc.status === 'COMPLETED'
             ? `
@@ -564,6 +570,10 @@
 
         const actions = isCompletedFirmx(doc)
             ? `
+                <a href="/trazabilidad/${doc.token}/" target="_blank" rel="noopener noreferrer" class="doc-list-action">
+                    <span class="material-symbols-outlined text-[16px]">visibility</span>
+                    Trazabilidad
+                </a>
                 <a href="${firmxDocumentUrl(doc)}" target="_blank" rel="noopener noreferrer" class="doc-list-action">
                     <span class="material-symbols-outlined text-[16px]">picture_as_pdf</span>
                     Documento

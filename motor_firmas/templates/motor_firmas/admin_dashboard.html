@@ -340,9 +340,11 @@
             cancelBtn = `<button class="text-status-danger hover:underline text-xs font-bold" onclick="cancelarDoc('${doc.token}')">Cancelar</button>`;
         }
         const isCompletedFirmx = doc.status === 'COMPLETED' && Boolean(doc.firmx_id);
-        const viewUrl = isCompletedFirmx ? `/portal/ver-documento/${doc.token}/` : `/trazabilidad/${doc.token}/`;
-        const viewLabel = isCompletedFirmx ? 'Documento' : 'Ver';
-        const viewIcon = isCompletedFirmx ? 'picture_as_pdf' : 'visibility';
+        const firmxDocumentBtn = isCompletedFirmx
+            ? `<a href="/portal/ver-documento/${doc.token}/" target="_blank" rel="noopener noreferrer" class="text-primary font-bold text-xs hover:underline flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[16px]">picture_as_pdf</span> Documento
+               </a>`
+            : '';
         const adjustBtn = doc.can_adjust && !isCompletedFirmx
             ? `<a href="/admin-portal/ajustar-firmas/${doc.token}/" class="text-on-secondary-container font-bold text-xs hover:underline flex items-center gap-1">
                     <span class="material-symbols-outlined text-[16px]">edit_location_alt</span> Ajustar
@@ -358,9 +360,10 @@
             <td><span class="status-badge ${badgeClass}">${statusText}</span></td>
             <td>
                 <div class="flex items-center gap-4">
-                    <a href="${viewUrl}" target="_blank" rel="noopener noreferrer" class="text-primary font-bold text-xs hover:underline flex items-center gap-1">
-                        <span class="material-symbols-outlined text-[16px]">${viewIcon}</span> ${viewLabel}
+                    <a href="/trazabilidad/${doc.token}/" target="_blank" rel="noopener noreferrer" class="text-primary font-bold text-xs hover:underline flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[16px]">visibility</span> Ver
                     </a>
+                    ${firmxDocumentBtn}
                     ${adjustBtn}
                     ${cancelBtn}
                 </div>
