@@ -10,7 +10,16 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
 <style>
-    .firmx-logo-panel { width: 8.5rem; max-width: 100%; height: auto; display: block; }
+    .firmx-hero { border: 1px solid rgba(255, 255, 255, 0.12); position: relative; overflow: hidden; }
+    .firmx-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.35rem; }
+    .firmx-company-logo { margin: 0; }
+    .firmx-back-link { color: rgba(255, 255, 255, 0.78); }
+    .firmx-back-link:hover { color: #ffffff; }
+    .firmx-hero-main { display: flex; align-items: center; gap: 1rem; max-width: 58rem; }
+    .firmx-hero-symbol { width: 2.8rem; height: 2.8rem; border-radius: 0.75rem; display: inline-flex; align-items: center; justify-content: center; color: #fed023; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.18); flex-shrink: 0; }
+    .firmx-hero-title { display: flex; flex-wrap: wrap; align-items: center; gap: 0.42rem; line-height: 1.1; }
+    .firmx-title-brand { display: inline-flex; align-items: center; gap: 0.38rem; white-space: nowrap; }
+    .firmx-title-mark { display: inline-block; height: 1.05em; width: auto; object-fit: contain; transform: translateY(0.03em); }
     .firmx-step-shell { display: none; }
     .firmx-step-shell.active { display: block; }
     .firmx-step-button { min-height: 52px; border: 1px solid #c4c6cd; background: #fff; color: #43474c; border-radius: 0.5rem; padding: 0.75rem 0.9rem; text-align: left; display: flex; align-items: center; gap: 0.75rem; font-weight: 800; transition: border-color 0.2s ease, background-color 0.2s ease; }
@@ -55,6 +64,8 @@
     .firmx-side-section { background: #fff; border: 1px solid #c4c6cd; border-radius: 0.75rem; padding: 1.25rem; }
     .firmx-side-section h2 { font-size: 1rem; }
     @media screen and (max-width: 1023px) {
+        .firmx-hero-top { align-items: flex-start; flex-direction: column; }
+        .firmx-hero-main { align-items: flex-start; }
         .firmx-side { position: static; }
         .firmx-pdf-stage { height: 68vh; min-height: 380px; }
         .firmx-flow { grid-template-columns: 1fr; }
@@ -64,24 +75,25 @@
 
 {% block content %}
 <div class="max-w-7xl mx-auto">
-    <header class="bg-primary text-white rounded-xl px-6 py-5 mb-6 shadow-soft">
-        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
-	            <div>
-	                {% include "motor_firmas/partials/portal_brand_logo.html" with brand_logo_class="mb-5" brand_logo_box_class="mb-5" %}
-	                <a href="/portal/dashboard/" class="inline-flex items-center gap-2 text-primary-fixed-dim hover:text-white text-sm font-semibold mb-5 transition-colors">
-                    <span class="material-symbols-outlined text-[18px]">arrow_back</span>
-                    Volver al panel
-                </a>
-                <div class="flex items-start gap-4">
-                    <span class="material-symbols-outlined text-secondary-container text-4xl">verified_user</span>
-                    <div>
-                        <h1 class="text-2xl md:text-3xl font-bold">Firma legal by FIRMX integrada a Raloy</h1>
-                        <p class="text-primary-fixed-dim text-sm mt-2">Registra el documento, revisa el PDF, agrega firmantes y consulta el QR de firma.</p>
-                    </div>
-                </div>
-            </div>
-            <div class="bg-white rounded-xl px-5 py-4 shadow-sm self-start lg:self-center">
-                <img src="/static/motor_firmas/img/firmx-logo.png" alt="FIRMX" class="firmx-logo-panel">
+    <header class="firmx-hero bg-primary text-white rounded-xl px-6 py-5 mb-6 shadow-soft">
+        <div class="firmx-hero-top">
+            {% include "motor_firmas/partials/portal_brand_logo.html" with brand_logo_box_class="firmx-company-logo" %}
+            <a href="/portal/dashboard/" class="firmx-back-link inline-flex items-center gap-2 text-sm font-semibold transition-colors">
+                <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+                Volver al panel
+            </a>
+        </div>
+        <div class="firmx-hero-main">
+            <span class="firmx-hero-symbol material-symbols-outlined text-3xl">verified_user</span>
+            <div>
+                <h1 class="firmx-hero-title text-2xl md:text-3xl font-bold">
+                    <span>Firma legal by</span>
+                    <span class="firmx-title-brand">
+                        <img src="/static/motor_firmas/img/firmx-mark-transparent.png" alt="" class="firmx-title-mark">
+                        <span>FIRMX</span>
+                    </span>
+                </h1>
+                <p class="text-primary-fixed-dim text-sm mt-2">Registra el documento, revisa el PDF, agrega firmantes y consulta el QR de firma.</p>
             </div>
         </div>
     </header>
