@@ -35,9 +35,29 @@
     .firmx-summary-list strong { color: #162839; }
     .firmx-signer-row { border: 1px solid #c4c6cd; background: #fff; border-radius: 0.75rem; padding: 1rem; }
     .firmx-side { position: sticky; top: 1.25rem; }
+    .firmx-flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+    .firmx-step-button { min-height: 64px; position: relative; align-items: flex-start; flex-direction: column; gap: 0.45rem; padding: 0.85rem; }
+    .firmx-step-button::after { content: ""; position: absolute; left: 0.85rem; right: 0.85rem; bottom: 0.55rem; height: 3px; border-radius: 9999px; background: #e1e3e4; }
+    .firmx-step-button.active::after { background: #fed023; }
+    .firmx-step-button.done::after { background: #27ae60; }
+    .firmx-step-top { display: flex; align-items: center; gap: 0.5rem; width: 100%; }
+    .firmx-step-title { font-size: 0.86rem; line-height: 1.15; }
+    .firmx-step-subtitle { font-size: 0.72rem; color: #74777d; font-weight: 700; line-height: 1.2; padding-bottom: 0.35rem; }
+    .firmx-step-button.active .firmx-step-subtitle { color: #d1e4fb; }
+    .firmx-kicker { display: inline-flex; align-items: center; gap: 0.4rem; color: #43474c; font-size: 0.74rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0; }
+    .firmx-section-title { color: #162839; font-size: 1.6rem; font-weight: 800; line-height: 1.15; margin-top: 0.35rem; }
+    .firmx-section-copy { color: #666666; font-size: 0.92rem; margin-top: 0.45rem; max-width: 58rem; line-height: 1.55; }
+    .firmx-locked-setting { display: flex; align-items: center; gap: 0.75rem; border: 1px solid #c4c6cd; background: #f8f9fa; border-radius: 0.5rem; padding: 0.9rem 1rem; min-height: 48px; }
+    .firmx-locked-setting strong { color: #162839; display: block; font-size: 0.9rem; }
+    .firmx-locked-setting span:last-child { color: #666666; display: block; font-size: 0.78rem; margin-top: 0.1rem; }
+    .firmx-field-note { color: #666666; font-size: 0.78rem; margin-top: 0.45rem; line-height: 1.45; }
+    .firmx-actions { display: flex; flex-direction: column; gap: 0.75rem; }
+    .firmx-side-section { background: #fff; border: 1px solid #c4c6cd; border-radius: 0.75rem; padding: 1.25rem; }
+    .firmx-side-section h2 { font-size: 1rem; }
     @media screen and (max-width: 1023px) {
         .firmx-side { position: static; }
         .firmx-pdf-stage { height: 68vh; min-height: 380px; }
+        .firmx-flow { grid-template-columns: 1fr; }
     }
 </style>
 {% endblock %}
@@ -66,26 +86,26 @@
         </div>
     </header>
 
-    <nav class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6" aria-label="Pasos FIRMX">
+    <nav class="firmx-flow" aria-label="Proceso FIRMX">
         <button type="button" class="firmx-step-button active" data-step-button="1" onclick="goToFirmxStep(1)">
-            <span class="firmx-step-index">1</span>
-            <span>Archivo y datos</span>
+            <span class="firmx-step-top"><span class="firmx-step-index">1</span><span class="firmx-step-title">Documento</span></span>
+            <span class="firmx-step-subtitle">PDF y datos básicos</span>
         </button>
         <button type="button" class="firmx-step-button" data-step-button="2" onclick="goToFirmxStep(2)">
-            <span class="firmx-step-index">2</span>
-            <span>PDF y firmantes</span>
+            <span class="firmx-step-top"><span class="firmx-step-index">2</span><span class="firmx-step-title">Firmantes</span></span>
+            <span class="firmx-step-subtitle">Orden y correos</span>
         </button>
         <button type="button" class="firmx-step-button" data-step-button="3" onclick="goToFirmxStep(3)">
-            <span class="firmx-step-index">3</span>
-            <span>Confirmación</span>
+            <span class="firmx-step-top"><span class="firmx-step-index">3</span><span class="firmx-step-title">Revisión</span></span>
+            <span class="firmx-step-subtitle">Etiquetas y envío</span>
         </button>
         <button type="button" class="firmx-step-button" data-step-button="4" onclick="goToFirmxStep(4)">
-            <span class="firmx-step-index">4</span>
-            <span>Registro y QR</span>
+            <span class="firmx-step-top"><span class="firmx-step-index">4</span><span class="firmx-step-title">Firma</span></span>
+            <span class="firmx-step-subtitle">QR y enlace</span>
         </button>
         <button type="button" class="firmx-step-button" data-step-button="5" onclick="goToFirmxStep(5)">
-            <span class="firmx-step-index">5</span>
-            <span>Notificaciones</span>
+            <span class="firmx-step-top"><span class="firmx-step-index">5</span><span class="firmx-step-title">Avisos</span></span>
+            <span class="firmx-step-subtitle">Correos a firmantes</span>
         </button>
     </nav>
 
@@ -95,8 +115,9 @@
             <section class="firmx-step-shell active" data-step-panel="1">
                 <div class="firmx-panel p-5 md:p-6 space-y-5">
                     <div>
-                        <p class="text-xs font-bold text-outline uppercase">Step 1 de 5</p>
-                        <h2 class="text-2xl font-bold text-primary mt-1">Subir archivo y datos iniciales</h2>
+                        <p class="firmx-kicker"><span class="material-symbols-outlined text-[16px]">description</span> Preparación</p>
+                        <h2 class="firmx-section-title">Documento para firma</h2>
+                        <p class="firmx-section-copy">Carga el PDF final, asigna un nombre claro y define la fecha límite. El tipo de firma legal queda configurado de forma automática.</p>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -107,15 +128,21 @@
                         <div>
                             <label class="block text-sm font-semibold text-on-surface-variant mb-2">Archivo PDF</label>
                             <input id="firmxPdfFile" type="file" accept="application/pdf" class="w-full px-4 py-4 border-2 border-dashed border-outline-variant rounded-xl bg-surface-bright cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-white file:font-semibold">
+                            <p class="firmx-field-note">Usa la versión final del documento. FIRMX generará el enlace de firma a partir de este archivo.</p>
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-semibold text-on-surface-variant mb-2">Tipo de firma</label>
-                            <select id="firmxSignatureType" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
-                                <option value="SIMPLE_BIOMETRIC">SIMPLE_BIOMETRIC</option>
-                            </select>
+                            <input id="firmxSignatureType" type="hidden" value="SIMPLE_BIOMETRIC">
+                            <label class="block text-sm font-semibold text-on-surface-variant mb-2">Firma aplicada</label>
+                            <div class="firmx-locked-setting">
+                                <span class="material-symbols-outlined text-primary">lock</span>
+                                <div>
+                                    <strong>Biométrica simple</strong>
+                                    <span>Configuración fija para este flujo.</span>
+                                </div>
+                            </div>
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-on-surface-variant mb-2">Fecha límite</label>
@@ -140,12 +167,13 @@
             <section class="firmx-step-shell" data-step-panel="2">
                 <div class="firmx-panel p-5 md:p-6 space-y-5">
                     <div>
-                        <p class="text-xs font-bold text-outline uppercase">Step 2 de 5</p>
-                        <h2 class="text-2xl font-bold text-primary mt-1">Revisar PDF y agregar firmantes</h2>
+                        <p class="firmx-kicker"><span class="material-symbols-outlined text-[16px]">group</span> Participantes</p>
+                        <h2 class="firmx-section-title">Firmantes y revisión del PDF</h2>
+                        <p class="firmx-section-copy">Confirma que el documento cargó correctamente y captura a las personas que deberán firmarlo, en el orden en que deben aparecer.</p>
                     </div>
 
                     <div class="firmx-panel-muted p-4">
-                        <h3 class="text-sm font-bold text-primary mb-3">Resumen del paso anterior</h3>
+                        <h3 class="text-sm font-bold text-primary mb-3">Documento seleccionado</h3>
                         <div id="firmxStepOneSummary" class="firmx-summary-list"></div>
                     </div>
 
@@ -208,7 +236,7 @@
                         <div class="firmx-pdf-stage" id="firmxPdfStage">
                             <div id="firmxPdfPlaceholder" class="text-center text-text-muted p-8">
                                 <span class="material-symbols-outlined text-5xl text-outline mb-3">picture_as_pdf</span>
-                                <p class="font-bold text-primary">El PDF se mostrará aquí al continuar desde el Step 1.</p>
+                                <p class="font-bold text-primary">El PDF se mostrará aquí al continuar.</p>
                             </div>
                             <div id="firmxPdfWrapper" class="firmx-pdf-wrapper hidden">
                                 <canvas id="firmxPdfCanvas"></canvas>
@@ -232,8 +260,9 @@
             <section class="firmx-step-shell" data-step-panel="3">
                 <div class="firmx-panel p-5 md:p-6 space-y-5">
                     <div>
-                        <p class="text-xs font-bold text-outline uppercase">Step 3 de 5</p>
-                        <h2 class="text-2xl font-bold text-primary mt-1">Confirmar envío a FIRMX</h2>
+                        <p class="firmx-kicker"><span class="material-symbols-outlined text-[16px]">fact_check</span> Revisión final</p>
+                        <h2 class="firmx-section-title">Confirmar trámite</h2>
+                        <p class="firmx-section-copy">Revisa el resumen, agrega etiquetas internas si aplican y registra el documento en FIRMX cuando todo esté correcto.</p>
                     </div>
 
                     <div class="firmx-panel-muted p-4">
@@ -249,7 +278,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-1 gap-4">
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm font-semibold text-on-surface-variant mb-1">Empresa (Etiqueta 1)</label>
+                                <label class="block text-sm font-semibold text-on-surface-variant mb-1">Empresa</label>
                                 <select id="firmxCompanyTag" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary outline-none">
                                     <option value="">Selecciona Empresa</option>
                                     {% for empresa in empresas %}
@@ -258,7 +287,7 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-semibold text-on-surface-variant mb-1">Área (Etiqueta 2)</label>
+                                <label class="block text-sm font-semibold text-on-surface-variant mb-1">Área</label>
                                 <select id="firmxAreaTag" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary outline-none">
                                     <option value="">Selecciona Área</option>
                                     {% for area in areas %}
@@ -267,7 +296,7 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-semibold text-on-surface-variant mb-1">Fecha (Etiqueta 3)</label>
+                                <label class="block text-sm font-semibold text-on-surface-variant mb-1">Periodo</label>
                                 <input id="firmxDateTag" type="text" readonly class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-surface-container-low text-text-muted outline-none" value="">
                             </div>
                         </div>
@@ -295,8 +324,9 @@
             <section class="firmx-step-shell" data-step-panel="4">
                 <div class="firmx-panel p-5 md:p-6 space-y-5">
                     <div>
-                        <p class="text-xs font-bold text-outline uppercase">Step 4 de 5</p>
-                        <h2 class="text-2xl font-bold text-primary mt-1">Registro y QR de firma</h2>
+                        <p class="firmx-kicker"><span class="material-symbols-outlined text-[16px]">qr_code_2</span> Firma</p>
+                        <h2 class="firmx-section-title">QR y enlaces de firma</h2>
+                        <p class="firmx-section-copy">Cuando FIRMX confirme el registro, consulta los QR o enlaces que se usarán para notificar a cada firmante.</p>
                     </div>
 
                     <div class="firmx-panel-muted p-4">
@@ -330,8 +360,9 @@
             <section class="firmx-step-shell" data-step-panel="5">
                 <div class="firmx-panel p-5 md:p-6 space-y-5">
                     <div>
-                        <p class="text-xs font-bold text-outline uppercase">Step 5 de 5</p>
-                        <h2 class="text-2xl font-bold text-primary mt-1">Enviar notificaciones por correo</h2>
+                        <p class="firmx-kicker"><span class="material-symbols-outlined text-[16px]">outgoing_mail</span> Avisos</p>
+                        <h2 class="firmx-section-title">Enviar a firmantes</h2>
+                        <p class="firmx-section-copy">Envía el enlace de firma al correo de cada participante y revisa el estado del trámite desde el dashboard.</p>
                     </div>
 
                     <div class="bg-surface-container-low border border-outline-variant rounded-xl p-4 text-on-surface-variant">
@@ -365,22 +396,23 @@
         </main>
 
         <aside class="firmx-side space-y-5">
-            <section class="bg-white rounded-xl border border-outline-variant p-5">
-                <h2 class="text-lg font-bold text-primary mb-3">Resumen activo</h2>
+            <section class="firmx-side-section">
+                <h2 class="text-lg font-bold text-primary mb-3">Resumen del trámite</h2>
                 <div id="firmxSideSummary" class="firmx-summary-list"></div>
+                <div id="firmxStatus" class="mt-4 text-sm font-semibold text-outline border-t border-outline-variant pt-3">Preparando documento.</div>
             </section>
 
             {% if es_admin_firmx %}
-            <section class="bg-white rounded-xl border border-outline-variant p-5">
+            <section class="firmx-side-section">
                 <div class="flex items-center justify-between gap-3 mb-3">
-                    <h2 class="text-lg font-bold text-primary">API FIRMX</h2>
+                    <h2 class="text-lg font-bold text-primary">Detalle técnico</h2>
                     <span id="firmxCurlAction" class="text-xs font-bold bg-secondary-container text-primary px-2 py-1 rounded">POST registro</span>
                 </div>
-                <pre class="firmx-curl bg-surface-container-low border border-outline-variant rounded-lg p-4"><code id="firmxCurlPreview" class="language-bash text-xs">Completa el Step 1 para ver el cURL.</code></pre>
+                <pre class="firmx-curl bg-surface-container-low border border-outline-variant rounded-lg p-4"><code id="firmxCurlPreview" class="language-bash text-xs">Completa el documento para ver el cURL.</code></pre>
             </section>
             {% endif %}
 
-            <section class="bg-white rounded-xl border border-outline-variant p-5">
+            <section class="firmx-side-section">
                 <h2 class="text-lg font-bold text-primary mb-4">QR de firma</h2>
                 <div class="firmx-qr-frame" id="firmxQrFrame">
                     <span class="material-symbols-outlined text-outline text-5xl">qr_code_2</span>
@@ -388,7 +420,10 @@
                 <button id="firmxQrButton" type="button" disabled class="w-full mt-4 border border-outline-variant bg-white text-primary px-4 py-3 rounded-lg font-bold hover:bg-surface-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                     Obtener QR para firmar
                 </button>
-                <input id="firmxDocumentIdManual" type="text" class="w-full mt-3 px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" placeholder="ID FIRMX si no viene en respuesta">
+                <details class="mt-3">
+                    <summary class="cursor-pointer text-xs font-bold text-on-surface-variant hover:text-primary">Capturar ID FIRMX manualmente</summary>
+                    <input id="firmxDocumentIdManual" type="text" class="w-full mt-3 px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" placeholder="ID del documento en FIRMX">
+                </details>
                 <button id="firmxNotifySidebarButton" type="button" onclick="sendFirmxNotifications()" class="w-full mt-3 bg-primary text-white px-4 py-3 rounded-lg font-bold hover:bg-primary-container transition-colors shadow-md flex items-center justify-center gap-2">
                     <span class="material-symbols-outlined text-[18px]">send</span>
                     ENVIAR A FIRMANTES
@@ -399,27 +434,27 @@
                 </button>
             </section>
 
-            <section class="bg-white rounded-xl border border-outline-variant p-5">
-                <h2 class="text-lg font-bold text-primary mb-3">Trazabilidad de la API</h2>
+            <section class="firmx-side-section">
+                <h2 class="text-lg font-bold text-primary mb-3">Actividad del envío</h2>
                 <div id="firmxApiSteps" class="space-y-3">
-                    <div class="text-sm text-on-surface-variant italic">No se han registrado pasos aún.</div>
+                    <div class="text-sm text-on-surface-variant italic">Aún no hay actividad registrada.</div>
                 </div>
             </section>
 
             {% if es_admin_firmx %}
-            <section class="bg-surface-container-low rounded-xl border border-outline-variant p-5">
+            <section class="firmx-side-section bg-surface-container-low">
                 <h2 class="text-lg font-bold text-primary mb-3">Estado de integración</h2>
                 <p class="text-sm text-text-muted mb-3">Base FIRMX:</p>
                 <div class="text-xs bg-white border border-outline-variant rounded-lg p-3 break-all">{{ firmx_base_url }}</div>
-                <div id="firmxStatus" class="mt-4 text-sm font-semibold text-outline">Esperando registro.</div>
+                <div class="mt-4 text-sm font-semibold text-outline">Configuración visible solo para administración.</div>
             </section>
 
-            <section class="bg-white rounded-xl border border-outline-variant p-5">
+            <section class="firmx-side-section">
                 <h2 class="text-lg font-bold text-primary mb-3">Respuesta FIRMX</h2>
                 <pre class="firmx-response bg-surface-container-low border border-outline-variant rounded-lg p-4"><code id="firmxResponse" class="language-json text-xs">Sin respuesta todavía.</code></pre>
             </section>
 
-            <section class="bg-white rounded-xl border border-outline-variant p-5">
+            <section class="firmx-side-section">
                 <h2 class="text-lg font-bold text-primary mb-3">API KEY UTILIZADO</h2>
                 <div class="space-y-3">
                     <div class="relative">
@@ -448,6 +483,7 @@
     const firmxBaseUrl = "{{ firmx_base_url|escapejs }}";
     const initialFirmxApiKey = "{{ firmx_api_key|escapejs }}";
     const isFirmxAdmin = "{{ es_admin_firmx }}" === "True";
+    const FIRMX_SIGNATURE_TYPE = 'SIMPLE_BIOMETRIC';
     let currentFirmxStep = 1;
     let firmxDocumentId = '';
     let firmxFolio = '';
@@ -482,7 +518,7 @@
     });
 
     let firmxPdfZoom = 1.25;
-    let firmxSignersExpanded = false;
+    let firmxSignersExpanded = true;
     let firmxIntegrationSideVisible = true;
 
     window.addEventListener('error', (event) => {
@@ -519,8 +555,9 @@
 
     function setFirmxStatus(message, type = 'muted') {
         const el = document.getElementById('firmxStatus');
+        if (!el) return;
         el.textContent = message;
-        el.className = 'mt-4 text-sm font-semibold ' + (type === 'error' ? 'text-status-danger' : type === 'ok' ? 'text-status-success' : 'text-outline');
+        el.className = 'mt-4 text-sm font-semibold border-t border-outline-variant pt-3 ' + (type === 'error' ? 'text-status-danger' : type === 'ok' ? 'text-status-success' : 'text-outline');
     }
 
     function setFirmxResponse(payload) {
@@ -551,7 +588,7 @@
         const container = document.getElementById('firmxApiSteps');
         if (!container) return;
         if (!steps || !steps.length) {
-            container.innerHTML = '<div class="text-sm text-on-surface-variant italic">No se han registrado pasos aún.</div>';
+            container.innerHTML = '<div class="text-sm text-on-surface-variant italic">Aún no hay actividad registrada.</div>';
             return;
         }
         container.innerHTML = steps.map(step => `
@@ -699,7 +736,7 @@
         return {
             document_name: getDocumentName() || '<nombre_documento>',
             document_base64: firmxSelectedFile ? `<base64_pdf:${firmxSelectedFile.name}>` : '<base64_pdf>',
-            signature_type: document.getElementById('firmxSignatureType').value,
+            signature_type: FIRMX_SIGNATURE_TYPE,
             dead_line_to_sign: document.getElementById('firmxDeadline').value || '<fecha_limite>',
             remeber_me_every: document.getElementById('firmxReminder').value.trim(),
             tags: collectTags(),
@@ -757,7 +794,7 @@
         return `
             <div><strong>Documento:</strong> ${escapeHtml(getDocumentName() || 'Sin nombre')}</div>
             <div><strong>Archivo:</strong> ${escapeHtml(fileName)}</div>
-            <div><strong>Tipo:</strong> ${escapeHtml(document.getElementById('firmxSignatureType').value)}</div>
+            <div><strong>Firma:</strong> Biométrica simple</div>
             <div><strong>Fecha límite:</strong> ${escapeHtml(document.getElementById('firmxDeadline').value || 'Pendiente')}</div>
         `;
     }
@@ -910,7 +947,7 @@
         if (lastFirmxRegistrationMsg && target >= 4) {
             setFirmxStatus(lastFirmxRegistrationMsg, lastFirmxRegistrationType);
         } else {
-            setFirmxStatus(target >= 4 ? 'Listo para consultar resultado, QR o notificaciones.' : `Step ${target} activo.`);
+            setFirmxStatus(target >= 4 ? 'Listo para consultar resultado, QR o notificaciones.' : `Paso ${target} activo.`);
         }
     }
 
@@ -970,7 +1007,7 @@
         document.getElementById('firmxPdfWrapper').classList.add('hidden');
         const placeholder = document.getElementById('firmxPdfPlaceholder');
         placeholder.classList.remove('hidden');
-        placeholder.innerHTML = '<span class="material-symbols-outlined text-5xl text-outline mb-3">picture_as_pdf</span><p class="font-bold text-primary">El PDF se mostrará aquí al continuar desde el Step 1.</p>';
+        placeholder.innerHTML = '<span class="material-symbols-outlined text-5xl text-outline mb-3">picture_as_pdf</span><p class="font-bold text-primary">El PDF se mostrará aquí al continuar.</p>';
         if (firmxSelectedFile && !document.getElementById('firmxDocumentName').value.trim()) {
             document.getElementById('firmxDocumentName').value = firmxSelectedFile.name.replace(/\.pdf$/i, '');
         }
@@ -1134,7 +1171,7 @@
         const formData = new FormData();
         formData.append('pdf_file', firmxSelectedFile);
         formData.append('document_name', getDocumentName() || firmxSelectedFile.name);
-        formData.append('signature_type', document.getElementById('firmxSignatureType').value);
+        formData.append('signature_type', FIRMX_SIGNATURE_TYPE);
         formData.append('dead_line_to_sign', document.getElementById('firmxDeadline').value);
         formData.append('remeber_me_every', document.getElementById('firmxReminder').value.trim());
         formData.append('message_for_request', document.getElementById('firmxMessage').value.trim());
@@ -1446,7 +1483,7 @@
             updateCurlPreview('qr');
         });
         [
-            'firmxDocumentName', 'firmxSignatureType', 'firmxDeadline', 'firmxMessage',
+            'firmxDocumentName', 'firmxDeadline', 'firmxMessage',
             'firmxNotifySigners', 'firmxNotifyViewers', 'firmxReminder', 'firmxCompanyTag', 
             'firmxAreaTag', 'firmxViewers'
         ].forEach(id => {
