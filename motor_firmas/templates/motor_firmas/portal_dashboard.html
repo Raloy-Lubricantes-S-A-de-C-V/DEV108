@@ -1123,9 +1123,7 @@
     }
 
     function openApiTester() {
-        if(plantillasApiData.length > 0 && !document.getElementById('apiTemplateSelect').value) {
-            document.getElementById('apiTemplateSelect').selectedIndex = 1;
-        }
+        document.getElementById('apiTemplateSelect').selectedIndex = 0;
         updateApiPayload();
         document.getElementById('apiResponse').innerText = 'Esperando petición...';
         document.getElementById('apiResponse').style.color = '#a8a8a8';
