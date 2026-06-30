@@ -1169,7 +1169,8 @@
         }
 
         if(!apiKeyToUse) {
-            if(!confirm("No has ingresado un API Key válida. N8N podría rechazar la petición. ¿Deseas continuar?")) return;
+            alert("Error: Es indispensable ingresar una API Key válida para autorizar la petición.");
+            return;
         }
 
         btn.disabled = true;
@@ -1213,8 +1214,20 @@
 
     async function generarApiKey() {
         try {
-            const res = await fetch('/api/portal-action/generar_api_key/', { method: 'POST' });
-            const data = await res.json();
+            const res = await fetch('/api/portal-action/generar_api_key/', { 
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            });
+            let data;
+            try {
+                data = await res.json();
+            } catch(jsonErr) {
+                const text = await res.text();
+                throw new Error("El servidor no devolvió una respuesta válida. Código: " + res.status + " | Info: " + text.substring(0, 50));
+            }
+            
             if(!res.ok) throw new Error(data.error || 'Error al generar la llave');
             
             document.getElementById('newApiKeyValue').value = data.api_key;
@@ -1231,7 +1244,7 @@
             tbody.appendChild(tr);
 
         } catch(error) {
-            alert(error.message);
+            alert("Hubo un problema al generar la API Key: " + error.message);
         }
     }
 
@@ -1242,9 +1255,19 @@
 
     function copyNewKey() {
         const input = document.getElementById('newApiKeyValue');
-        input.select();
-        document.execCommand('copy');
-        document.getElementById('copyKeyStatus').classList.remove('hidden');
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(input.value).then(() => {
+                document.getElementById('copyKeyStatus').classList.remove('hidden');
+            }).catch(err => {
+                input.select();
+                document.execCommand('copy');
+                document.getElementById('copyKeyStatus').classList.remove('hidden');
+            });
+        } else {
+            input.select();
+            document.execCommand('copy');
+            document.getElementById('copyKeyStatus').classList.remove('hidden');
+        }
     }
 </script>
 {% endblock %}
