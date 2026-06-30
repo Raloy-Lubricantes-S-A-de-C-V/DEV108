@@ -670,7 +670,7 @@ def _admin_dashboard_document_domains(base_query):
 
 def _admin_dashboard_docs_page(admin_obj, filtros=None, sync_limit=5):
     filtros = filtros or {}
-    page_size = 25
+    default_page_size = 25
     try:
         page = int(filtros.get('page') or 1)
     except (TypeError, ValueError):
@@ -682,6 +682,13 @@ def _admin_dashboard_docs_page(admin_obj, filtros=None, sync_limit=5):
     query = _admin_dashboard_docs_query(admin_obj, filtros)
     total_global = collection.count_documents(base_query or {})
     total_filtered = collection.count_documents(query or {})
+    try:
+        page_size = int(filtros.get('page_size') or default_page_size)
+    except (TypeError, ValueError):
+        page_size = default_page_size
+    page_size = max(1, page_size)
+    if total_filtered:
+        page_size = min(page_size, total_filtered)
     total_pages = max(1, (total_filtered + page_size - 1) // page_size)
     page = min(page, total_pages)
     skip = (page - 1) * page_size
@@ -708,6 +715,116 @@ def _admin_dashboard_docs_page(admin_obj, filtros=None, sync_limit=5):
             sync_count += 1
 
         docs.append(_admin_dashboard_doc_payload(proceso))
+
+    start = skip + 1 if total_filtered else 0
+    end = min(skip + page_size, total_filtered)
+    return {
+        'status': 'success',
+        'docs': docs,
+        'page': page,
+        'page_size': page_size,
+        'total_pages': total_pages,
+        'total_filtered': total_filtered,
+        'total_global': total_global,
+        'range_start': start,
+        'range_end': end,
+    }
+
+
+def _portal_dashboard_docs_query(owner_email, filtros=None):
+    filtros = filtros or {}
+    condiciones = [{'owner_email': _normalizar_email(owner_email)}]
+
+    folio = str(filtros.get('filFolio') or '').strip()
+    if folio:
+        condiciones.append({'reference_id': {'$regex': re.escape(folio), '$options': 'i'}})
+
+    estado = str(filtros.get('filEstado') or '').strip().upper()
+    if estado and estado != 'ALL':
+        condiciones.append({'status': estado})
+
+    fecha_ini = _admin_dashboard_fecha_query(filtros.get('filFechaIni'))
+    fecha_fin = _admin_dashboard_fecha_query(filtros.get('filFechaFin'), fin=True)
+    fecha_query = {}
+    if fecha_ini:
+        fecha_query['$gte'] = fecha_ini
+    if fecha_fin:
+        fecha_query['$lte'] = fecha_fin
+    if fecha_query:
+        condiciones.append({'created_at': fecha_query})
+
+    return condiciones[0] if len(condiciones) == 1 else {'$and': condiciones}
+
+
+def _portal_dashboard_doc_payload(proceso):
+    firmantes = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
+    total_firmas = len(firmantes)
+    firmas_hechas = sum(1 for f in firmantes if f.get('fecha_firma'))
+    porcentaje = int((firmas_hechas / total_firmas) * 100) if total_firmas > 0 else 0
+    created_at = getattr(proceso, 'created_at', None)
+    summary_data = _json_or_default(getattr(proceso, 'summary_data', {}) or {}, {})
+    firmx_id = summary_data.get('firmx_id') or ''
+    status = getattr(proceso, 'status', 'UNKNOWN') or 'UNKNOWN'
+    return {
+        'reference_id': getattr(proceso, 'reference_id', 'N/A'),
+        'token': str(getattr(proceso, 'token_acceso', '')),
+        'status': status,
+        'fecha_iso': created_at.strftime('%Y-%m-%d') if created_at else '',
+        'fecha_formato': created_at.strftime('%d/%m/%Y %H:%M') if created_at else '',
+        'mes': created_at.strftime('%B %Y') if created_at else 'Sin fecha',
+        'total_firmas': total_firmas,
+        'firmas_hechas': firmas_hechas,
+        'porcentaje': porcentaje,
+        'can_adjust': status == 'COMPLETED' and not firmx_id,
+        'firmx_id': firmx_id,
+    }
+
+
+def _portal_dashboard_docs_page(owner_email, filtros=None, sync_limit=5):
+    filtros = filtros or {}
+    default_page_size = 25
+    try:
+        page = int(filtros.get('page') or 1)
+    except (TypeError, ValueError):
+        page = 1
+    page = max(page, 1)
+
+    collection = _mongo_collection(ProcesoFirma)
+    base_query = {'owner_email': _normalizar_email(owner_email)}
+    query = _portal_dashboard_docs_query(owner_email, filtros)
+    total_global = collection.count_documents(base_query)
+    total_filtered = collection.count_documents(query)
+    try:
+        page_size = int(filtros.get('page_size') or default_page_size)
+    except (TypeError, ValueError):
+        page_size = default_page_size
+    page_size = max(1, page_size)
+    if total_filtered:
+        page_size = min(page_size, total_filtered)
+    total_pages = max(1, (total_filtered + page_size - 1) // page_size)
+    page = min(page, total_pages)
+    skip = (page - 1) * page_size
+
+    cursor = (
+        collection
+        .find(query)
+        .sort('created_at', -1)
+        .skip(skip)
+        .limit(page_size)
+    )
+
+    docs = []
+    sync_count = 0
+    for raw_doc in cursor:
+        proceso = _mongo_to_namespace(raw_doc)
+        summary_data = _json_or_default(getattr(proceso, 'summary_data', {}) or {}, {})
+        firmx_id = summary_data.get('firmx_id')
+        if _proceso_firmx_puede_sincronizar(proceso) and sync_count < sync_limit:
+            success, _ = _firmx_sync_status(firmx_id)
+            if success:
+                proceso = _mongo_find_one(ProcesoFirma, {'_id': proceso._id}) or proceso
+            sync_count += 1
+        docs.append(_portal_dashboard_doc_payload(proceso))
 
     start = skip + 1 if total_filtered else 0
     end = min(skip + page_size, total_filtered)
@@ -2331,27 +2448,6 @@ def solicitar_otp(request):
 def portal_dashboard(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
-    documentos = _mongo_find(ProcesoFirma, {'owner_email': owner_email}, [('created_at', -1)])
-    
-    # Sincronización automática de documentos FIRMX pendientes (máx 5 por carga)
-    sync_count = 0
-    lista_docs = []
-    for doc in documentos:
-        summary_data = getattr(doc, 'summary_data', {}) or {}
-        firmx_id = summary_data.get('firmx_id')
-        
-        if _proceso_firmx_puede_sincronizar(doc) and sync_count < 5:
-            success, _ = _firmx_sync_status(firmx_id)
-            if success:
-                # Refrescar documento tras sync
-                doc = _mongo_find_one(ProcesoFirma, {'_id': doc._id})
-            sync_count += 1
-            
-        firmantes = _normalizar_firmantes(getattr(doc, 'firmantes', []))
-        tot = len(firmantes)
-        hechas = sum(1 for f in firmantes if f.get('fecha_firma'))
-        lista_docs.append({'proceso': doc, 'total_firmas': tot, 'firmas_hechas': hechas,
-                           'porcentaje': int((hechas / tot) * 100) if tot > 0 else 0})
 
     dominio = _dominio_de_email(owner_email)
     tiene_carpeta_dominio = _mongo_find_one(CarpetaDominio, {'dominio': dominio}) is not None
@@ -2368,11 +2464,24 @@ def portal_dashboard(request):
 
     return render(request, 'motor_firmas/portal_dashboard.html', _portal_context(
         owner_email,
-        documentos=lista_docs,
         tiene_carpeta_dominio=tiene_carpeta_dominio,
         permisos=permisos,
         es_admin=es_admin,
     ))
+
+
+@csrf_exempt
+def portal_dashboard_docs_api(request):
+    owner_email = request.session.get('owner_email')
+    if not owner_email:
+        return JsonResponse({"error": "No autorizado"}, status=403)
+    if request.method != 'POST':
+        return JsonResponse({"error": "Método no permitido"}, status=405)
+    try:
+        data = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({"error": "JSON inválido."}, status=400)
+    return JsonResponse(_portal_dashboard_docs_page(owner_email, data))
 
 
 def portal_firmx(request):

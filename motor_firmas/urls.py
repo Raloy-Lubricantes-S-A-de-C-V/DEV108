@@ -24,6 +24,7 @@ urlpatterns = [
     path('portal/', views.portal_login, name='portal_login'),
     path('api/solicitar-otp/', views.solicitar_otp, name='solicitar_otp'),
     path('portal/dashboard/', views.portal_dashboard, name='portal_dashboard'),
+    path('api/portal-dashboard-docs/', views.portal_dashboard_docs_api, name='portal_dashboard_docs_api'),
     path('portal/ver-documento/<uuid:token>/', views.portal_ver_documento, name='portal_ver_documento'),
     path('portal/ajustar-firmas/<uuid:token>/', views.portal_ajustar_firmas, name='portal_ajustar_firmas'),
     path('portal/firmx/', views.portal_firmx, name='portal_firmx'),

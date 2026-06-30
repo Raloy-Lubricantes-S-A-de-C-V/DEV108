@@ -10,7 +10,8 @@
     .admin-table th { background: #f8f9fa; padding: 1rem; text-align: left; font-size: 0.75rem; text-transform: uppercase; color: #43474c; border-bottom: 1px solid #c4c6cd; white-space: nowrap; }
     .admin-table td { padding: 1rem; border-bottom: 1px solid #edeeef; font-size: 0.875rem; vertical-align: middle; }
     .admin-table tbody tr:hover { background: #f8f9fa; }
-    .admin-group-row td { background: #f3f4f5; color: #162839; font-weight: 700; border-left: 4px solid #162839; }
+    .admin-group-row td { background: #f3f4f5; color: #162839; font-weight: 700; border-left: 4px solid #162839; cursor: pointer; }
+    .admin-pager-input { width: 5rem; text-align: center; }
 </style>
 {% endblock %}
 
@@ -95,6 +96,30 @@
                 </div>
             </div>
 
+            <div class="mb-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 border-y border-outline-variant py-4">
+                <div class="text-sm font-semibold text-on-surface-variant">
+                    Mostrando <span id="docRangeLabel">0-0</span> de <span id="docTotalLabel">0</span>
+                    <span id="docGlobalLabel" class="text-xs text-outline ml-2"></span>
+                </div>
+                <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div class="inline-flex items-center gap-2">
+                        <label class="text-xs font-bold text-on-surface-variant uppercase" for="inpPageSize">Ver</label>
+                        <input id="inpPageSize" class="admin-pager-input no-uppercase text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2" min="1" type="number" value="25">
+                        <span class="text-sm font-semibold text-on-surface-variant">/<span id="docTotalInputLabel">0</span></span>
+                    </div>
+                    <div class="inline-flex items-center gap-2">
+                        <button type="button" id="btnPagePrev" class="admin-inline-action admin-inline-action-icon" title="Página anterior">
+                            <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                        </button>
+                        <span class="text-sm font-semibold text-on-surface-variant">Página <span id="docPageLabel">1</span>/<span id="docTotalPagesLabel">1</span></span>
+                        <button type="button" id="btnPageNext" class="admin-inline-action admin-inline-action-icon" title="Página siguiente">
+                            <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                        </button>
+                    </div>
+                    <span id="docsLoadingLabel" class="hidden text-xs font-bold text-on-surface-variant uppercase">Cargando...</span>
+                </div>
+            </div>
+
             <div class="admin-table-wrap">
                 <table class="admin-table" id="docTable">
                     <thead>
@@ -110,26 +135,6 @@
                     </thead>
                     <tbody id="tableBody"></tbody>
                 </table>
-            </div>
-            <div class="mt-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 border-t border-outline-variant pt-4">
-                <div class="text-sm font-semibold text-on-surface-variant">
-                    <span id="docRangeLabel">0-0</span>/<span id="docTotalLabel">0</span>
-                    <span id="docGlobalLabel" class="text-xs text-outline ml-2"></span>
-                </div>
-                <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-                    <div class="inline-flex items-center gap-2">
-                        <button type="button" id="btnPagePrev" class="admin-inline-action admin-inline-action-icon" title="Página anterior">
-                            <span class="material-symbols-outlined text-[18px]">chevron_left</span>
-                        </button>
-                        <label class="text-xs font-bold text-on-surface-variant uppercase" for="inpPageNumber">Página</label>
-                        <input id="inpPageNumber" class="no-uppercase w-20 text-center text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2" min="1" type="number" value="1">
-                        <span class="text-sm font-semibold text-on-surface-variant">/<span id="docTotalPagesLabel">1</span></span>
-                        <button type="button" id="btnPageNext" class="admin-inline-action admin-inline-action-icon" title="Página siguiente">
-                            <span class="material-symbols-outlined text-[18px]">chevron_right</span>
-                        </button>
-                    </div>
-                    <span id="docsLoadingLabel" class="hidden text-xs font-bold text-on-surface-variant uppercase">Cargando...</span>
-                </div>
             </div>
         </section>
 
@@ -269,7 +274,7 @@
     const savedConfig = {{ saved_config|safe }};
     const carpetasDominio = {{ carpetas_dominio|safe }};
     const documentDomains = {{ document_domains|safe }};
-    const PAGE_SIZE = 25;
+    const DEFAULT_PAGE_SIZE = 25;
 
     const tableBody = document.getElementById('tableBody');
     const selGroup = document.getElementById('selGroup');
@@ -280,9 +285,11 @@
 	    const filEstado = document.getElementById('filEstado');
 	    const docRangeLabel = document.getElementById('docRangeLabel');
 	    const docTotalLabel = document.getElementById('docTotalLabel');
+	    const docTotalInputLabel = document.getElementById('docTotalInputLabel');
 	    const docGlobalLabel = document.getElementById('docGlobalLabel');
+	    const docPageLabel = document.getElementById('docPageLabel');
 	    const docTotalPagesLabel = document.getElementById('docTotalPagesLabel');
-	    const inpPageNumber = document.getElementById('inpPageNumber');
+	    const inpPageSize = document.getElementById('inpPageSize');
 	    const btnPagePrev = document.getElementById('btnPagePrev');
 	    const btnPageNext = document.getElementById('btnPageNext');
 	    const docsLoadingLabel = document.getElementById('docsLoadingLabel');
@@ -299,9 +306,11 @@
 	    const btnNuevaCarpeta = document.getElementById('btnNuevaCarpeta');
 	    let currentDocs = [];
 	    let currentPage = Number(savedConfig.page || 1) || 1;
+	    let currentPageSize = Number(savedConfig.page_size || DEFAULT_PAGE_SIZE) || DEFAULT_PAGE_SIZE;
 	    let totalPages = 1;
 	    let filterTimer = null;
 	    let docsRequestId = 0;
+	    let expandedAdminGroups = new Set();
 
     function init() {
 	        const dominios = [...new Set([
@@ -328,8 +337,12 @@
         if(savedConfig.filFechaIni) filFechaIni.value = savedConfig.filFechaIni;
         if(savedConfig.filFechaFin) filFechaFin.value = savedConfig.filFechaFin;
         if(savedConfig.filEstado) filEstado.value = savedConfig.filEstado;
+        inpPageSize.value = currentPageSize;
 
-	        selGroup.addEventListener('change', renderTable);
+	        selGroup.addEventListener('change', () => {
+	            expandedAdminGroups = new Set();
+	            renderTable();
+	        });
 	        [filDominio, filFechaIni, filFechaFin, filEstado].forEach(el => el.addEventListener('change', () => cargarDocumentos(1)));
 	        filFolio.addEventListener('input', () => {
 	            clearTimeout(filterTimer);
@@ -337,11 +350,15 @@
 	        });
 	        btnPagePrev.addEventListener('click', () => cargarDocumentos(currentPage - 1));
 	        btnPageNext.addEventListener('click', () => cargarDocumentos(currentPage + 1));
-	        inpPageNumber.addEventListener('change', () => cargarDocumentos(inpPageNumber.value));
-	        inpPageNumber.addEventListener('keydown', event => {
+	        inpPageSize.addEventListener('change', () => {
+	            currentPageSize = Math.max(1, Number(inpPageSize.value || DEFAULT_PAGE_SIZE));
+	            cargarDocumentos(1);
+	        });
+	        inpPageSize.addEventListener('keydown', event => {
 	            if (event.key === 'Enter') {
 	                event.preventDefault();
-	                cargarDocumentos(inpPageNumber.value);
+	                currentPageSize = Math.max(1, Number(inpPageSize.value || DEFAULT_PAGE_SIZE));
+	                cargarDocumentos(1);
 	            }
 	        });
 	        inpBrandColor.addEventListener('input', syncBrandColorFromText);
@@ -500,7 +517,7 @@
     function filtrosDocumentosPayload(page) {
         return {
             page: Number(page || 1),
-            page_size: PAGE_SIZE,
+            page_size: currentPageSize,
             filFolio: filFolio.value,
             filDominio: filDominio.value,
             filFechaIni: filFechaIni.value,
@@ -520,11 +537,14 @@
     function actualizarPaginacion(data) {
         currentPage = data.page || 1;
         totalPages = data.total_pages || 1;
+        currentPageSize = data.page_size || currentPageSize;
         docRangeLabel.innerText = `${data.range_start || 0}-${data.range_end || 0}`;
         docTotalLabel.innerText = data.total_filtered || 0;
+        docTotalInputLabel.innerText = data.total_filtered || 0;
+        docPageLabel.innerText = currentPage;
         docTotalPagesLabel.innerText = totalPages;
-        inpPageNumber.value = currentPage;
-        inpPageNumber.max = totalPages;
+        inpPageSize.value = data.total_filtered ? currentPageSize : 0;
+        inpPageSize.max = data.total_filtered || '';
         docGlobalLabel.innerText = data.total_filtered === data.total_global ? '' : `de ${data.total_global || 0} globales`;
         btnPagePrev.disabled = currentPage <= 1;
         btnPageNext.disabled = currentPage >= totalPages;
@@ -549,6 +569,7 @@
                 throw new Error(data.error || 'No se pudieron cargar los documentos');
             }
             currentDocs = data.docs || [];
+            expandedAdminGroups = new Set();
             actualizarPaginacion(data);
             renderTable();
         })
@@ -566,6 +587,15 @@
         if(status === 'FIRMX_WAITING') return 'Esperando FIRMX';
         if(status === 'PROCESSING') return 'En Proceso';
         return status || 'Desconocido';
+    }
+
+    function toggleAdminGroup(groupId) {
+        if (expandedAdminGroups.has(groupId)) {
+            expandedAdminGroups.delete(groupId);
+        } else {
+            expandedAdminGroups.add(groupId);
+        }
+        renderTable();
     }
 
     function renderTable() {
@@ -589,13 +619,28 @@
             });
 
             for (const [groupName, items] of Object.entries(groups)) {
+                const groupId = `${groupProp}:${groupName}`;
+                const expanded = expandedAdminGroups.has(groupId);
                 const trGroup = document.createElement('tr');
                 trGroup.className = 'admin-group-row';
                 const label = groupProp === 'status' ? estadoLabel(groupName) : groupName;
-                trGroup.innerHTML = `<td colspan="7">Grupo: ${escapeHtml(label)} <span class="ml-2 font-normal text-on-surface-variant">(${items.length} docs)</span></td>`;
+                trGroup.innerHTML = `
+                    <td colspan="7">
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="inline-flex items-center gap-2">
+                                <span class="material-symbols-outlined text-[18px]">${expanded ? 'expand_less' : 'chevron_right'}</span>
+                                Grupo: ${escapeHtml(label)}
+                            </span>
+                            <span class="font-normal text-on-surface-variant">${items.length} docs</span>
+                        </div>
+                    </td>
+                `;
+                trGroup.addEventListener('click', () => toggleAdminGroup(groupId));
                 tableBody.appendChild(trGroup);
 
-                items.forEach(doc => tableBody.appendChild(crearFila(doc)));
+                if (expanded) {
+                    items.forEach(doc => tableBody.appendChild(crearFila(doc)));
+                }
             }
         }
     }
@@ -673,7 +718,8 @@
             filFechaIni: filFechaIni.value,
             filFechaFin: filFechaFin.value,
             filEstado: filEstado.value,
-            page: currentPage
+            page: currentPage,
+            page_size: currentPageSize
         };
         ejecutarAccion('guardar_config', { configuracion: config }).then(() => {
             alert("Configuración de vista guardada correctamente.");

@@ -21,7 +21,12 @@
     .progress-bar { height: 100%; background: #162839; border-radius: 9999px; transition: width 0.3s ease; }
     .progress-bar.completed { background: #27ae60; }
     .group-header { grid-column: 1 / -1; margin-top: 0.5rem; padding-bottom: 0.5rem; border-bottom: 2px solid #e1e3e4; color: #162839; font-size: 1.05rem; font-weight: 700; display: flex; justify-content: space-between; align-items: flex-end; }
-    .group-header span { font-size: 0.8rem; background: #edeeef; padding: 0.2rem 0.65rem; border-radius: 9999px; color: #43474c; }
+    .group-header .group-count { font-size: 0.8rem; background: #edeeef; padding: 0.2rem 0.65rem; border-radius: 9999px; color: #43474c; }
+    .group-header { cursor: pointer; background: #f8f9fa; border: 1px solid #c4c6cd; border-radius: 0.5rem; padding: 0.85rem 1rem; align-items: center; }
+    .group-header-main { display: inline-flex; align-items: center; gap: 0.5rem; }
+    .portal-pager-input { width: 5rem; text-align: center; }
+    .portal-pager-button { min-height: 2rem; width: 2rem; border: 1px solid #202124; color: #202124; background: #fff; border-radius: 0.5rem; display: inline-flex; align-items: center; justify-content: center; }
+    .portal-pager-button:disabled { opacity: 0.5; cursor: not-allowed; }
     .api-method-badge { background: #fed023; color: #162839; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 800; }
     .api-url { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 0.85rem; color: #43474c; background: #edeeef; padding: 0.5rem 0.75rem; border-radius: 0.5rem; word-break: break-all; }
     .api-btn-send { background: #162839; color: white; border: none; padding: 0.85rem 1rem; border-radius: 0.5rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
@@ -41,7 +46,7 @@
     .doc-list-table td { padding: 0.9rem 1rem; border-bottom: 1px solid #edeeef; vertical-align: middle; font-size: 0.88rem; }
     .doc-list-table tr:last-child td { border-bottom: 0; }
     .doc-list-title { color: #162839; font-weight: 800; word-break: break-word; }
-    .doc-list-group td { background: #edeeef; color: #162839; font-size: 0.78rem; font-weight: 800; text-transform: uppercase; border-bottom: 1px solid #c4c6cd; }
+    .doc-list-group td { background: #edeeef; color: #162839; font-size: 0.78rem; font-weight: 800; text-transform: uppercase; border-bottom: 1px solid #c4c6cd; cursor: pointer; }
     .doc-list-progress { width: 160px; max-width: 100%; }
     .doc-list-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; }
     .doc-list-action { min-height: 36px; border: 1px solid #c4c6cd; background: #ffffff; color: #162839; padding: 0.45rem 0.6rem; border-radius: 0.45rem; font-weight: 800; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; white-space: nowrap; }
@@ -139,6 +144,7 @@
             <select class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" id="filEstado">
                 <option value="all">Todos</option>
                 <option value="PROCESSING">En Proceso</option>
+                <option value="FIRMX_WAITING">Esperando FIRMX</option>
                 <option value="COMPLETED">Completados</option>
                 <option value="CANCELLED">Cancelados</option>
             </select>
@@ -179,6 +185,30 @@
                     Lista
                 </button>
             </div>
+        </div>
+    </section>
+
+    <section class="bg-white rounded-xl border border-outline-variant p-4 mb-4 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div class="text-sm font-semibold text-on-surface-variant">
+            Mostrando <span id="portalRangeLabel">0-0</span> de <span id="portalTotalLabel">0</span>
+            <span id="portalGlobalLabel" class="text-xs text-outline ml-2"></span>
+        </div>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div class="inline-flex items-center gap-2">
+                <label class="text-xs font-bold text-on-surface-variant uppercase" for="portalPageSize">Ver</label>
+                <input id="portalPageSize" class="portal-pager-input no-uppercase text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2" min="1" type="number" value="25">
+                <span class="text-sm font-semibold text-on-surface-variant">/<span id="portalTotalInputLabel">0</span></span>
+            </div>
+            <div class="inline-flex items-center gap-2">
+                <button type="button" id="portalPagePrev" class="portal-pager-button" title="Página anterior">
+                    <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                </button>
+                <span class="text-sm font-semibold text-on-surface-variant">Página <span id="portalPageLabel">1</span>/<span id="portalTotalPagesLabel">1</span></span>
+                <button type="button" id="portalPageNext" class="portal-pager-button" title="Página siguiente">
+                    <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                </button>
+            </div>
+            <span id="portalDocsLoadingLabel" class="hidden text-xs font-bold text-on-surface-variant uppercase">Cargando...</span>
         </div>
     </section>
 
@@ -290,23 +320,14 @@
 
 {% block scripts %}
 <script>
-	    const rawData = [
-        {% for item in documentos %}
-        {
-            reference_id: "{{ item.proceso.reference_id }}",
-            token: "{{ item.proceso.token_acceso }}",
-            status: "{{ item.proceso.status }}",
-            fecha_iso: "{{ item.proceso.created_at|date:'Y-m-d' }}",
-            fecha_formato: "{{ item.proceso.created_at|date:'d/m/Y H:i' }}",
-            mes: "{{ item.proceso.created_at|date:'F Y' }}",
-            total_firmas: {{ item.total_firmas }},
-            firmas_hechas: {{ item.firmas_hechas }},
-            porcentaje: {{ item.porcentaje }},
-            can_adjust: {% if item.proceso.status == 'COMPLETED' and not item.proceso.summary_data.firmx_id %}true{% else %}false{% endif %},
-            firmx_id: "{{ item.proceso.summary_data.firmx_id|default:'' }}"
-        }{% if not forloop.last %},{% endif %}
-	        {% endfor %}
-	    ];
+	    const PORTAL_DEFAULT_PAGE_SIZE = 25;
+	    let currentPortalDocs = [];
+	    let portalCurrentPage = 1;
+	    let portalCurrentPageSize = PORTAL_DEFAULT_PAGE_SIZE;
+	    let portalTotalPages = 1;
+	    let portalFilterTimer = null;
+	    let portalDocsRequestId = 0;
+	    let expandedPortalGroups = new Set();
 	    const portalNeutralColor = getComputedStyle(document.documentElement).getPropertyValue('--portal-text-strong').trim() || '#202124';
 
     function getStoredViewMode() {
@@ -340,19 +361,90 @@
         listBtn.classList.toggle('active', viewMode === 'list');
     }
 
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function portalPayload(page) {
+        return {
+            page: Number(page || 1),
+            page_size: portalCurrentPageSize,
+            filFolio: document.getElementById('filFolio').value,
+            filEstado: document.getElementById('filEstado').value,
+            filFechaIni: document.getElementById('filFechaIni').value,
+            filFechaFin: document.getElementById('filFechaFin').value
+        };
+    }
+
+    function setPortalLoading(isLoading) {
+        const loading = document.getElementById('portalDocsLoadingLabel');
+        const prev = document.getElementById('portalPagePrev');
+        const next = document.getElementById('portalPageNext');
+        loading.classList.toggle('hidden', !isLoading);
+        prev.disabled = isLoading || portalCurrentPage <= 1;
+        next.disabled = isLoading || portalCurrentPage >= portalTotalPages;
+    }
+
+    function updatePortalPager(data) {
+        portalCurrentPage = data.page || 1;
+        portalTotalPages = data.total_pages || 1;
+        portalCurrentPageSize = data.page_size || portalCurrentPageSize;
+        document.getElementById('portalRangeLabel').innerText = `${data.range_start || 0}-${data.range_end || 0}`;
+        document.getElementById('portalTotalLabel').innerText = data.total_filtered || 0;
+        document.getElementById('portalTotalInputLabel').innerText = data.total_filtered || 0;
+        document.getElementById('portalPageLabel').innerText = portalCurrentPage;
+        document.getElementById('portalTotalPagesLabel').innerText = portalTotalPages;
+        document.getElementById('portalPageSize').value = data.total_filtered ? portalCurrentPageSize : 0;
+        document.getElementById('portalPageSize').max = data.total_filtered || '';
+        document.getElementById('portalGlobalLabel').innerText = data.total_filtered === data.total_global ? '' : `de ${data.total_global || 0} globales`;
+        document.getElementById('portalPagePrev').disabled = portalCurrentPage <= 1;
+        document.getElementById('portalPageNext').disabled = portalCurrentPage >= portalTotalPages;
+    }
+
+    function cargarPortalDocumentos(page) {
+        const requestId = ++portalDocsRequestId;
+        setPortalLoading(true);
+        return fetch('/api/portal-dashboard-docs/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(portalPayload(Math.max(1, Number(page || 1))))
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (requestId !== portalDocsRequestId) return;
+            if (data.status !== 'success') throw new Error(data.error || 'No se pudieron cargar los documentos');
+            currentPortalDocs = data.docs || [];
+            expandedPortalGroups = new Set();
+            updatePortalPager(data);
+            renderGrid();
+        })
+        .catch(error => {
+            const container = document.getElementById('gridContainer');
+            container.className = 'doc-grid';
+            container.innerHTML = `<div class="text-center p-12 bg-white rounded-xl border border-outline-variant text-status-danger" style="grid-column:1/-1;">${escapeHtml(error.message || 'Error al cargar documentos')}</div>`;
+        })
+        .finally(() => {
+            if (requestId === portalDocsRequestId) setPortalLoading(false);
+        });
+    }
+
+    function togglePortalGroup(groupId) {
+        if (expandedPortalGroups.has(groupId)) {
+            expandedPortalGroups.delete(groupId);
+        } else {
+            expandedPortalGroups.add(groupId);
+        }
+        renderGrid();
+    }
+
     function renderGrid() {
-        let docs = [...rawData];
-
-        const fFolio = document.getElementById('filFolio').value.toLowerCase();
-        const fEstado = document.getElementById('filEstado').value;
-        const fIni = document.getElementById('filFechaIni').value;
-        const fFin = document.getElementById('filFechaFin').value;
+        let docs = [...currentPortalDocs];
         const groupProp = document.getElementById('selGroup').value;
-
-        if (fFolio) docs = docs.filter(d => d.reference_id.toLowerCase().includes(fFolio));
-        if (fEstado !== 'all') docs = docs.filter(d => d.status === fEstado);
-        if (fIni) docs = docs.filter(d => d.fecha_iso >= fIni);
-        if (fFin) docs = docs.filter(d => d.fecha_iso <= fFin);
 
         const container = document.getElementById('gridContainer');
         container.innerHTML = '';
@@ -384,14 +476,22 @@
             });
 
             for (const [groupName, items] of Object.entries(groups)) {
+                const groupId = `${groupProp}:${groupName}`;
+                const expanded = expandedPortalGroups.has(groupId);
                 const headerDiv = document.createElement('div');
                 headerDiv.className = 'group-header';
                 headerDiv.innerHTML = `
-                    <div>Agrupación: <strong>${formatearNombreGrupo(groupProp, groupName)}</strong></div>
-                    <span>${items.length} docs</span>
+                    <div class="group-header-main">
+                        <span class="material-symbols-outlined text-[18px]">${expanded ? 'expand_less' : 'chevron_right'}</span>
+                        Agrupación: <strong>${escapeHtml(formatearNombreGrupo(groupProp, groupName))}</strong>
+                    </div>
+                    <span class="group-count">${items.length} docs</span>
                 `;
+                headerDiv.addEventListener('click', () => togglePortalGroup(groupId));
                 container.appendChild(headerDiv);
-                items.forEach(doc => container.appendChild(crearTarjeta(doc)));
+                if (expanded) {
+                    items.forEach(doc => container.appendChild(crearTarjeta(doc)));
+                }
             }
         }
     }
@@ -427,11 +527,26 @@
             });
 
             for (const [groupName, items] of Object.entries(groups)) {
+                const groupId = `${groupProp}:${groupName}`;
+                const expanded = expandedPortalGroups.has(groupId);
                 const groupRow = document.createElement('tr');
                 groupRow.className = 'doc-list-group';
-                groupRow.innerHTML = `<td colspan="6">Agrupación: ${formatearNombreGrupo(groupProp, groupName)} (${items.length} docs)</td>`;
+                groupRow.innerHTML = `
+                    <td colspan="6">
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="inline-flex items-center gap-2">
+                                <span class="material-symbols-outlined text-[18px]">${expanded ? 'expand_less' : 'chevron_right'}</span>
+                                Agrupación: ${escapeHtml(formatearNombreGrupo(groupProp, groupName))}
+                            </span>
+                            <span>${items.length} docs</span>
+                        </div>
+                    </td>
+                `;
+                groupRow.addEventListener('click', () => togglePortalGroup(groupId));
                 tbody.appendChild(groupRow);
-                items.forEach(doc => tbody.appendChild(crearFilaLista(doc)));
+                if (expanded) {
+                    items.forEach(doc => tbody.appendChild(crearFilaLista(doc)));
+                }
             }
         }
 
@@ -535,13 +650,13 @@
 
         div.innerHTML = `
             <div class="doc-card-head">
-                <h3 class="doc-card-title">${doc.reference_id}</h3>
+                <h3 class="doc-card-title">${escapeHtml(doc.reference_id)}</h3>
                 <span class="status-badge ${badgeClass}">${statusText}</span>
             </div>
             <div class="doc-card-body">
                 <div class="text-sm text-on-surface-variant flex items-center gap-2">
                     <span class="material-symbols-outlined text-outline text-[18px]">event</span>
-                    <span>Enviado: <strong>${doc.fecha_formato}</strong></span>
+                    <span>Enviado: <strong>${escapeHtml(doc.fecha_formato)}</strong></span>
                 </div>
                 ${progressHTML}
             </div>
@@ -603,9 +718,9 @@
             `;
 
         tr.innerHTML = `
-            <td><div class="doc-list-title">${doc.reference_id}</div></td>
+            <td><div class="doc-list-title">${escapeHtml(doc.reference_id)}</div></td>
             <td><span class="status-badge ${badgeClass}">${statusText}</span></td>
-            <td>${doc.fecha_formato}</td>
+            <td>${escapeHtml(doc.fecha_formato)}</td>
             <td><strong>${doc.firmas_hechas}</strong> de ${doc.total_firmas}</td>
             <td>${progressCell}</td>
             <td><div class="doc-list-actions">${actions}</div></td>
@@ -659,7 +774,7 @@
     }
 
     async function openQrWizard(token) {
-        const doc = rawData.find(item => item.token === token);
+        const doc = currentPortalDocs.find(item => item.token === token);
         if (!doc) return;
 
         qrWizardState.doc = doc;
@@ -786,17 +901,37 @@
         document.getElementById('filFechaIni').value = '';
         document.getElementById('filFechaFin').value = '';
         document.getElementById('selGroup').value = 'none';
-        renderGrid();
+        expandedPortalGroups = new Set();
+        cargarPortalDocumentos(1);
     }
 
     document.addEventListener("DOMContentLoaded", () => {
-        document.getElementById('filFolio').addEventListener('keyup', renderGrid);
-        document.getElementById('filEstado').addEventListener('change', renderGrid);
-        document.getElementById('selGroup').addEventListener('change', renderGrid);
-        document.getElementById('filFechaIni').addEventListener('change', renderGrid);
-        document.getElementById('filFechaFin').addEventListener('change', renderGrid);
+        document.getElementById('filFolio').addEventListener('input', () => {
+            clearTimeout(portalFilterTimer);
+            portalFilterTimer = setTimeout(() => cargarPortalDocumentos(1), 350);
+        });
+        document.getElementById('filEstado').addEventListener('change', () => cargarPortalDocumentos(1));
+        document.getElementById('selGroup').addEventListener('change', () => {
+            expandedPortalGroups = new Set();
+            renderGrid();
+        });
+        document.getElementById('filFechaIni').addEventListener('change', () => cargarPortalDocumentos(1));
+        document.getElementById('filFechaFin').addEventListener('change', () => cargarPortalDocumentos(1));
+        document.getElementById('portalPagePrev').addEventListener('click', () => cargarPortalDocumentos(portalCurrentPage - 1));
+        document.getElementById('portalPageNext').addEventListener('click', () => cargarPortalDocumentos(portalCurrentPage + 1));
+        document.getElementById('portalPageSize').addEventListener('change', () => {
+            portalCurrentPageSize = Math.max(1, Number(document.getElementById('portalPageSize').value || PORTAL_DEFAULT_PAGE_SIZE));
+            cargarPortalDocumentos(1);
+        });
+        document.getElementById('portalPageSize').addEventListener('keydown', event => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                portalCurrentPageSize = Math.max(1, Number(document.getElementById('portalPageSize').value || PORTAL_DEFAULT_PAGE_SIZE));
+                cargarPortalDocumentos(1);
+            }
+        });
         updateViewToggle();
-        renderGrid();
+        cargarPortalDocumentos(1);
     });
 
     const defaultPayload = {
@@ -867,7 +1002,7 @@
             if(res.ok) {
                 responseBox.style.color = '#1f7a44';
                 responseBox.style.backgroundColor = '#d3f9d8';
-                setTimeout(() => { if(typeof renderGrid === 'function') renderGrid(); }, 1500);
+                setTimeout(() => { if(typeof cargarPortalDocumentos === 'function') cargarPortalDocumentos(1); }, 1500);
             } else {
                 responseBox.style.color = '#93000a';
                 responseBox.style.backgroundColor = '#ffdad6';
