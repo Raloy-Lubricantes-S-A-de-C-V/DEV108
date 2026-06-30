@@ -43,6 +43,7 @@ BRAND_DEFAULT_LOGO_URL = "/static/motor_firmas/img/raloy-logo.svg"
 BRAND_LEGACY_INVERTED_LOGO_URL = "/static/motor_firmas/img/raloy-logo-inverted.svg"
 BRAND_DEFAULT_NAME = "Raloy Lubricantes"
 BRAND_LOGO_ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+FIRMX_TERMINAL_STATUSES = {'COMPLETED', 'CANCELLED'}
 
 _MONGO_CLIENT = None
 
@@ -992,6 +993,15 @@ def _actualizar_proceso_firma_mongo(proceso, **fields):
         _mongo_collection(ProcesoFirma).update_one({'_id': proceso._id}, {'$set': update_doc})
 
 
+def _status_terminal_firmx(status):
+    return str(status or '').upper() in FIRMX_TERMINAL_STATUSES
+
+
+def _proceso_firmx_puede_sincronizar(proceso):
+    summary_data = getattr(proceso, 'summary_data', {}) or {}
+    return bool(summary_data.get('firmx_id')) and not _status_terminal_firmx(getattr(proceso, 'status', ''))
+
+
 def _crear_proceso_firma_mongo(
         reference_id, pdf_path, firmantes, indice_actual=1, status='PROCESSING',
         view_info='file', summary_data=None, dir_drive='', exec_mode='normal',
@@ -1471,6 +1481,18 @@ def _firmx_sync_status(clean_id):
     Retorna (success, data_or_error_message).
     """
     try:
+        clean_id = str(clean_id or '').strip()
+        db = _mongo_database()
+        proceso_actual = db.motor_firmas_procesofirma.find_one({"summary_data.firmx_id": clean_id})
+        if proceso_actual and _status_terminal_firmx(proceso_actual.get('status')):
+            summary_data = _json_or_default(proceso_actual.get('summary_data', {}), {})
+            return True, {
+                "skipped": True,
+                "reason": "Documento FIRMX en estado terminal local; no se consulta al proveedor.",
+                "local_status": proceso_actual.get('status'),
+                "firmx_response": summary_data.get('firmx_response', {}),
+            }
+
         url = _firmx_url(f'/documents/api/{clean_id}')
         headers = _firmx_headers()
         response = requests.get(url, headers=headers, timeout=_firmx_timeout())
@@ -1479,7 +1501,6 @@ def _firmx_sync_status(clean_id):
         if not 200 <= response.status_code < 300:
             return False, f"FIRMX Error {response.status_code}: {response_data.get('error') or 'Error desconocido'}"
 
-        db = _mongo_database()
         # FIRMX puede devolver la data directamente, en un campo 'data', o en 'data' como lista
         firmx_data = response_data.get('data', response_data)
         if isinstance(firmx_data, list) and len(firmx_data) > 0:
@@ -1614,15 +1635,12 @@ def vista_trazabilidad(request, token):
     proceso = _get_proceso_por_token_or_404(token)
     summary_data = getattr(proceso, 'summary_data', {})
     
-    # Sincronización automática con FIRMX si aplica.
-    # Importante: también re-sincronizamos cuando el proceso está COMPLETED
-    # porque los URLs de Google Cloud Storage (file_url / file_url_certificate)
-    # que devuelve FIRMX están firmados con un parámetro Expires= y caducan.
-    # Cada llamada al status de FIRMX regenera URLs frescos, evitando el
-    # error "ExpiredToken / Request signature expired" al renderizar los PDFs.
+    # Sincronización automática con FIRMX solo para documentos pendientes.
+    # Los estados locales terminales no deben disparar llamadas al proveedor
+    # para mantener rápida la trazabilidad y evitar tareas externas innecesarias.
     es_firmx = bool(summary_data.get('firmx_id'))
     sync_error = None
-    if es_firmx and proceso.status != 'CANCELLED':
+    if _proceso_firmx_puede_sincronizar(proceso):
         firmx_id = summary_data.get('firmx_id')
         success, error_msg = _firmx_sync_status(firmx_id)
         if success:
@@ -1741,10 +1759,6 @@ def portal_ver_documento(request, token):
     firmx_id = summary_data.get('firmx_id')
     if not firmx_id or proceso.status != 'COMPLETED':
         return redirect('vista_trazabilidad', token=token)
-
-    success, _ = _firmx_sync_status(firmx_id)
-    if success:
-        proceso = _get_proceso_por_token_or_404(token)
 
     return redirect(_firmx_url_documento_visible(proceso))
 
@@ -2163,9 +2177,8 @@ def portal_dashboard(request):
     for doc in documentos:
         summary_data = getattr(doc, 'summary_data', {}) or {}
         firmx_id = summary_data.get('firmx_id')
-        doc_status = getattr(doc, 'status', '')
         
-        if firmx_id and doc_status not in ['COMPLETED', 'CANCELLED'] and sync_count < 5:
+        if _proceso_firmx_puede_sincronizar(doc) and sync_count < 5:
             success, _ = _firmx_sync_status(firmx_id)
             if success:
                 # Refrescar documento tras sync
@@ -3160,9 +3173,8 @@ def admin_dashboard(request):
     for d in todos_docs:
         summary_data = getattr(d, 'summary_data', {}) or {}
         firmx_id = summary_data.get('firmx_id')
-        doc_status = getattr(d, 'status', '')
         
-        if firmx_id and doc_status not in ['COMPLETED', 'CANCELLED'] and sync_count < 5:
+        if _proceso_firmx_puede_sincronizar(d) and sync_count < 5:
             success, _ = _firmx_sync_status(firmx_id)
             if success:
                 # Refrescar documento tras sync
@@ -3292,10 +3304,25 @@ def admin_api(request, accion):
             return JsonResponse({"status": "success", "msg": "Admin agregado."})
         elif accion == 'cancelar_doc':
             doc = _mongo_find_proceso_by_token(data.get('token'))
-            if doc:
+            if not doc:
+                return JsonResponse({"error": "No encontrado."}, status=404)
+            if not _admin_tiene_acceso_proceso(admin_actual, doc):
+                return JsonResponse({"error": "No tienes permiso sobre este documento."}, status=403)
+            if _status_terminal_firmx(getattr(doc, 'status', '')):
+                return JsonResponse({"error": "El documento ya está en estado terminal."}, status=400)
+
+            summary_data = getattr(doc, 'summary_data', {}) or {}
+            if summary_data.get('firmx_id'):
+                summary_data.update({
+                    'firmx_cancelled_local': True,
+                    'firmx_cancelled_at': _datetime_for_mongo().isoformat(),
+                    'firmx_cancelled_by': request.session.get('admin_email'),
+                    'firmx_cancel_note': 'Cancelado solo en el sistema local; FIRMX no cuenta con cancelación remota.',
+                })
+                _actualizar_proceso_firma_mongo(doc, status='CANCELLED', summary_data=summary_data)
+            else:
                 _actualizar_proceso_firma_mongo(doc, status='CANCELLED')
-                return JsonResponse({"status": "success"})
-            return JsonResponse({"error": "No encontrado."}, status=404)
+            return JsonResponse({"status": "success"})
         elif accion == 'reenviar_firma':
             doc = _mongo_find_proceso_by_token(data.get('token'))
             if not doc:

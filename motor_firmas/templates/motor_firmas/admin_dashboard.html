@@ -478,9 +478,10 @@
         let badgeClass = 'bg-processing'; let statusText = 'En Proceso';
         if(doc.status === 'COMPLETED') { badgeClass = 'bg-completed'; statusText = 'Completado'; }
         if(doc.status === 'CANCELLED') { badgeClass = 'bg-cancelled'; statusText = 'Cancelado'; }
+        if(doc.status === 'FIRMX_WAITING') { badgeClass = 'bg-processing'; statusText = 'Esperando FIRMX'; }
 
         let cancelBtn = '';
-        if(doc.status === 'PROCESSING') {
+        if(doc.status === 'PROCESSING' || (doc.firmx_id && doc.status === 'FIRMX_WAITING')) {
             cancelBtn = `<button class="text-status-danger hover:underline text-xs font-bold" onclick="cancelarDoc('${doc.token}')">Cancelar</button>`;
         }
         const isCompletedFirmx = doc.status === 'COMPLETED' && Boolean(doc.firmx_id);
@@ -517,7 +518,11 @@
     }
 
     function cancelarDoc(token) {
-        if(confirm("ATENCIÓN: Cancelar el documento bloqueará la recolección de firmas de forma permanente. ¿Deseas continuar?")) {
+        const doc = rawData.find(d => d.token === token);
+        const mensaje = doc && doc.firmx_id
+            ? "ATENCIÓN: Este documento FIRMX se cancelará solo en el sistema local. No se enviará ninguna acción a FIRMX. ¿Deseas continuar?"
+            : "ATENCIÓN: Cancelar el documento bloqueará la recolección de firmas de forma permanente. ¿Deseas continuar?";
+        if(confirm(mensaje)) {
             ejecutarAccion('cancelar_doc', { token: token }).then(() => {
                 const obj = rawData.find(d => d.token === token);
                 if(obj) obj.status = 'CANCELLED';
