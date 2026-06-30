@@ -1943,11 +1943,11 @@ def vista_trazabilidad(request, token):
     es_firmx = bool(summary_data.get('firmx_id'))
     qr_firmx_url = ""
     qrs_firmx = []
+    qrs_raw = summary_data.get('qrs', [])
     if es_firmx:
         if summary_data.get('qr_local_path'):
             qr_firmx_url = f"{settings.MEDIA_URL}{summary_data['qr_local_path']}"
         
-        qrs_raw = summary_data.get('qrs', [])
         if qrs_raw:
             for q in qrs_raw:
                 qrs_firmx.append({
@@ -1955,6 +1955,18 @@ def vista_trazabilidad(request, token):
                     'url': f"{settings.MEDIA_URL}{q['qr_local_path']}" if q.get('qr_local_path') else "",
                     'link': q.get('url_qr_code', '')
                 })
+
+    for f in firmantes:
+        if es_firmx:
+            link = ""
+            for q in qrs_raw:
+                if q.get('email') == f.get('email'):
+                    link = q.get('url_qr_code', '')
+                    break
+            f['whatsapp_link'] = link
+        else:
+            token_firmante = f.get('token_firmante', '')
+            f['whatsapp_link'] = f"{PUBLIC_BASE_URL}/firmar/{proceso.token_acceso}/{token_firmante}/"
 
     # URLs FIRMX para visualizar documento original y certificado
     firmx_file_url = summary_data.get('firmx_file_url') or ''
