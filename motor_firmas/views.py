@@ -1475,7 +1475,7 @@ def procesar_firma(request, token, firmante_token=None):
                 pass
 
 
-def _firmx_sync_status(clean_id):
+def _firmx_sync_status(clean_id, force=False):
     """
     Sincroniza el estado de un documento con FIRMX y actualiza la base de datos local.
     Retorna (success, data_or_error_message).
@@ -1484,11 +1484,20 @@ def _firmx_sync_status(clean_id):
         clean_id = str(clean_id or '').strip()
         db = _mongo_database()
         proceso_actual = db.motor_firmas_procesofirma.find_one({"summary_data.firmx_id": clean_id})
-        if proceso_actual and _status_terminal_firmx(proceso_actual.get('status')):
+        local_status = str(proceso_actual.get('status') or '').upper() if proceso_actual else ''
+        if proceso_actual and local_status == 'CANCELLED':
             summary_data = _json_or_default(proceso_actual.get('summary_data', {}), {})
             return True, {
                 "skipped": True,
-                "reason": "Documento FIRMX en estado terminal local; no se consulta al proveedor.",
+                "reason": "Documento FIRMX cancelado localmente; no se consulta al proveedor.",
+                "local_status": proceso_actual.get('status'),
+                "firmx_response": summary_data.get('firmx_response', {}),
+            }
+        if proceso_actual and local_status == 'COMPLETED' and not force:
+            summary_data = _json_or_default(proceso_actual.get('summary_data', {}), {})
+            return True, {
+                "skipped": True,
+                "reason": "Documento FIRMX completado; la sincronización automática no consulta al proveedor.",
                 "local_status": proceso_actual.get('status'),
                 "firmx_response": summary_data.get('firmx_response', {}),
             }
@@ -1635,14 +1644,17 @@ def vista_trazabilidad(request, token):
     proceso = _get_proceso_por_token_or_404(token)
     summary_data = getattr(proceso, 'summary_data', {})
     
-    # Sincronización automática con FIRMX solo para documentos pendientes.
-    # Los estados locales terminales no deben disparar llamadas al proveedor
-    # para mantener rápida la trazabilidad y evitar tareas externas innecesarias.
+    # La trazabilidad es una acción explícita del usuario: aquí sí refrescamos
+    # FIRMX para renovar URLs firmadas vencidas en documentos completados.
+    # Cancelados siguen sin consultar al proveedor.
     es_firmx = bool(summary_data.get('firmx_id'))
     sync_error = None
-    if _proceso_firmx_puede_sincronizar(proceso):
+    if es_firmx and str(getattr(proceso, 'status', '') or '').upper() != 'CANCELLED':
         firmx_id = summary_data.get('firmx_id')
-        success, error_msg = _firmx_sync_status(firmx_id)
+        success, error_msg = _firmx_sync_status(
+            firmx_id,
+            force=str(getattr(proceso, 'status', '') or '').upper() == 'COMPLETED',
+        )
         if success:
             # Refrescar el objeto proceso tras la actualización en DB
             proceso = _get_proceso_por_token_or_404(token)
@@ -1759,6 +1771,10 @@ def portal_ver_documento(request, token):
     firmx_id = summary_data.get('firmx_id')
     if not firmx_id or proceso.status != 'COMPLETED':
         return redirect('vista_trazabilidad', token=token)
+
+    success, _ = _firmx_sync_status(firmx_id, force=True)
+    if success:
+        proceso = _get_proceso_por_token_or_404(token)
 
     return redirect(_firmx_url_documento_visible(proceso))
 
