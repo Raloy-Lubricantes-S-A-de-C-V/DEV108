@@ -3239,7 +3239,7 @@ def portal_usar_plantilla(request, plantilla_id):
 def portal_pdfs_usuario(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
-    pdfs = _mongo_find(DocumentoPDFUsuario, {'owner_email': owner_email}, [('created_at', -1)])
+    pdfs = _mongo_find(DocumentoPDFUsuario, {'owner_email': owner_email, 'deleted': {'$ne': True}}, [('created_at', -1)])
 
     return render(
         request,
@@ -3258,16 +3258,7 @@ def eliminar_pdf_usuario(request, pdf_id):
         doc = _mongo_find_one_by_id_text(DocumentoPDFUsuario, pdf_id, {'owner_email': owner_email})
 
     if doc is not None:
-        archivo_local = getattr(doc, 'archivo_local', None)
-        if archivo_local:
-            full_path = os.path.join(settings.MEDIA_ROOT, archivo_local)
-            if os.path.exists(full_path):
-                try:
-                    os.remove(full_path)
-                except:
-                    pass
-
-        _mongo_collection(DocumentoPDFUsuario).delete_one({'_id': doc.id})
+        _mongo_update_document(DocumentoPDFUsuario, doc, {'deleted': True})
         return JsonResponse({"status": "success"})
 
     return JsonResponse({"error": "Documento no encontrado"}, status=404)
@@ -3399,9 +3390,7 @@ def iniciar_firma_libre(request):
         print(f"Error en N8N_WEBHOOK_NOTIFICAR_OWNER: {e}")
     crear_notificacion_firma(owner_email, ref_id, f"Has iniciado el proceso de firma libre para {ref_id}.")
 
-    if os.path.exists(original_path):
-        os.remove(original_path)
-    _mongo_collection(DocumentoPDFUsuario).delete_one({'_id': doc.id})
+    _mongo_update_document(DocumentoPDFUsuario, doc, {'deleted': True, 'converted_to_master': True})
 
     return JsonResponse({"status": "success"})
 
