@@ -142,29 +142,24 @@
                         <p class="firmx-section-copy">Carga el PDF final, asigna un nombre claro y define la fecha límite. El tipo de firma legal queda configurado de forma automática.</p>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 lg:grid-cols-[minmax(220px,1fr)_220px_minmax(280px,1.2fr)] gap-4 items-start">
                         <div>
                             <label class="block text-sm font-semibold text-on-surface-variant mb-2">Nombre del documento</label>
-                            <input id="firmxDocumentName" type="text" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" placeholder="Contrato legal Raloy">
+                            <input id="firmxDocumentName" type="text" class="w-full min-h-[52px] px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" placeholder="Contrato legal Raloy">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-on-surface-variant mb-2">Fecha límite</label>
+                            <input id="firmxDeadline" type="date" class="w-full min-h-[52px] px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
                         </div>
                         <div>
                             <label class="block text-sm font-semibold text-on-surface-variant mb-2">Archivo PDF</label>
-                            <input id="firmxPdfFile" type="file" accept="application/pdf" class="w-full px-4 py-4 border-2 border-dashed border-outline-variant rounded-xl bg-surface-bright cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-white file:font-semibold">
+                            <input id="firmxPdfFile" type="file" accept="application/pdf" class="w-full min-h-[52px] px-4 py-3 border-2 border-dashed border-outline-variant rounded-lg bg-surface-bright cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-white file:font-semibold">
                             <p class="firmx-field-note">Usa la versión final del documento. FIRMX generará el enlace de firma a partir de este archivo.</p>
                         </div>
                     </div>
 
                     <input id="firmxSignatureType" type="hidden" value="SIMPLE_BIOMETRIC">
-
-                    <div class="max-w-md">
-                        <label class="block text-sm font-semibold text-on-surface-variant mb-2">Fecha límite</label>
-                        <input id="firmxDeadline" type="date" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-semibold text-on-surface-variant mb-2">Mensaje para solicitud</label>
-                        <textarea id="firmxMessage" class="w-full min-h-[110px] px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all no-uppercase" placeholder="Favor de revisar y firmar el documento.">Favor de revisar y firmar el documento.</textarea>
-                    </div>
+                    <textarea id="firmxMessage" class="hidden no-uppercase">Favor de revisar y firmar el documento.</textarea>
 
                     <div class="flex justify-end">
                         <button type="button" onclick="goToFirmxStep(2)" class="inline-flex items-center justify-center gap-2 bg-primary text-white px-5 py-3 rounded-lg font-bold hover:bg-primary-container transition-colors">
