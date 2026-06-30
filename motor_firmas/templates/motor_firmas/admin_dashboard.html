@@ -54,7 +54,7 @@
                 </button>
             </div>
 
-            <div class="admin-filter-panel grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-6 p-5">
+            <div class="admin-filter-panel grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4 mb-6 p-5">
                 <div>
                     <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Agrupar por</label>
                     <select class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-3" id="selGroup">
@@ -62,6 +62,7 @@
                         <option value="dominio">Dominio Empresarial</option>
                         <option value="owner_email">Usuario (Dueño)</option>
                         <option value="reference_id">Folio</option>
+                        <option value="status">Estado</option>
                     </select>
                 </div>
                 <div>
@@ -82,6 +83,16 @@
                     <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Hasta</label>
                     <input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-3" id="filFechaFin" type="date">
                 </div>
+                <div>
+                    <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Estado</label>
+                    <select class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-3" id="filEstado">
+                        <option value="all">Todos</option>
+                        <option value="PROCESSING">En Proceso</option>
+                        <option value="FIRMX_WAITING">Esperando FIRMX</option>
+                        <option value="COMPLETED">Completado</option>
+                        <option value="CANCELLED">Cancelado</option>
+                    </select>
+                </div>
             </div>
 
             <div class="admin-table-wrap">
@@ -99,6 +110,26 @@
                     </thead>
                     <tbody id="tableBody"></tbody>
                 </table>
+            </div>
+            <div class="mt-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 border-t border-outline-variant pt-4">
+                <div class="text-sm font-semibold text-on-surface-variant">
+                    <span id="docRangeLabel">0-0</span>/<span id="docTotalLabel">0</span>
+                    <span id="docGlobalLabel" class="text-xs text-outline ml-2"></span>
+                </div>
+                <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div class="inline-flex items-center gap-2">
+                        <button type="button" id="btnPagePrev" class="admin-inline-action admin-inline-action-icon" title="Página anterior">
+                            <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                        </button>
+                        <label class="text-xs font-bold text-on-surface-variant uppercase" for="inpPageNumber">Página</label>
+                        <input id="inpPageNumber" class="no-uppercase w-20 text-center text-sm rounded-lg border-outline-variant focus:ring-primary focus:border-primary py-2" min="1" type="number" value="1">
+                        <span class="text-sm font-semibold text-on-surface-variant">/<span id="docTotalPagesLabel">1</span></span>
+                        <button type="button" id="btnPageNext" class="admin-inline-action admin-inline-action-icon" title="Página siguiente">
+                            <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                        </button>
+                    </div>
+                    <span id="docsLoadingLabel" class="hidden text-xs font-bold text-on-surface-variant uppercase">Cargando...</span>
+                </div>
             </div>
         </section>
 
@@ -235,9 +266,10 @@
 
 {% block scripts %}
 <script>
-    const rawData = {{ docs_json|safe }};
     const savedConfig = {{ saved_config|safe }};
     const carpetasDominio = {{ carpetas_dominio|safe }};
+    const documentDomains = {{ document_domains|safe }};
+    const PAGE_SIZE = 25;
 
     const tableBody = document.getElementById('tableBody');
     const selGroup = document.getElementById('selGroup');
@@ -245,6 +277,15 @@
 	    const filDominio = document.getElementById('filDominio');
 	    const filFechaIni = document.getElementById('filFechaIni');
 	    const filFechaFin = document.getElementById('filFechaFin');
+	    const filEstado = document.getElementById('filEstado');
+	    const docRangeLabel = document.getElementById('docRangeLabel');
+	    const docTotalLabel = document.getElementById('docTotalLabel');
+	    const docGlobalLabel = document.getElementById('docGlobalLabel');
+	    const docTotalPagesLabel = document.getElementById('docTotalPagesLabel');
+	    const inpPageNumber = document.getElementById('inpPageNumber');
+	    const btnPagePrev = document.getElementById('btnPagePrev');
+	    const btnPageNext = document.getElementById('btnPageNext');
+	    const docsLoadingLabel = document.getElementById('docsLoadingLabel');
 	    const defaultBrandColor = '#162839';
 	    const defaultLogoUrl = '/static/motor_firmas/img/raloy-logo.svg';
 	    const inpCarpetaId = document.getElementById('inpCarpetaId');
@@ -256,10 +297,15 @@
 	    const previewLogoDominio = document.getElementById('previewLogoDominio');
 	    const previewLogoWrap = document.getElementById('previewLogoWrap');
 	    const btnNuevaCarpeta = document.getElementById('btnNuevaCarpeta');
+	    let currentDocs = [];
+	    let currentPage = Number(savedConfig.page || 1) || 1;
+	    let totalPages = 1;
+	    let filterTimer = null;
+	    let docsRequestId = 0;
 
     function init() {
 	        const dominios = [...new Set([
-	            ...rawData.map(d => d.dominio),
+	            ...documentDomains,
 	            ...carpetasDominio.map(c => c.dominio)
 	        ])];
 
@@ -281,16 +327,30 @@
         if(savedConfig.filDominio) filDominio.value = savedConfig.filDominio;
         if(savedConfig.filFechaIni) filFechaIni.value = savedConfig.filFechaIni;
         if(savedConfig.filFechaFin) filFechaFin.value = savedConfig.filFechaFin;
+        if(savedConfig.filEstado) filEstado.value = savedConfig.filEstado;
 
-	        [selGroup, filDominio, filFechaIni, filFechaFin].forEach(el => el.addEventListener('change', renderTable));
-	        filFolio.addEventListener('keyup', renderTable);
+	        selGroup.addEventListener('change', renderTable);
+	        [filDominio, filFechaIni, filFechaFin, filEstado].forEach(el => el.addEventListener('change', () => cargarDocumentos(1)));
+	        filFolio.addEventListener('input', () => {
+	            clearTimeout(filterTimer);
+	            filterTimer = setTimeout(() => cargarDocumentos(1), 350);
+	        });
+	        btnPagePrev.addEventListener('click', () => cargarDocumentos(currentPage - 1));
+	        btnPageNext.addEventListener('click', () => cargarDocumentos(currentPage + 1));
+	        inpPageNumber.addEventListener('change', () => cargarDocumentos(inpPageNumber.value));
+	        inpPageNumber.addEventListener('keydown', event => {
+	            if (event.key === 'Enter') {
+	                event.preventDefault();
+	                cargarDocumentos(inpPageNumber.value);
+	            }
+	        });
 	        inpBrandColor.addEventListener('input', syncBrandColorFromText);
 	        inpBrandColorPicker.addEventListener('input', syncBrandColorFromPicker);
 	        inpLogoDom.addEventListener('change', previewSelectedLogo);
 
-	        renderTable();
 	        renderCarpetasDominio();
 	        actualizarPreviewMarca();
+	        cargarDocumentos(currentPage);
 	    }
 
 	    function escapeHtml(value) {
@@ -437,21 +497,86 @@
         }
     }
 
+    function filtrosDocumentosPayload(page) {
+        return {
+            page: Number(page || 1),
+            page_size: PAGE_SIZE,
+            filFolio: filFolio.value,
+            filDominio: filDominio.value,
+            filFechaIni: filFechaIni.value,
+            filFechaFin: filFechaFin.value,
+            filEstado: filEstado.value
+        };
+    }
+
+    function setLoadingDocs(isLoading) {
+        docsLoadingLabel.classList.toggle('hidden', !isLoading);
+        btnPagePrev.disabled = isLoading || currentPage <= 1;
+        btnPageNext.disabled = isLoading || currentPage >= totalPages;
+        btnPagePrev.classList.toggle('opacity-50', btnPagePrev.disabled);
+        btnPageNext.classList.toggle('opacity-50', btnPageNext.disabled);
+    }
+
+    function actualizarPaginacion(data) {
+        currentPage = data.page || 1;
+        totalPages = data.total_pages || 1;
+        docRangeLabel.innerText = `${data.range_start || 0}-${data.range_end || 0}`;
+        docTotalLabel.innerText = data.total_filtered || 0;
+        docTotalPagesLabel.innerText = totalPages;
+        inpPageNumber.value = currentPage;
+        inpPageNumber.max = totalPages;
+        docGlobalLabel.innerText = data.total_filtered === data.total_global ? '' : `de ${data.total_global || 0} globales`;
+        btnPagePrev.disabled = currentPage <= 1;
+        btnPageNext.disabled = currentPage >= totalPages;
+        btnPagePrev.classList.toggle('opacity-50', btnPagePrev.disabled);
+        btnPageNext.classList.toggle('opacity-50', btnPageNext.disabled);
+    }
+
+    function cargarDocumentos(page) {
+        const requestedPage = Math.max(1, Number(page || 1));
+        const requestId = ++docsRequestId;
+        setLoadingDocs(true);
+
+        return fetch('/api/admin-action/listar_docs_dashboard/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(filtrosDocumentosPayload(requestedPage))
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (requestId !== docsRequestId) return;
+            if (data.status !== 'success') {
+                throw new Error(data.error || 'No se pudieron cargar los documentos');
+            }
+            currentDocs = data.docs || [];
+            actualizarPaginacion(data);
+            renderTable();
+        })
+        .catch(err => {
+            tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-status-danger py-10">${escapeHtml(err.message || 'Error al cargar documentos')}</td></tr>`;
+        })
+        .finally(() => {
+            if (requestId === docsRequestId) setLoadingDocs(false);
+        });
+    }
+
+    function estadoLabel(status) {
+        if(status === 'COMPLETED') return 'Completado';
+        if(status === 'CANCELLED') return 'Cancelado';
+        if(status === 'FIRMX_WAITING') return 'Esperando FIRMX';
+        if(status === 'PROCESSING') return 'En Proceso';
+        return status || 'Desconocido';
+    }
+
     function renderTable() {
-        let docs = [...rawData];
-
-        const fFolio = filFolio.value.toLowerCase();
-        const fDom = filDominio.value;
-        const fIni = filFechaIni.value;
-        const fFin = filFechaFin.value;
-
-        if(fFolio) docs = docs.filter(d => d.reference_id.toLowerCase().includes(fFolio));
-        if(fDom !== 'all') docs = docs.filter(d => d.dominio === fDom);
-        if(fIni) docs = docs.filter(d => d.fecha.split(' ')[0] >= fIni);
-        if(fFin) docs = docs.filter(d => d.fecha.split(' ')[0] <= fFin);
-
+        const docs = [...currentDocs];
         tableBody.innerHTML = '';
         const groupProp = selGroup.value;
+
+        if (docs.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-outline py-10">No hay documentos para mostrar.</td></tr>';
+            return;
+        }
 
         if (groupProp === 'none') {
             docs.forEach(doc => tableBody.appendChild(crearFila(doc)));
@@ -466,7 +591,8 @@
             for (const [groupName, items] of Object.entries(groups)) {
                 const trGroup = document.createElement('tr');
                 trGroup.className = 'admin-group-row';
-                trGroup.innerHTML = `<td colspan="7">Grupo: ${groupName} <span class="ml-2 font-normal text-on-surface-variant">(${items.length} docs)</span></td>`;
+                const label = groupProp === 'status' ? estadoLabel(groupName) : groupName;
+                trGroup.innerHTML = `<td colspan="7">Grupo: ${escapeHtml(label)} <span class="ml-2 font-normal text-on-surface-variant">(${items.length} docs)</span></td>`;
                 tableBody.appendChild(trGroup);
 
                 items.forEach(doc => tableBody.appendChild(crearFila(doc)));
@@ -477,10 +603,10 @@
     function crearFila(doc) {
         const tr = document.createElement('tr');
 
-        let badgeClass = 'bg-processing'; let statusText = 'En Proceso';
-        if(doc.status === 'COMPLETED') { badgeClass = 'bg-completed'; statusText = 'Completado'; }
-        if(doc.status === 'CANCELLED') { badgeClass = 'bg-cancelled'; statusText = 'Cancelado'; }
-        if(doc.status === 'FIRMX_WAITING') { badgeClass = 'bg-processing'; statusText = 'Esperando FIRMX'; }
+        let badgeClass = 'bg-processing'; let statusText = estadoLabel(doc.status);
+        if(doc.status === 'COMPLETED') { badgeClass = 'bg-completed'; }
+        if(doc.status === 'CANCELLED') { badgeClass = 'bg-cancelled'; }
+        if(doc.status === 'FIRMX_WAITING') { badgeClass = 'bg-processing'; }
 
         let cancelBtn = '';
         if(doc.status === 'PROCESSING' || (doc.firmx_id && doc.status === 'FIRMX_WAITING')) {
@@ -520,15 +646,15 @@
     }
 
     function cancelarDoc(token) {
-        const doc = rawData.find(d => d.token === token);
+        const doc = currentDocs.find(d => d.token === token);
         const mensaje = doc && doc.firmx_id
             ? "ATENCIÓN: Este documento FIRMX se cancelará solo en el sistema local. No se enviará ninguna acción a FIRMX. ¿Deseas continuar?"
             : "ATENCIÓN: Cancelar el documento bloqueará la recolección de firmas de forma permanente. ¿Deseas continuar?";
         if(confirm(mensaje)) {
             ejecutarAccion('cancelar_doc', { token: token }).then(() => {
-                const obj = rawData.find(d => d.token === token);
+                const obj = currentDocs.find(d => d.token === token);
                 if(obj) obj.status = 'CANCELLED';
-                renderTable();
+                cargarDocumentos(currentPage);
             });
         }
     }
@@ -545,7 +671,9 @@
             filFolio: filFolio.value,
             filDominio: filDominio.value,
             filFechaIni: filFechaIni.value,
-            filFechaFin: filFechaFin.value
+            filFechaFin: filFechaFin.value,
+            filEstado: filEstado.value,
+            page: currentPage
         };
         ejecutarAccion('guardar_config', { configuracion: config }).then(() => {
             alert("Configuración de vista guardada correctamente.");

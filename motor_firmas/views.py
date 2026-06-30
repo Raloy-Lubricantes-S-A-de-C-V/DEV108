@@ -578,6 +578,152 @@ def _admin_tiene_acceso_proceso(admin_obj, proceso):
     return _normalizar_email(getattr(owner, 'tecnico_asignado', '')) == admin_email
 
 
+def _admin_dashboard_base_query(admin_obj):
+    if _admin_es_global(admin_obj):
+        return {}
+
+    admin_email = _normalizar_email(getattr(admin_obj, 'email', ''))
+    usuarios_asignados = _mongo_find(DirectorioFirmas, {'tecnico_asignado': admin_email})
+    emails_asignados = [_normalizar_email(getattr(u, 'email', '')) for u in usuarios_asignados if getattr(u, 'email', None)]
+    owners_permitidos = [email for email in {admin_email, *emails_asignados} if email]
+    return {'owner_email': {'$in': owners_permitidos}}
+
+
+def _admin_dashboard_fecha_query(value, fin=False):
+    try:
+        fecha = datetime.strptime(str(value or '').strip(), '%Y-%m-%d')
+    except (TypeError, ValueError):
+        return None
+    if fin:
+        fecha = fecha.replace(hour=23, minute=59, second=59, microsecond=999999)
+    return _datetime_for_mongo(fecha)
+
+
+def _admin_dashboard_docs_query(admin_obj, filtros=None):
+    filtros = filtros or {}
+    condiciones = []
+    base_query = _admin_dashboard_base_query(admin_obj)
+    if base_query:
+        condiciones.append(base_query)
+
+    folio = str(filtros.get('filFolio') or '').strip()
+    if folio:
+        condiciones.append({'reference_id': {'$regex': re.escape(folio), '$options': 'i'}})
+
+    dominio = str(filtros.get('filDominio') or '').strip().lower()
+    if dominio and dominio != 'all':
+        condiciones.append({'owner_email': {'$regex': f"@{re.escape(dominio)}$", '$options': 'i'}})
+
+    estado = str(filtros.get('filEstado') or '').strip().upper()
+    if estado and estado != 'ALL':
+        condiciones.append({'status': estado})
+
+    fecha_ini = _admin_dashboard_fecha_query(filtros.get('filFechaIni'))
+    fecha_fin = _admin_dashboard_fecha_query(filtros.get('filFechaFin'), fin=True)
+    fecha_query = {}
+    if fecha_ini:
+        fecha_query['$gte'] = fecha_ini
+    if fecha_fin:
+        fecha_query['$lte'] = fecha_fin
+    if fecha_query:
+        condiciones.append({'created_at': fecha_query})
+
+    if not condiciones:
+        return {}
+    if len(condiciones) == 1:
+        return condiciones[0]
+    return {'$and': condiciones}
+
+
+def _admin_dashboard_doc_payload(proceso):
+    summary_data = _json_or_default(getattr(proceso, 'summary_data', {}) or {}, {})
+    firmx_id = summary_data.get('firmx_id')
+    firmantes = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
+    owner_doc = getattr(proceso, 'owner_email', '') or ''
+    created_at = getattr(proceso, 'created_at', None)
+    status = getattr(proceso, 'status', 'UNKNOWN') or 'UNKNOWN'
+    return {
+        'reference_id': getattr(proceso, 'reference_id', 'N/A'),
+        'token': str(getattr(proceso, 'token_acceso', '')),
+        'owner_email': owner_doc or 'N/A',
+        'dominio': owner_doc.split('@')[1] if '@' in owner_doc else 'N/A',
+        'status': status,
+        'fecha': created_at.strftime("%Y-%m-%d %H:%M:%S") if created_at else '',
+        'progreso': f"{sum(1 for f in firmantes if f.get('fecha_firma'))}/{len(firmantes)}",
+        'firmx_id': firmx_id or '',
+        'can_adjust': status == 'COMPLETED' and not firmx_id,
+    }
+
+
+def _admin_dashboard_document_domains(base_query):
+    dominios = set()
+    try:
+        owner_emails = _mongo_collection(ProcesoFirma).distinct('owner_email', base_query or {})
+    except Exception:
+        owner_emails = []
+    for owner_email in owner_emails:
+        owner_email = str(owner_email or '').strip().lower()
+        if '@' in owner_email:
+            dominios.add(owner_email.split('@', 1)[1])
+    return sorted(dominios)
+
+
+def _admin_dashboard_docs_page(admin_obj, filtros=None, sync_limit=5):
+    filtros = filtros or {}
+    page_size = 25
+    try:
+        page = int(filtros.get('page') or 1)
+    except (TypeError, ValueError):
+        page = 1
+    page = max(page, 1)
+
+    collection = _mongo_collection(ProcesoFirma)
+    base_query = _admin_dashboard_base_query(admin_obj)
+    query = _admin_dashboard_docs_query(admin_obj, filtros)
+    total_global = collection.count_documents(base_query or {})
+    total_filtered = collection.count_documents(query or {})
+    total_pages = max(1, (total_filtered + page_size - 1) // page_size)
+    page = min(page, total_pages)
+    skip = (page - 1) * page_size
+
+    cursor = (
+        collection
+        .find(query or {})
+        .sort('created_at', -1)
+        .skip(skip)
+        .limit(page_size)
+    )
+
+    docs = []
+    sync_count = 0
+    for raw_doc in cursor:
+        proceso = _mongo_to_namespace(raw_doc)
+        summary_data = _json_or_default(getattr(proceso, 'summary_data', {}) or {}, {})
+        firmx_id = summary_data.get('firmx_id')
+
+        if _proceso_firmx_puede_sincronizar(proceso) and sync_count < sync_limit:
+            success, _ = _firmx_sync_status(firmx_id)
+            if success:
+                proceso = _mongo_find_one(ProcesoFirma, {'_id': proceso._id}) or proceso
+            sync_count += 1
+
+        docs.append(_admin_dashboard_doc_payload(proceso))
+
+    start = skip + 1 if total_filtered else 0
+    end = min(skip + page_size, total_filtered)
+    return {
+        'status': 'success',
+        'docs': docs,
+        'page': page,
+        'page_size': page_size,
+        'total_pages': total_pages,
+        'total_filtered': total_filtered,
+        'total_global': total_global,
+        'range_start': start,
+        'range_end': end,
+    }
+
+
 def _resolver_acceso_proceso(request, proceso, rol_requerido=None):
     if rol_requerido in (None, 'owner'):
         owner_email = request.session.get('owner_email')
@@ -3176,37 +3322,15 @@ def admin_dashboard(request):
         return redirect('admin_login')
     
     if getattr(admin_obj, 'es_superadmin', False) or admin_email == 'pjimenezb@raloy.com.mx':
-        todos_docs = _mongo_find(ProcesoFirma, {}, [('created_at', -1)])
         plantillas = _mongo_find(PlantillaFormulario, {}, [('created_at', -1)])
     else:
         usuarios_asignados = _mongo_find(DirectorioFirmas, {'tecnico_asignado': admin_email})
         emails_asignados = [u.email for u in usuarios_asignados if getattr(u, 'email', None)]
         owners_permitidos = list({admin_email, *emails_asignados})
-        todos_docs = _mongo_find(ProcesoFirma, {'owner_email': {'$in': owners_permitidos}}, [('created_at', -1)])
         plantillas = _mongo_find(PlantillaFormulario, {'owner_email': {'$in': owners_permitidos}}, [('created_at', -1)])
-    docs_json = []
-    sync_count = 0
-    for d in todos_docs:
-        summary_data = getattr(d, 'summary_data', {}) or {}
-        firmx_id = summary_data.get('firmx_id')
-        
-        if _proceso_firmx_puede_sincronizar(d) and sync_count < 5:
-            success, _ = _firmx_sync_status(firmx_id)
-            if success:
-                # Refrescar documento tras sync
-                d = _mongo_find_one(ProcesoFirma, {'_id': d._id})
-            sync_count += 1
-
-        firmantes = _normalizar_firmantes(getattr(d, 'firmantes', []))
-        owner_doc = getattr(d, 'owner_email', '') or ''
-        created_at = getattr(d, 'created_at', None)
-        docs_json.append({'reference_id': getattr(d, 'reference_id', 'N/A'), 'token': str(getattr(d, 'token_acceso', '')), 'owner_email': owner_doc or 'N/A',
-                          'dominio': owner_doc.split('@')[1] if '@' in owner_doc else 'N/A',
-                          'status': getattr(d, 'status', 'UNKNOWN'), 'fecha': created_at.strftime("%Y-%m-%d %H:%M:%S") if created_at else '',
-                          'progreso': f"{sum(1 for f in firmantes if f.get('fecha_firma'))}/{len(firmantes)}",
-                          'firmx_id': firmx_id or '',
-                          'can_adjust': getattr(d, 'status', '') == 'COMPLETED' and not firmx_id})
     _asegurar_marca_raloy_actual()
+    base_docs_query = _admin_dashboard_base_query(admin_obj)
+    document_domains = _admin_dashboard_document_domains(base_docs_query)
     carpetas_dominio = [
         _carpeta_dominio_payload(c)
         for c in _mongo_find(CarpetaDominio, {}, [('dominio', 1)])
@@ -3215,10 +3339,11 @@ def admin_dashboard(request):
     es_usuario = _mongo_find_one(DirectorioFirmas, {'email': admin_email}) is not None
 
     return render(request, 'motor_firmas/admin_dashboard.html',
-                  {'admin_email': admin_email, 'docs_json': json.dumps(docs_json),
+                  {'admin_email': admin_email,
                    'saved_config': json.dumps(_json_or_default(getattr(admin_obj, 'configuracion_dashboard', {}), {})),
                    'plantillas': plantillas,
                    'carpetas_dominio': json.dumps(carpetas_dominio),
+                   'document_domains': json.dumps(document_domains),
                    'es_superadmin': _admin_es_global(admin_obj),
                    'es_usuario': es_usuario})
 
@@ -3263,6 +3388,9 @@ def admin_api(request, accion):
             except ValueError:
                 return JsonResponse({"error": "JSON inválido."}, status=400)
         
+        if accion == 'listar_docs_dashboard':
+            return JsonResponse(_admin_dashboard_docs_page(admin_actual, data))
+
         if accion == 'actualizar_usuario':
             u_id = data.get('id')
             usr = _mongo_find_one_by_id(DirectorioFirmas, u_id)
