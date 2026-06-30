@@ -321,7 +321,7 @@
                     </div>
                     <div>
                         <label class="block text-sm font-bold text-text-main mb-1">API Key de Autenticación (Header X-Api-Key)</label>
-                        <input type="password" id="apiN8nKey" class="w-full px-3 py-2 border border-outline-variant rounded-lg bg-surface-container-lowest font-mono text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="rtk_...">
+                        <input type="password" id="apiN8nKey" class="w-full px-3 py-2 border border-outline-variant rounded-lg bg-surface-container-lowest font-mono text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" placeholder="rtk_..." oninput="updateApiPayload()">
                     </div>
                 </div>
                 
@@ -339,7 +339,7 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="flex flex-col h-full bg-[#1e1e1e] rounded-xl shadow-sm overflow-hidden border border-[#333]">
                     <div class="px-4 py-2 border-b border-[#333] flex justify-between items-center bg-[#252526]">
-                        <span class="text-xs font-bold text-[#d4d4d4]">PAYLOAD JSON (EDITABLE)</span>
+                        <span class="text-xs font-bold text-[#d4d4d4]">CURL DE PETICIÓN (EDITABLE)</span>
                     </div>
                     <textarea class="flex-grow p-4 font-mono text-xs bg-[#1e1e1e] text-[#d4d4d4] border-0 resize-none focus:ring-0 w-full min-h-[250px] outline-none" id="apiPayload" spellcheck="false"></textarea>
                     <div class="p-4 border-t border-[#333] bg-[#252526]">
@@ -1054,6 +1054,7 @@
         const viewInfo = document.getElementById('apiParamViewInfo').checked;
         const notif = document.getElementById('apiParamNotification').checked;
         const mobile = document.getElementById('apiParamMobile').checked;
+        const apiKeyInput = document.getElementById('apiN8nKey').value.trim() || "TU_API_KEY_AQUI";
         
         const templateId = sel.value;
         if (!templateId) {
@@ -1076,17 +1077,27 @@
         if(mobile) payload.notified_to_mobile = true;
 
         (template.variables || []).forEach(v => {
-            payload.document_variables[v] = "INGRESA TU VALOR AQUI";
+            const varName = typeof v === 'object' ? (v.nombre || '') : v;
+            if(varName) {
+                payload.document_variables[varName] = "INGRESA TU VALOR AQUI";
+            }
         });
 
         (template.firmantes_config || []).forEach((f, i) => {
+            const roleName = typeof f === 'object' ? (f.rol || f.nombre || "Firmante " + (i+1)) : f;
             payload.firmantes.push({
-                "nombre": "Firmante " + (i + 1),
+                "nombre": roleName,
                 "email": "firmante" + (i+1) + "@ejemplo.com"
             });
         });
 
-        document.getElementById('apiPayload').value = JSON.stringify(payload, null, 2);
+        const jsonStr = JSON.stringify(payload, null, 2);
+        const curlCmd = `curl -X POST "https://n8n.raloy.com.mx/webhook/request-signature" \\
+     -H "Content-Type: application/json" \\
+     -H "X-Api-Key: ${apiKeyInput}" \\
+     -d '${jsonStr}'`;
+
+        document.getElementById('apiPayload').value = curlCmd;
     }
 
     function openApiTester() {
@@ -1107,20 +1118,38 @@
     async function sendApiRequest() {
         const btn = document.getElementById('apiBtnSend');
         const responseBox = document.getElementById('apiResponse');
-        let payloadStr = document.getElementById('apiPayload').value;
-        let apiKey = document.getElementById('apiN8nKey').value.trim();
+        let curlStr = document.getElementById('apiPayload').value;
         let payloadObj;
+        let apiKeyToUse = '';
 
-        try {
-            payloadObj = JSON.parse(payloadStr);
-        } catch(e) {
-            responseBox.innerText = "Error: El JSON no es válido.\n\n" + e.message;
+        // Extraer el JSON del curl (lo que está en -d '...')
+        let bodyMatch = curlStr.match(/-d\s+'([\s\S]*?)'/);
+        if(!bodyMatch) {
+            bodyMatch = curlStr.match(/-d\s+"([\s\S]*?)"/);
+        }
+        
+        if(!bodyMatch) {
+            responseBox.innerText = "Error: No se encontró el cuerpo JSON (-d) en el comando cURL.";
             responseBox.style.color = '#ff6b6b';
             return;
         }
 
-        if(!apiKey) {
-            if(!confirm("No has ingresado un API Key. N8N podría rechazar la petición. ¿Deseas continuar?")) return;
+        try {
+            payloadObj = JSON.parse(bodyMatch[1]);
+        } catch(e) {
+            responseBox.innerText = "Error: El JSON dentro del cURL no es válido.\n\n" + e.message;
+            responseBox.style.color = '#ff6b6b';
+            return;
+        }
+
+        // Extraer el API Key
+        let headerMatch = curlStr.match(/-H\s+"X-Api-Key:\s*(.*?)"/i) || curlStr.match(/-H\s+'X-Api-Key:\s*(.*?)'/i);
+        if(headerMatch && headerMatch[1].trim() !== 'TU_API_KEY_AQUI') {
+            apiKeyToUse = headerMatch[1].trim();
+        }
+
+        if(!apiKeyToUse) {
+            if(!confirm("No has ingresado un API Key válida. N8N podría rechazar la petición. ¿Deseas continuar?")) return;
         }
 
         btn.disabled = true;
@@ -1130,7 +1159,7 @@
 
         try {
             let headers = { 'Content-Type': 'application/json' };
-            if(apiKey) headers['X-Api-Key'] = apiKey;
+            if(apiKeyToUse) headers['X-Api-Key'] = apiKeyToUse;
 
             const res = await fetch('https://n8n.raloy.com.mx/webhook/request-signature', {
                 method: 'POST',
