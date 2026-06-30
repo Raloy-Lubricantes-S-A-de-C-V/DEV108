@@ -2482,6 +2482,8 @@ def portal_dashboard(request):
                 plantillas_api.append({
                     'id': str(p.id),
                     'nombre': p.nombre,
+                    'doc_id': getattr(p, 'doc_id', ''),
+                    'drive_folder_id': getattr(p, 'drive_folder_id', ''),
                     'variables': _json_or_default(getattr(p, 'variables', []), []),
                     'firmantes_config': _json_or_default(getattr(p, 'firmantes_config', []), [])
                 })

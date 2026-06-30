@@ -1067,24 +1067,27 @@
 
         let payload = {
             "reference_id": "PRUEBA-API-" + Math.floor(Math.random() * 10000),
-            "template_id": template.id,
+            "dir": template.drive_folder_id || "1GlACvY3TOOq6k3nZ7YNdRG2AqGvlUOvP",
+            "template_id": template.doc_id || template.id,
+            "view_info": viewInfo ? "form" : "file",
+            "exec": "normal",
+            "owner": "{{ owner_email|escapejs }}",
             "document_variables": {},
             "firmantes": []
         };
 
-        if(viewInfo) payload.view_info = "form";
         if(notif) payload.notification_enabled = true;
         if(mobile) payload.notified_to_mobile = true;
 
         (template.variables || []).forEach(v => {
-            const varName = typeof v === 'object' ? (v.nombre || '') : v;
+            const varName = typeof v === 'object' ? (v.key || v.nombre || '') : v;
             if(varName) {
                 payload.document_variables[varName] = "INGRESA TU VALOR AQUI";
             }
         });
 
         (template.firmantes_config || []).forEach((f, i) => {
-            const roleName = typeof f === 'object' ? (f.rol || f.nombre || "Firmante " + (i+1)) : f;
+            const roleName = typeof f === 'object' ? (f.label || f.key || f.rol || f.nombre || "Firmante " + (i+1)) : f;
             payload.firmantes.push({
                 "nombre": roleName,
                 "email": "firmante" + (i+1) + "@ejemplo.com"
