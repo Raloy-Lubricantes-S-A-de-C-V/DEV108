@@ -60,6 +60,7 @@ urlpatterns = [
     path('admin-portal/administradores/', views.admin_administradores, name='admin_administradores'),
     path('admin-portal/logout/', views.admin_logout, name='admin_logout'),
     path('admin-portal/config-firmex/', views.admin_config_firmex, name='admin_config_firmex'),
+    path('api/portal-action/<str:accion>/', views.portal_api_action, name='portal_api_action'),
     path('api/admin-action/<str:accion>/', views.admin_api, name='admin_api'),
     path('api/ajustar-firmas/<uuid:token>/', views.guardar_ajuste_firmas, name='guardar_ajuste_firmas'),
     

@@ -2470,16 +2470,77 @@ def portal_dashboard(request):
     admin_obj = _mongo_find_one(AdministradorPortal, {'email': owner_email})
     es_admin = _admin_es_global(admin_obj)
     if es_admin:
-        # Superadmins tienen acceso a todo
         for p in ['api_tester', 'plantillas', 'firmx']:
             if p not in permisos: permisos.append(p)
+
+    plantillas_api = []
+    if 'api_tester' in permisos:
+        todas = _mongo_find(PlantillaFormulario, {}, [('created_at', -1)])
+        for p in todas:
+            permitidos = _json_or_default(getattr(p, 'usuarios_permitidos', []), [])
+            if es_admin or owner_email in permitidos or getattr(p, 'owner_email', '') == owner_email:
+                plantillas_api.append({
+                    'id': str(p.id),
+                    'nombre': p.nombre,
+                    'variables': _json_or_default(getattr(p, 'variables', []), []),
+                    'firmantes_config': _json_or_default(getattr(p, 'firmantes_config', []), [])
+                })
 
     return render(request, 'motor_firmas/portal_dashboard.html', _portal_context(
         owner_email,
         tiene_carpeta_dominio=tiene_carpeta_dominio,
         permisos=permisos,
         es_admin=es_admin,
+        plantillas_api=plantillas_api,
+        api_keys=_json_or_default(getattr(colaborador, 'api_keys', []), []) if colaborador else []
     ))
+
+@csrf_exempt
+def portal_api_action(request, accion):
+    owner_email = request.session.get('owner_email')
+    if not owner_email:
+        return JsonResponse({"error": "No autorizado"}, status=403)
+    
+    colaborador = _mongo_find_one(DirectorioFirmas, {'email': owner_email})
+    if not colaborador:
+        return JsonResponse({"error": "Usuario no encontrado"}, status=404)
+        
+    permisos = _json_or_default(getattr(colaborador, 'permisos_portal', []), [])
+    if 'api_tester' not in permisos:
+        return JsonResponse({"error": "No tienes permiso de API Tester"}, status=403)
+
+    if request.method != 'POST':
+        return JsonResponse({"error": "Método no permitido"}, status=405)
+
+    if accion == 'generar_api_key':
+        api_keys = _json_or_default(getattr(colaborador, 'api_keys', []), [])
+        if len(api_keys) >= 10:
+            return JsonResponse({"error": "Límite de 10 API Keys alcanzado. Elimina una antes de generar otra."}, status=400)
+            
+        import secrets
+        import string
+        raw_key = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32))
+        full_key = f"rtk_{raw_key}"
+        masked_key = f"rtk_{'*' * 24}{raw_key[-4:]}"
+        
+        new_key = {
+            'id': str(uuid.uuid4()),
+            'masked': masked_key,
+            'hashed': make_password(full_key),
+            'created_at': _datetime_for_mongo().strftime("%d/%m/%Y %H:%M:%S")
+        }
+        api_keys.append(new_key)
+        _mongo_update_document(DirectorioFirmas, colaborador, {'api_keys': api_keys})
+        
+        return JsonResponse({
+            "status": "success", 
+            "api_key": full_key,
+            "masked": masked_key,
+            "id": new_key['id'],
+            "created_at": new_key['created_at']
+        })
+        
+    return JsonResponse({"error": "Acción no válida"}, status=400)
 
 
 @csrf_exempt
@@ -3516,6 +3577,20 @@ def admin_api(request, accion):
                 return JsonResponse({"status": "success", "msg": "Usuario actualizado."})
             return JsonResponse({"error": "Usuario no encontrado."}, status=404)
             
+        elif accion == 'eliminar_api_key':
+            u_id = data.get('usuario_id')
+            key_id = data.get('key_id')
+            usr = _mongo_find_one_by_id(DirectorioFirmas, u_id)
+            if usr:
+                if not _admin_es_global(admin_actual) and getattr(usr, 'tecnico_asignado', None) != admin_actual.email:
+                    return JsonResponse({"error": "No tienes permiso."}, status=403)
+                
+                api_keys = _json_or_default(getattr(usr, 'api_keys', []), [])
+                api_keys = [k for k in api_keys if k.get('id') != key_id]
+                _mongo_update_document(DirectorioFirmas, usr, {'api_keys': api_keys})
+                return JsonResponse({"status": "success", "msg": "API Key eliminada."})
+            return JsonResponse({"error": "Usuario no encontrado."}, status=404)
+
         elif accion == 'eliminar_usuario':
             u_id = data.get('id')
             usr = _mongo_find_one_by_id(DirectorioFirmas, u_id)
@@ -3918,6 +3993,7 @@ def admin_usuarios_detalle(request, usuario_id):
     
     permisos = _json_or_default(getattr(usuario, 'permisos_portal', []), [])
 
+    usuario.api_keys = _json_or_default(getattr(usuario, 'api_keys', []), [])
     return render(request, 'motor_firmas/admin_usuarios_detalle.html', {
         'admin_email': admin_email,
         'es_superadmin': getattr(admin_obj, 'es_superadmin', False) or admin_email == 'pjimenezb@raloy.com.mx',
