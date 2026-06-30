@@ -1,22 +1,28 @@
 {% extends "motor_firmas/base.html" %}
 
 {% block title %}Detalle de Usuario - Raloy{% endblock %}
-{% block body_class %}bg-background min-h-screen text-text-main py-8 px-4{% endblock %}
+{% block body_class %}bg-background min-h-screen text-text-main{% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto">
-    <header class="bg-primary text-white rounded-xl px-6 py-5 mb-6 shadow-soft flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div class="flex items-center gap-4">
-            <img src="/static/motor_firmas/img/raloy-logo-inverted.svg" alt="Raloy Lubricantes" class="raloy-logo-sm shrink-0">
-            <h1 class="text-xl md:text-2xl font-bold">Configurar a: {{ usuario.nombre }}</h1>
+<div class="admin-page-shell">
+    <div class="max-w-3xl mx-auto">
+    <header class="admin-hero mb-6">
+        <div class="flex items-center gap-4 min-w-0">
+            <div class="portal-brand-logo-box admin-hero-logo shrink-0">
+                <img src="/static/motor_firmas/img/raloy-logo.svg" alt="Raloy Lubricantes" class="portal-brand-logo">
+            </div>
+            <div class="min-w-0">
+                <h1 class="admin-hero-title">Configurar Usuario</h1>
+                <p class="admin-hero-copy truncate">{{ usuario.nombre }}</p>
+            </div>
         </div>
-        <a href="{% url 'admin_usuarios' %}" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-surface-slate text-white font-bold text-sm hover:bg-primary-container transition-colors">
+        <a href="{% url 'admin_usuarios' %}" class="admin-hero-btn">
             <span class="material-symbols-outlined text-[18px]">arrow_back</span>
             Volver a Lista
         </a>
     </header>
 
-    <section class="bg-white rounded-xl border border-outline-variant shadow-sm p-6 mb-5">
+    <section class="admin-module p-6 mb-5">
         <h2 class="text-xl font-bold text-primary border-b border-outline-variant pb-3 mb-5">Información General</h2>
         <div class="space-y-2 text-sm">
             <p><strong>Email:</strong> {{ usuario.email }}</p>
@@ -37,7 +43,7 @@
         </div>
     </section>
 
-    <section class="bg-white rounded-xl border border-outline-variant shadow-sm p-6 mb-5">
+    <section class="admin-module p-6 mb-5">
         <h2 class="text-xl font-bold text-primary border-b border-outline-variant pb-3 mb-5">Permisos de Herramientas del Portal</h2>
         <p class="text-sm text-text-muted mb-4">Habilita las herramientas que este usuario podrá ver en su panel principal.</p>
 
@@ -66,7 +72,7 @@
         </label>
     </section>
 
-    <section class="bg-white rounded-xl border border-outline-variant shadow-sm p-6 mb-5">
+    <section class="admin-module p-6 mb-5">
         <h2 class="text-xl font-bold text-primary border-b border-outline-variant pb-3 mb-5">Preferencias de Notificación</h2>
         <p class="text-sm text-text-muted mb-4">Configura los canales de alerta para solicitudes de firma.</p>
 
@@ -86,22 +92,23 @@
             </span>
         </label>
 
-        <button class="w-full mt-5 bg-primary hover:bg-primary-container text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2" onclick="guardarCambios()">
+        <button class="admin-action-btn admin-action-btn-primary w-full mt-5" onclick="guardarCambios()">
             <span class="material-symbols-outlined">save</span>
             Guardar Configuración
         </button>
     </section>
 
     {% if es_superadmin %}
-    <section class="bg-white rounded-xl border border-status-danger shadow-sm p-6">
+    <section class="admin-module border-status-danger p-6">
         <h2 class="text-xl font-bold text-status-danger border-b border-outline-variant pb-3 mb-5">Zona de Peligro</h2>
         <p class="text-sm text-text-muted mb-4">Eliminar al usuario borrará sus registros de firmas y revocará su acceso por PIN. Los documentos previamente firmados no se alterarán, pero su cuenta desaparecerá del sistema.</p>
-        <button class="w-full bg-status-danger hover:opacity-90 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2" onclick="eliminarUsuario()">
+        <button class="admin-action-btn admin-action-btn-danger w-full" onclick="eliminarUsuario()">
             <span class="material-symbols-outlined">delete_forever</span>
             Eliminar Usuario Definitivamente
         </button>
     </section>
     {% endif %}
+    </div>
 </div>
 {% endblock %}
 

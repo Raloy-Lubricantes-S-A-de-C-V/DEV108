@@ -1,11 +1,11 @@
 {% extends "motor_firmas/base.html" %}
 
 {% block title %}Generador de Formulario de Firma{% endblock %}
-{% block body_class %}bg-background min-h-screen text-text-main py-8 px-4{% endblock %}
+{% block body_class %}bg-background min-h-screen text-text-main{% endblock %}
 
 {% block extra_head %}
 <style>
-    .config-table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #c4c6cd; border-radius: 0.75rem; overflow: hidden; }
+    .config-table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #c4c6cd; border-radius: 0.5rem; overflow: hidden; }
     .config-table th { background: #f8f9fa; color: #43474c; text-align: left; font-size: 0.75rem; text-transform: uppercase; padding: 0.85rem; border-bottom: 1px solid #c4c6cd; }
     .config-table td { padding: 0.85rem; border-bottom: 1px solid #edeeef; vertical-align: middle; }
     .config-table tr:last-child td { border-bottom: 0; }
@@ -14,17 +14,25 @@
 {% endblock %}
 
 {% block content %}
-<main class="max-w-4xl mx-auto bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden">
-    <header class="bg-primary text-white p-6 md:p-8">
-        <img src="/static/motor_firmas/img/raloy-logo-inverted.svg" alt="Raloy Lubricantes" class="raloy-logo-sm mb-6">
-        <a href="/admin-portal/dashboard/" class="inline-flex items-center gap-2 text-primary-fixed-dim hover:text-white text-sm font-semibold mb-6 transition-colors">
+<div class="admin-page-shell">
+    <header class="admin-hero mb-8">
+        <div class="flex items-center gap-4 min-w-0">
+            <div class="portal-brand-logo-box admin-hero-logo shrink-0">
+                <img src="/static/motor_firmas/img/raloy-logo.svg" alt="Raloy Lubricantes" class="portal-brand-logo">
+            </div>
+            <div class="min-w-0">
+                <h1 class="admin-hero-title" id="stepTitle">Paso 1: Configuración Inicial</h1>
+                <p class="admin-hero-copy">Generador de formulario de firma</p>
+            </div>
+        </div>
+        <a href="/admin-portal/dashboard/" class="admin-hero-btn">
             <span class="material-symbols-outlined text-[18px]">arrow_back</span>
             Volver al Panel de Administración
         </a>
-        <h1 class="text-2xl md:text-3xl font-bold" id="stepTitle">Paso 1: Configuración Inicial</h1>
     </header>
 
-    <div class="p-6 md:p-8">
+    <main class="max-w-4xl mx-auto admin-module overflow-hidden">
+        <div class="p-6 md:p-8">
         <section id="step1" class="step active space-y-5">
             <div class="space-y-2">
                 <label class="block text-sm font-semibold text-on-surface-variant">1. ID del Documento de Google Docs</label>
@@ -34,14 +42,14 @@
                 <label class="block text-sm font-semibold text-on-surface-variant">2. Correo del Propietario</label>
                 <input class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="email" id="owner" value="{{ admin_email }}">
             </div>
-            <button class="bg-primary hover:bg-primary-container text-white font-bold py-3 px-5 rounded-lg transition-colors flex items-center gap-2" id="btnAnalizarDoc" onclick="analizarDoc()">
+            <button class="admin-action-btn admin-action-btn-primary" id="btnAnalizarDoc" onclick="analizarDoc()">
                 <span class="material-symbols-outlined">psychology</span>
                 Analizar Documento con IA
             </button>
         </section>
 
         <section id="step2" class="step space-y-8">
-            <div class="bg-status-success/10 border border-status-success/20 rounded-xl p-5">
+            <div class="bg-status-success/10 border border-status-success/20 rounded-lg p-5">
                 <h2 class="text-xl font-bold text-status-success mb-3">Análisis Completado</h2>
                 <p class="mb-2"><strong>Contexto:</strong> <span id="txtContexto"></span></p>
                 <p><strong>Intención:</strong> <span id="txtIntencion"></span></p>
@@ -68,7 +76,7 @@
                 </div>
             </div>
 
-            <button class="bg-primary hover:bg-primary-container text-white font-bold py-3 px-5 rounded-lg transition-colors flex items-center gap-2" onclick="nextStep(3)">
+            <button class="admin-action-btn admin-action-btn-primary" onclick="nextStep(3)">
                 <span class="material-symbols-outlined">arrow_forward</span>
                 Continuar Configuración
             </button>
@@ -102,13 +110,14 @@
                 <input class="no-uppercase w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="text" id="p_usuarios" placeholder="usuario@raloy.com.mx, otro@raloy.com.mx">
             </div>
 
-            <button class="w-full bg-primary hover:bg-primary-container text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2" onclick="guardarPlantilla()">
+            <button class="admin-action-btn admin-action-btn-primary w-full" onclick="guardarPlantilla()">
                 <span class="material-symbols-outlined">save</span>
                 Finalizar y Guardar Plantilla
             </button>
         </section>
-    </div>
-</main>
+        </div>
+    </main>
+</div>
 {% endblock %}
 
 {% block scripts %}

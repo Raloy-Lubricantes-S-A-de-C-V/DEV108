@@ -9,7 +9,7 @@
         <img src="/static/motor_firmas/img/raloy-logo.svg" alt="Raloy Lubricantes" class="raloy-logo">
     </div>
 
-    <section class="bg-white rounded-xl border border-outline-variant shadow-soft p-6 md:p-8">
+    <section class="admin-module p-6 md:p-8">
         <div class="text-center mb-8">
             <h1 class="text-2xl font-bold text-primary mb-2">Acceso Admin - Raloy</h1>
             <p class="text-sm text-text-muted">Ingresa tus credenciales para gestionar el portal de firmas.</p>
@@ -26,7 +26,7 @@
                 <input class="pin-input w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all text-lg font-bold" id="pin" maxlength="6" placeholder="••••••" required type="password">
             </div>
 
-            <button class="w-full bg-primary hover:bg-primary-container text-white font-bold py-4 rounded-xl transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2" id="btnLogin" onclick="iniciarSesion()">
+            <button class="admin-action-btn admin-action-btn-primary w-full" id="btnLogin" onclick="iniciarSesion()">
                 <span class="material-symbols-outlined">login</span>
                 Ingresar al Panel
             </button>
@@ -34,7 +34,7 @@
 
         <div class="mt-8 pt-6 border-t border-outline-variant text-center">
             <p class="text-xs text-outline mb-3 uppercase font-semibold">¿Problemas de acceso?</p>
-            <button class="text-sm font-semibold text-primary hover:underline inline-flex items-center justify-center gap-2" id="btnOtp" onclick="pedirOTP()">
+            <button class="admin-action-btn w-full" id="btnOtp" onclick="pedirOTP()">
                 <span class="material-symbols-outlined text-[18px]">mail</span>
                 Solicitar PIN temporal por correo
             </button>

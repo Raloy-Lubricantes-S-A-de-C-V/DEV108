@@ -5,96 +5,18 @@
 
 {% block extra_head %}
 <style>
-    .admin-page-shell { max-width: 1600px; margin: 0 auto; padding: 1.5rem 1rem 2.5rem; }
-    .admin-hero {
-        background: #001e57;
-        color: #fff;
-        border-radius: 0.75rem;
-        box-shadow: 0 0.9rem 1.5rem rgba(4, 13, 24, 0.12);
-        padding: 1rem 1.5rem;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-    }
-    .admin-hero-logo {
-        width: 10rem;
-        height: 3.75rem;
-        margin: 0;
-    }
-    .admin-hero-title { font-size: clamp(1.25rem, 2vw, 1.55rem); line-height: 1.15; font-weight: 800; letter-spacing: 0; }
-    .admin-hero-copy { color: rgba(255, 255, 255, 0.82); font-size: 0.88rem; margin-top: 0.25rem; }
-    .admin-hero-actions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end; }
-    .admin-hero-btn {
-        min-height: 2.75rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        border-radius: 0.5rem;
-        padding: 0.7rem 1.1rem;
-        background: #fff;
-        border: 1px solid rgba(255, 255, 255, 0.88);
-        color: #202124;
-        font-size: 0.88rem;
-        font-weight: 800;
-        transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-    }
-    .admin-hero-btn:hover { background: #f3f4f5; }
-    .admin-hero-btn-danger { color: #93000a; border-color: #e74c3c; }
-    .admin-hero-btn-danger:hover { background: #ffdad6; }
-    .admin-module {
-        background: #fff;
-        border: 1px solid #c4c6cd;
-        border-radius: 0.5rem;
-        box-shadow: 0 0.35rem 1.1rem rgba(4, 13, 24, 0.05);
-    }
-    .admin-module-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        border-bottom: 1px solid #c4c6cd;
-        padding-bottom: 1rem;
-        margin-bottom: 1.5rem;
-    }
-    .admin-section-title { color: #202124; font-weight: 800; }
-    .admin-filter-panel {
-        background: #f8f9fa;
-        border: 1px solid #c4c6cd;
-        border-radius: 0.5rem;
-    }
-    .admin-btn-dark {
-        background: #162839;
-        color: #fff;
-        border: 1px solid #162839;
-    }
-    .admin-btn-dark:hover { background: #202124; }
-    .admin-side-card {
-        border-radius: 0.5rem;
-        border: 1px solid #c4c6cd;
-        box-shadow: 0 0.35rem 1.1rem rgba(4, 13, 24, 0.05);
-    }
     .admin-table-wrap { overflow-x: auto; border: 1px solid #c4c6cd; border-radius: 0.5rem; }
     .admin-table { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; }
     .admin-table th { background: #f8f9fa; padding: 1rem; text-align: left; font-size: 0.75rem; text-transform: uppercase; color: #43474c; border-bottom: 1px solid #c4c6cd; white-space: nowrap; }
     .admin-table td { padding: 1rem; border-bottom: 1px solid #edeeef; font-size: 0.875rem; vertical-align: middle; }
     .admin-table tbody tr:hover { background: #f8f9fa; }
     .admin-group-row td { background: #f3f4f5; color: #162839; font-weight: 700; border-left: 4px solid #162839; }
-    @media (max-width: 768px) {
-        .admin-page-shell { padding: 1rem 0.75rem 2rem; }
-        .admin-hero { align-items: flex-start; flex-direction: column; padding: 1rem; }
-        .admin-hero-logo { width: 8.5rem; height: 3.25rem; }
-        .admin-hero-actions { width: 100%; justify-content: flex-start; }
-        .admin-hero-btn { flex: 1 1 150px; }
-        .admin-module-head { align-items: flex-start; flex-direction: column; }
-    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="admin-page-shell">
-<header class="admin-hero">
+    <header class="admin-hero">
         <div class="flex items-center gap-4 min-w-0">
             <div class="portal-brand-logo-box admin-hero-logo shrink-0">
                 <img src="/static/motor_firmas/img/raloy-logo.svg" alt="Raloy Lubricantes" class="portal-brand-logo">
@@ -116,9 +38,9 @@
                 Cerrar Sesión
             </a>
         </div>
-</header>
+    </header>
 
-<main class="py-8">
+    <main class="py-8">
     <div class="grid grid-cols-1 xl:grid-cols-4 gap-8">
         <section class="xl:col-span-3 admin-module p-5 md:p-6">
             <div class="admin-module-head">
@@ -126,7 +48,7 @@
                     <span class="material-symbols-outlined text-primary">description</span>
                     <h2 class="text-xl admin-section-title">Visor de Documentos</h2>
                 </div>
-                <button class="admin-btn-dark px-5 py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors" onclick="guardarDiseno()">
+                <button class="admin-action-btn admin-action-btn-primary" onclick="guardarDiseno()">
                     <span class="material-symbols-outlined text-[18px]">save</span>
                     Guardar Diseño
                 </button>
@@ -187,7 +109,7 @@
                     <h2 class="font-bold text-primary">Gestión de Plantillas</h2>
                 </div>
                 <p class="text-xs text-text-muted mb-5 leading-relaxed">Crea flujos documentales y formularios dinámicos a partir de Google Docs.</p>
-                <a class="bg-secondary-container hover:bg-secondary-fixed-dim text-primary w-full py-3 rounded-lg flex items-center justify-center gap-2 mb-5 font-bold transition-colors" href="{% url 'admin_crear_plantilla' %}">
+                <a class="admin-action-btn admin-action-btn-gold w-full mb-5" href="{% url 'admin_crear_plantilla' %}">
                     <span class="material-symbols-outlined">add_circle</span>
                     Nuevo Formulario
                 </a>
@@ -201,10 +123,10 @@
                                 <span class="text-[10px] text-on-surface-variant font-medium">Por: {{ p.owner_email }}</span>
                             </div>
                             <div class="flex justify-between items-center border-t border-outline-variant pt-3">
-                                <a class="text-xs font-bold text-primary flex items-center gap-1 hover:underline" href="{% url 'admin_editar_plantilla' p.id %}">
+                                <a class="admin-inline-action" href="{% url 'admin_editar_plantilla' p.id %}">
                                     <span class="material-symbols-outlined text-[14px]">edit</span> Editar
                                 </a>
-                                <a class="text-xs font-bold text-status-danger flex items-center gap-1 hover:underline" href="javascript:void(0);" onclick="eliminarPlantilla('{{ p.id }}')">
+                                <a class="admin-inline-action admin-inline-action-danger" href="javascript:void(0);" onclick="eliminarPlantilla('{{ p.id }}')">
                                     <span class="material-symbols-outlined text-[14px]">delete</span> Eliminar
                                 </a>
                             </div>
@@ -244,12 +166,12 @@
                             <div id="previewLogoWrap" class="portal-brand-logo-box portal-brand-logo-box-admin shrink-0">
                                 <img id="previewLogoDominio" src="/static/motor_firmas/img/raloy-logo.svg" alt="Logo" class="portal-brand-logo">
                             </div>
-                            <input class="no-uppercase block w-full text-xs text-on-surface-variant file:mr-3 file:rounded-lg file:border-0 file:bg-secondary-container file:px-3 file:py-2 file:text-xs file:font-bold file:text-primary hover:file:bg-secondary-fixed-dim" id="inpLogoDom" accept="image/png,image/jpeg,image/webp" type="file">
+                            <input class="admin-file-input no-uppercase block w-full text-xs text-on-surface-variant" id="inpLogoDom" accept="image/png,image/jpeg,image/webp" type="file">
                         </div>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
-                        <button id="btnGuardarCarpeta" class="bg-primary hover:bg-primary-container text-white w-full py-3 rounded-lg text-sm font-bold transition-colors" onclick="guardarCarpetaDominio()">Guardar Configuración</button>
-                        <button id="btnNuevaCarpeta" class="hidden bg-surface-container-high text-primary px-4 py-3 rounded-lg text-sm font-bold hover:bg-surface-dim transition-colors" onclick="resetCarpetaDominioForm()">Nueva</button>
+                        <button id="btnGuardarCarpeta" class="admin-action-btn admin-action-btn-primary w-full" onclick="guardarCarpetaDominio()">Guardar Configuración</button>
+                        <button id="btnNuevaCarpeta" class="hidden admin-action-btn" onclick="resetCarpetaDominioForm()">Nueva</button>
                     </div>
                 </div>
                 <h3 class="text-xs font-bold text-on-surface-variant uppercase mb-3 pb-2 border-b border-outline-variant">Configuraciones Activas</h3>
@@ -262,7 +184,7 @@
                     <h2 class="font-bold text-primary">Configuración FIRMEX</h2>
                 </div>
                 <p class="text-xs text-text-muted mb-4 leading-relaxed">Gestiona el catálogo de áreas para las etiquetas automáticas en el portal FIRMEX.</p>
-                <a class="w-full py-3 rounded-lg bg-primary/10 text-primary text-sm font-bold flex items-center justify-center gap-2 hover:bg-primary/20 transition-colors" href="{% url 'admin_config_firmex' %}">
+                <a class="admin-action-btn w-full" href="{% url 'admin_config_firmex' %}">
                     <span class="material-symbols-outlined">category</span> Catálogo de Áreas
                 </a>
             </section>
@@ -274,7 +196,7 @@
                 </div>
                 <div class="space-y-4">
                     <input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="invMail" placeholder="correo@ejemplo.com" type="email">
-                    <button class="bg-primary hover:bg-primary-container text-white w-full py-3 rounded-lg text-sm font-bold transition-colors" onclick="ejecutarAccion('invitar_registro', {email: document.getElementById('invMail').value})">Enviar Invitación</button>
+                    <button class="admin-action-btn admin-action-btn-primary w-full" onclick="ejecutarAccion('invitar_registro', {email: document.getElementById('invMail').value})">Enviar Invitación</button>
                 </div>
             </section>
 
@@ -284,11 +206,11 @@
                     <h2 class="font-bold text-primary">Gestión de Accesos</h2>
                 </div>
                 <div class="space-y-3">
-                    <a class="w-full py-3 rounded-lg bg-status-success/10 text-status-success text-sm font-bold flex items-center justify-center gap-2 hover:bg-status-success/20 transition-colors" href="{% url 'admin_usuarios' %}">
+                    <a class="admin-action-btn w-full" href="{% url 'admin_usuarios' %}">
                         <span class="material-symbols-outlined">person</span> Usuarios Enrolados
                     </a>
                     {% if es_superadmin %}
-                    <a class="w-full py-3 rounded-lg bg-secondary-container/20 text-on-secondary-container text-sm font-bold flex items-center justify-center gap-2 hover:bg-secondary-container/30 transition-colors" href="{% url 'admin_administradores' %}">
+                    <a class="admin-action-btn w-full" href="{% url 'admin_administradores' %}">
                         <span class="material-symbols-outlined">security</span> Superadministradores
                     </a>
                     {% endif %}
@@ -296,9 +218,9 @@
             </section>
         </aside>
     </div>
-</main>
+    </main>
 
-<footer class="border-t border-outline-variant bg-white py-8 mt-12">
+    <footer class="border-t border-outline-variant bg-white py-8 mt-12">
     <div class="max-w-[1600px] mx-auto px-4 md:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
         <p class="text-sm text-on-surface-variant font-medium">© 2026 Raloy Lubricantes. Todos los derechos reservados.</p>
         <div class="flex gap-6">
@@ -307,7 +229,7 @@
             <a href="#" class="text-xs text-outline hover:text-primary transition-colors">Soporte Técnico</a>
         </div>
     </div>
-</footer>
+    </footer>
 </div>
 {% endblock %}
 
@@ -422,7 +344,7 @@
 
 	        carpetasDominio.forEach(c => {
 	            const card = document.createElement('div');
-	            card.className = 'bg-surface-container-low p-3 rounded-xl border border-outline-variant relative group';
+	            card.className = 'bg-surface-container-low p-3 rounded-lg border border-outline-variant relative group';
 	            card.innerHTML = `
 	                <div class="flex items-start gap-3 pr-7">
 	                    <div class="portal-brand-logo-box portal-brand-logo-box-sm shrink-0">
@@ -438,11 +360,11 @@
 	                    </div>
 	                </div>
 	                <div class="mt-3 flex gap-2">
-	                    <button type="button" data-edit class="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline">
+	                    <button type="button" data-edit class="admin-inline-action">
 	                        <span class="material-symbols-outlined text-[15px]">edit</span> Editar
 	                    </button>
 	                </div>
-	                <button type="button" data-delete class="absolute top-3 right-3 text-status-danger hover:opacity-80">
+	                <button type="button" data-delete class="admin-inline-action admin-inline-action-danger admin-inline-action-icon absolute top-3 right-3">
 	                    <span class="material-symbols-outlined text-[16px]">close</span>
 	                </button>
 	            `;
@@ -562,16 +484,16 @@
 
         let cancelBtn = '';
         if(doc.status === 'PROCESSING' || (doc.firmx_id && doc.status === 'FIRMX_WAITING')) {
-            cancelBtn = `<button class="text-status-danger hover:underline text-xs font-bold" onclick="cancelarDoc('${doc.token}')">Cancelar</button>`;
+            cancelBtn = `<button class="admin-inline-action admin-inline-action-danger" onclick="cancelarDoc('${doc.token}')">Cancelar</button>`;
         }
         const isCompletedFirmx = doc.status === 'COMPLETED' && Boolean(doc.firmx_id);
         const firmxDocumentBtn = isCompletedFirmx
-            ? `<a href="/portal/ver-documento/${doc.token}/" target="_blank" rel="noopener noreferrer" class="text-primary font-bold text-xs hover:underline flex items-center gap-1">
+            ? `<a href="/portal/ver-documento/${doc.token}/" target="_blank" rel="noopener noreferrer" class="admin-inline-action">
                     <span class="material-symbols-outlined text-[16px]">picture_as_pdf</span> Documento
                </a>`
             : '';
         const adjustBtn = doc.can_adjust && !isCompletedFirmx
-            ? `<a href="/admin-portal/ajustar-firmas/${doc.token}/" class="text-on-secondary-container font-bold text-xs hover:underline flex items-center gap-1">
+            ? `<a href="/admin-portal/ajustar-firmas/${doc.token}/" class="admin-inline-action admin-inline-action-gold">
                     <span class="material-symbols-outlined text-[16px]">edit_location_alt</span> Ajustar
                </a>`
             : '';
@@ -584,8 +506,8 @@
             <td class="text-primary font-semibold text-xs">${doc.progreso} Firmas</td>
             <td><span class="status-badge ${badgeClass}">${statusText}</span></td>
             <td>
-                <div class="flex items-center gap-4">
-                    <a href="/trazabilidad/${doc.token}/" target="_blank" rel="noopener noreferrer" class="text-primary font-bold text-xs hover:underline flex items-center gap-1">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <a href="/trazabilidad/${doc.token}/" target="_blank" rel="noopener noreferrer" class="admin-inline-action">
                         <span class="material-symbols-outlined text-[16px]">visibility</span> Ver
                     </a>
                     ${firmxDocumentBtn}

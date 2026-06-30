@@ -142,6 +142,193 @@
                 max-height: 2.3rem;
             }
         }
+        .admin-page-shell { max-width: 1600px; margin: 0 auto; padding: 1.5rem 1rem 2.5rem; }
+        .admin-hero {
+            background: #001e57;
+            color: #ffffff;
+            border-radius: 0.75rem;
+            box-shadow: 0 0.9rem 1.5rem rgba(4, 13, 24, 0.12);
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+        .admin-hero-logo {
+            width: 10rem;
+            height: 3.75rem;
+            margin: 0;
+        }
+        .admin-hero-title {
+            font-size: clamp(1.25rem, 2vw, 1.55rem);
+            line-height: 1.15;
+            font-weight: 800;
+            letter-spacing: 0;
+        }
+        .admin-hero-copy { color: rgba(255, 255, 255, 0.82); font-size: 0.88rem; margin-top: 0.25rem; }
+        .admin-hero-actions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end; }
+        .admin-hero-btn,
+        .admin-action-btn,
+        .admin-inline-action {
+            min-height: 2.75rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            border-radius: 0.5rem;
+            padding: 0.7rem 1.1rem;
+            background: #ffffff;
+            border: 1px solid #202124;
+            color: #202124;
+            font-size: 0.88rem;
+            font-weight: 800;
+            line-height: 1.1;
+            text-decoration: none;
+            transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+        }
+        .admin-hero-btn { border-color: rgba(255, 255, 255, 0.88); }
+        .admin-hero-btn:hover,
+        .admin-action-btn:hover,
+        .admin-inline-action:hover {
+            background: #202124;
+            border-color: #202124;
+            color: #ffffff;
+        }
+        .admin-action-btn-primary,
+        .admin-btn-dark {
+            background: #162839;
+            color: #ffffff;
+            border: 1px solid #162839;
+        }
+        .admin-action-btn-primary:hover,
+        .admin-btn-dark:hover {
+            background: #202124;
+            border-color: #202124;
+            color: #ffffff;
+        }
+        .admin-action-btn-danger,
+        .admin-hero-btn-danger,
+        .admin-inline-action-danger {
+            background: #ffffff;
+            color: #93000a;
+            border-color: #e74c3c;
+        }
+        .admin-action-btn-danger:hover,
+        .admin-hero-btn-danger:hover,
+        .admin-inline-action-danger:hover {
+            background: #ffdad6;
+            border-color: #e74c3c;
+            color: #93000a;
+        }
+        .admin-action-btn-gold,
+        .admin-inline-action-gold {
+            background: #ffffff;
+            color: #6f5900;
+            border-color: #b08a00;
+        }
+        .admin-action-btn-gold:hover,
+        .admin-inline-action-gold:hover {
+            background: #b08a00;
+            border-color: #b08a00;
+            color: #ffffff;
+        }
+        .admin-inline-action {
+            min-height: 2rem;
+            padding: 0.45rem 0.65rem;
+            font-size: 0.75rem;
+            white-space: nowrap;
+        }
+        .admin-inline-action-icon {
+            min-height: 0;
+            width: 1.9rem;
+            height: 1.9rem;
+            padding: 0;
+        }
+        .admin-file-input::file-selector-button {
+            margin-right: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid #202124;
+            background: #ffffff;
+            color: #202124;
+            padding: 0.55rem 0.85rem;
+            font-size: 0.75rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+        .admin-file-input::file-selector-button:hover {
+            background: #202124;
+            color: #ffffff;
+        }
+        .admin-module {
+            background: #ffffff;
+            border: 1px solid #c4c6cd;
+            border-radius: 0.5rem;
+            box-shadow: 0 0.35rem 1.1rem rgba(4, 13, 24, 0.05);
+        }
+        .admin-module-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            border-bottom: 1px solid #c4c6cd;
+            padding-bottom: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .admin-section-title { color: #202124; font-weight: 800; }
+        .admin-filter-panel {
+            background: #f8f9fa;
+            border: 1px solid #c4c6cd;
+            border-radius: 0.5rem;
+        }
+        .admin-side-card {
+            border-radius: 0.5rem;
+            border: 1px solid #c4c6cd;
+            box-shadow: 0 0.35rem 1.1rem rgba(4, 13, 24, 0.05);
+        }
+        .admin-data-table-wrap,
+        .data-table-wrap {
+            overflow-x: auto;
+            border: 1px solid #c4c6cd;
+            border-radius: 0.5rem;
+        }
+        .admin-data-table,
+        .data-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: #ffffff;
+        }
+        .admin-data-table th,
+        .data-table th {
+            background: #f8f9fa;
+            padding: 1rem;
+            text-align: left;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: #43474c;
+            border-bottom: 1px solid #c4c6cd;
+            white-space: nowrap;
+        }
+        .admin-data-table td,
+        .data-table td {
+            padding: 1rem;
+            border-bottom: 1px solid #edeeef;
+            font-size: 0.9rem;
+            vertical-align: middle;
+        }
+        .admin-data-table tr:last-child td,
+        .data-table tr:last-child td { border-bottom: 0; }
+        .admin-data-table tbody tr:hover,
+        .data-table tbody tr:hover { background: #f8f9fa; }
+        @media (max-width: 768px) {
+            .admin-page-shell { padding: 1rem 0.75rem 2rem; }
+            .admin-hero { align-items: flex-start; flex-direction: column; padding: 1rem; }
+            .admin-hero-logo { width: 8.5rem; height: 3.25rem; }
+            .admin-hero-actions { width: 100%; justify-content: flex-start; }
+            .admin-hero-btn, .admin-action-btn { flex: 1 1 150px; }
+            .admin-module-head { align-items: flex-start; flex-direction: column; }
+        }
         .bg-primary { background-color: #162839 !important; }
         .hover\:bg-primary-container:hover { background-color: #2c3e50 !important; }
         .bg-primary-container { background-color: #2c3e50 !important; }
