@@ -29,6 +29,7 @@ urlpatterns = [
     path('portal/firmx/', views.portal_firmx, name='portal_firmx'),
     path('portal/logout/', views.portal_logout, name='portal_logout'),
     path('api/firmx/register-document/', views.firmx_registrar_documento, name='firmx_registrar_documento'),
+    path('api/firmx/manual-curl/', views.firmx_ejecutar_curl_manual, name='firmx_ejecutar_curl_manual'),
     path('api/firmx/documents/<str:document_id>/sign-qr/', views.firmx_obtener_qr, name='firmx_obtener_qr'),
     path('api/firmx/documents/<str:document_id>/status/', views.firmx_obtener_status, name='firmx_obtener_status'),
     path('api/firmx/documents/<str:document_id>/notify/', views.firmx_enviar_notificaciones, name='firmx_enviar_notificaciones'),

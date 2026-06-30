@@ -2473,6 +2473,91 @@ def firmx_registrar_documento(request):
     })
 
 
+@csrf_exempt
+def firmx_ejecutar_curl_manual(request):
+    owner_email = request.session.get('owner_email')
+    if not owner_email:
+        return JsonResponse({"error": "No autenticado"}, status=403)
+    if not _usuario_tiene_permiso(owner_email, 'firmx'):
+        return JsonResponse({"error": "No tienes permiso para usar FIRMX."}, status=403)
+    es_admin_firmx = bool(request.session.get('admin_email')) or _mongo_find_one(
+        AdministradorPortal, {'email': _normalizar_email(owner_email)}
+    ) is not None
+    if not es_admin_firmx:
+        return JsonResponse({"error": "No autorizado para ejecutar cURL manual."}, status=403)
+    if request.method != 'POST':
+        return JsonResponse({"error": "Método no permitido."}, status=405)
+
+    try:
+        content_length = int(request.META.get('CONTENT_LENGTH') or 0)
+        max_manual_bytes = int(getattr(settings, 'FIRMX_MANUAL_CURL_MAX_BYTES', 60 * 1024 * 1024))
+        if content_length and content_length > max_manual_bytes:
+            return JsonResponse({"error": "El payload manual excede el tamaño permitido."}, status=413)
+
+        raw_body = request.read().decode(request.encoding or 'utf-8')
+        data = json.loads(raw_body or '{}')
+        method = str(data.get('method') or 'POST').upper()
+        if method != 'POST':
+            return JsonResponse({"error": "El envío manual solo ejecuta POST de registro."}, status=400)
+
+        base_url = _normalizar_firmx_base_url(data.get('base_url') or _firmx_base_url_actual())
+        url = str(data.get('url') or '').strip()
+        if not url:
+            url = f"{base_url}/documents/register/"
+        parsed_url = urlparse(url)
+        parsed_base = urlparse(base_url)
+        if parsed_url.scheme not in ('http', 'https') or parsed_url.netloc != parsed_base.netloc:
+            return JsonResponse({"error": "La URL del cURL no coincide con la Base FIRMX indicada."}, status=400)
+        if not url.startswith(f"{base_url}/"):
+            return JsonResponse({"error": "La URL del cURL debe pertenecer a la Base FIRMX indicada."}, status=400)
+        if parsed_url.path.rstrip('/') != f"{parsed_base.path.rstrip('/')}/documents/register".rstrip('/'):
+            return JsonResponse({"error": "Este ejecutor manual solo permite /documents/register/."}, status=400)
+
+        headers = data.get('headers') if isinstance(data.get('headers'), dict) else {}
+        api_key = str(headers.get('X-Api-Key') or headers.get('x-api-key') or '').strip()
+        if not api_key:
+            return JsonResponse({"error": "El cURL debe incluir X-Api-Key."}, status=400)
+
+        payload = data.get('payload')
+        if not isinstance(payload, dict):
+            return JsonResponse({"error": "El payload debe ser un objeto JSON."}, status=400)
+
+        response = requests.post(
+            url,
+            headers={
+                'X-Api-Key': api_key,
+                'Content-Type': 'application/json',
+            },
+            json=payload,
+            timeout=_firmx_timeout(),
+        )
+        response_data = _json_response_from_requests(response)
+        ok = 200 <= response.status_code < 300
+        document_id = _extract_firmx_document_id(response_data) if ok else ''
+
+        return JsonResponse({
+            "status": "success" if ok else "firmx_error",
+            "ok": ok,
+            "manual": True,
+            "message": "cURL ejecutado contra FIRMX." if ok else "FIRMX respondió con error.",
+            "firmx_status": response.status_code,
+            "document_id": document_id,
+            "firmx_response": response_data,
+            "executed_request": {
+                "method": method,
+                "url": url,
+                "headers": {
+                    "X-Api-Key": api_key,
+                    "Content-Type": "application/json",
+                },
+            },
+        }, status=200 if ok else 502)
+    except ValueError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": f"Error ejecutando cURL manual: {e}"}, status=502)
+
+
 def admin_config_firmex(request):
     admin_email = request.session.get('admin_email')
     if not admin_email:

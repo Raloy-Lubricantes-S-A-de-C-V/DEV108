@@ -20,6 +20,14 @@
     .firmx-hero-title { display: flex; flex-wrap: wrap; align-items: center; gap: 0.42rem; line-height: 1.1; }
     .firmx-title-brand { display: inline-flex; align-items: center; gap: 0.38rem; white-space: nowrap; }
     .firmx-title-mark { display: inline-block; height: 1.05em; width: auto; object-fit: contain; transform: translateY(0.03em); }
+    .firmx-manual-modal { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(14, 18, 22, 0.58); padding: 1.25rem; }
+    .firmx-manual-modal.hidden { display: none; }
+    .firmx-manual-dialog { width: min(1180px, 100%); max-height: min(88vh, 900px); overflow: hidden; display: flex; flex-direction: column; background: #fff; border: 1px solid #c4c6cd; border-radius: 0.75rem; box-shadow: 0 1.5rem 3rem rgba(4, 13, 24, 0.28); }
+    .firmx-manual-body { overflow: auto; }
+    .firmx-manual-textarea { width: 100%; resize: vertical; border: 1px solid #c4c6cd; border-radius: 0.5rem; background: #f8f9fa; color: #171a1d; padding: 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 0.78rem; line-height: 1.45; outline: none; }
+    .firmx-manual-curl { min-height: 430px; }
+    .firmx-manual-data { min-height: 260px; }
+    .firmx-manual-response { min-height: 150px; }
     .firmx-step-shell { display: none; }
     .firmx-step-shell.active { display: block; }
     .firmx-step-button { min-height: 52px; border: 1px solid #c4c6cd; background: #fff; color: #43474c; border-radius: 0.5rem; padding: 0.75rem 0.9rem; text-align: left; display: flex; align-items: center; gap: 0.75rem; font-weight: 800; transition: border-color 0.2s ease, background-color 0.2s ease; }
@@ -66,6 +74,8 @@
     @media screen and (max-width: 1023px) {
         .firmx-hero-top { align-items: flex-start; flex-direction: column; }
         .firmx-hero-main { align-items: flex-start; }
+        .firmx-manual-dialog { max-height: 94vh; }
+        .firmx-manual-curl, .firmx-manual-data { min-height: 240px; }
         .firmx-side { position: static; }
         .firmx-pdf-stage { height: 68vh; min-height: 380px; }
         .firmx-flow { grid-template-columns: 1fr; }
@@ -406,6 +416,10 @@
                     <span id="firmxCurlAction" class="text-xs font-bold bg-secondary-container text-primary px-2 py-1 rounded">POST registro</span>
                 </div>
                 <pre class="firmx-curl bg-surface-container-low border border-outline-variant rounded-lg p-4"><code id="firmxCurlPreview" class="language-bash text-xs">Completa el documento para ver el cURL.</code></pre>
+                <button id="firmxManualOpenButton" type="button" onclick="openFirmxManualModal()" class="w-full mt-3 inline-flex items-center justify-center gap-2 border border-outline-variant bg-white text-primary px-4 py-3 rounded-lg font-bold hover:bg-surface-container transition-colors">
+                    <span class="material-symbols-outlined text-[18px]">terminal</span>
+                    Envío manual
+                </button>
             </section>
             {% endif %}
 
@@ -504,6 +518,43 @@
         </aside>
     </div>
 </div>
+
+{% if es_admin_firmx %}
+<div id="firmxManualModal" class="firmx-manual-modal hidden" role="dialog" aria-modal="true" aria-labelledby="firmxManualTitle">
+    <div class="firmx-manual-dialog">
+        <div class="flex items-start justify-between gap-4 border-b border-outline-variant px-5 py-4">
+            <div>
+                <h2 id="firmxManualTitle" class="text-lg font-bold text-primary">Envío manual FIRMX</h2>
+                <p id="firmxManualStatus" class="text-sm text-on-surface-variant mt-1">Preparando payload.</p>
+            </div>
+            <button type="button" onclick="closeFirmxManualModal()" class="inline-flex items-center justify-center h-10 w-10 rounded-lg border border-outline-variant bg-white text-primary hover:bg-surface-container transition-colors" aria-label="Cerrar">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="firmx-manual-body p-5">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between gap-3">
+                        <label for="firmxManualCurl" class="text-sm font-bold text-primary">cURL completo</label>
+                        <span class="text-[10px] font-bold uppercase bg-secondary-container text-primary px-2 py-1 rounded">POST registro</span>
+                    </div>
+                    <textarea id="firmxManualCurl" class="firmx-manual-textarea firmx-manual-curl no-uppercase" spellcheck="false"></textarea>
+                    <button id="firmxManualExecuteButton" type="button" onclick="executeFirmxManualCurl()" class="inline-flex w-full items-center justify-center gap-2 bg-primary text-white px-5 py-3 rounded-lg font-bold hover:bg-primary-container transition-colors">
+                        <span class="material-symbols-outlined text-[18px]">play_arrow</span>
+                        Ejecutar cURL
+                    </button>
+                </div>
+                <div class="space-y-3">
+                    <label for="firmxManualData" class="text-sm font-bold text-primary">Data previa a enviar</label>
+                    <textarea id="firmxManualData" class="firmx-manual-textarea firmx-manual-data no-uppercase" spellcheck="false"></textarea>
+                    <label for="firmxManualResponse" class="text-sm font-bold text-primary">Respuesta</label>
+                    <textarea id="firmxManualResponse" class="firmx-manual-textarea firmx-manual-response no-uppercase" readonly spellcheck="false">Sin ejecutar.</textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -795,6 +846,185 @@
             lines.push(`  --data ${shellQuote(JSON.stringify(payload, null, 2))}`);
         }
         return lines.join('\n');
+    }
+
+    function buildFirmxManualCurl(method, url, headers, payload) {
+        const lines = [
+            `curl --request ${method} \\`,
+            `  --url ${shellQuote(url)} \\`
+        ];
+        Object.entries(headers || {}).forEach(([key, value], index, arr) => {
+            const suffix = (index === arr.length - 1 && !payload) ? '' : ' \\';
+            lines.push(`  --header ${shellQuote(`${key}: ${value}`)}${suffix}`);
+        });
+        if (payload) {
+            lines.push(`  --data ${shellQuote(JSON.stringify(payload, null, 2))}`);
+        }
+        return lines.join('\n');
+    }
+
+    function getFirmxManualBaseUrl() {
+        const input = document.getElementById('firmxBaseUrlInput');
+        return (input && input.value.trim() ? input.value.trim() : firmxBaseUrl).replace(/\/$/, '');
+    }
+
+    function getFirmxManualApiKey() {
+        const input = document.getElementById('firmxApiKeyInput');
+        return input && input.value.trim() ? input.value.trim() : initialFirmxApiKey;
+    }
+
+    function setFirmxManualStatus(message, type = 'muted') {
+        const el = document.getElementById('firmxManualStatus');
+        if (!el) return;
+        el.textContent = message;
+        el.className = 'text-sm mt-1 ' + (type === 'error' ? 'text-status-danger font-bold' : type === 'ok' ? 'text-status-success font-bold' : 'text-on-surface-variant');
+    }
+
+    function readFirmxFileAsBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const result = String(reader.result || '');
+                resolve(result.includes(',') ? result.split(',')[1] : result);
+            };
+            reader.onerror = () => reject(new Error('No se pudo leer el PDF para generar base64.'));
+            reader.readAsDataURL(file);
+        });
+    }
+
+    async function buildFirmxManualExecutionData() {
+        if (!validateStepOne() || !validateStepTwo() || !validateStepThree()) {
+            throw new Error('Completa documento, firmantes y etiquetas antes del envío manual.');
+        }
+        const apiKey = getFirmxManualApiKey();
+        if (!apiKey) {
+            throw new Error('No hay API Key FIRMX para ejecutar el cURL.');
+        }
+        const { signers } = collectSigners(true);
+        const documentBase64 = await readFirmxFileAsBase64(firmxSelectedFile);
+        const payload = {
+            document_name: getDocumentName() || firmxSelectedFile.name,
+            document_base64: documentBase64,
+            signature_type: FIRMX_SIGNATURE_TYPE,
+            dead_line_to_sign: document.getElementById('firmxDeadline').value,
+            remeber_me_every: document.getElementById('firmxReminder').value.trim(),
+            tags: collectTags(),
+            notify_signers: document.getElementById('firmxNotifySigners').checked,
+            notify_viewers: document.getElementById('firmxNotifyViewers').checked,
+            signers: signers.map(({ name, email }) => ({ name, email })),
+            viewers: parsePeopleTextarea(document.getElementById('firmxViewers').value),
+            message_for_request: document.getElementById('firmxMessage').value.trim() || 'Favor de revisar y firmar el documento.'
+        };
+        const baseUrl = getFirmxManualBaseUrl();
+        const url = `${baseUrl}/documents/register/`;
+        const headers = {
+            'X-Api-Key': apiKey,
+            'Content-Type': 'application/json'
+        };
+        return {
+            method: 'POST',
+            base_url: baseUrl,
+            url,
+            headers,
+            payload
+        };
+    }
+
+    function closeFirmxManualModal() {
+        const modal = document.getElementById('firmxManualModal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    async function openFirmxManualModal() {
+        if (!isFirmxAdmin) return;
+        const modal = document.getElementById('firmxManualModal');
+        const curlTextarea = document.getElementById('firmxManualCurl');
+        const dataTextarea = document.getElementById('firmxManualData');
+        const responseTextarea = document.getElementById('firmxManualResponse');
+        const executeButton = document.getElementById('firmxManualExecuteButton');
+        if (!modal || !curlTextarea || !dataTextarea || !responseTextarea || !executeButton) return;
+
+        modal.classList.remove('hidden');
+        curlTextarea.value = '';
+        dataTextarea.value = '';
+        responseTextarea.value = 'Sin ejecutar.';
+        executeButton.disabled = true;
+        executeButton.classList.add('opacity-60', 'cursor-not-allowed');
+        setFirmxManualStatus('Preparando payload completo...');
+
+        try {
+            const executionData = await buildFirmxManualExecutionData();
+            curlTextarea.value = buildFirmxManualCurl(executionData.method, executionData.url, executionData.headers, executionData.payload);
+            dataTextarea.value = JSON.stringify(executionData, null, 2);
+            executeButton.disabled = false;
+            executeButton.classList.remove('opacity-60', 'cursor-not-allowed');
+            setFirmxManualStatus('Payload completo listo para ejecutar.', 'ok');
+        } catch (error) {
+            responseTextarea.value = JSON.stringify({ error: error.message }, null, 2);
+            setFirmxManualStatus(error.message, 'error');
+        }
+    }
+
+    async function executeFirmxManualCurl() {
+        const dataTextarea = document.getElementById('firmxManualData');
+        const curlTextarea = document.getElementById('firmxManualCurl');
+        const responseTextarea = document.getElementById('firmxManualResponse');
+        const executeButton = document.getElementById('firmxManualExecuteButton');
+        if (!dataTextarea || !curlTextarea || !responseTextarea || !executeButton) return;
+
+        let executionData;
+        try {
+            executionData = JSON.parse(dataTextarea.value || '{}');
+        } catch (error) {
+            setFirmxManualStatus('La data previa no es JSON válido.', 'error');
+            responseTextarea.value = JSON.stringify({ error: 'La data previa no es JSON válido.' }, null, 2);
+            return;
+        }
+
+        executeButton.disabled = true;
+        executeButton.classList.add('opacity-60', 'cursor-not-allowed');
+        executeButton.innerHTML = '<span class="material-symbols-outlined animate-spin text-[18px]">sync</span> Ejecutando...';
+        responseTextarea.value = 'Ejecutando cURL contra FIRMX...';
+        setFirmxManualStatus('Ejecutando cURL contra FIRMX...');
+
+        try {
+            const res = await fetch('/api/firmx/manual-curl/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    ...executionData,
+                    curl: curlTextarea.value
+                })
+            });
+            const payload = await parseFetchPayload(res);
+            responseTextarea.value = JSON.stringify(payload, null, 2);
+            setFirmxResponse(payload);
+            if (!res.ok || payload.ok === false) {
+                throw new Error(payload.error || payload.message || 'FIRMX respondió con error.');
+            }
+            if (payload.document_id) {
+                firmxDocumentId = payload.document_id;
+                const manualInput = document.getElementById('firmxDocumentIdManual');
+                if (manualInput) manualInput.value = firmxDocumentId;
+                const qrButton = document.getElementById('firmxQrButton');
+                const mainQrButton = document.getElementById('firmxMainQrButton');
+                if (qrButton) qrButton.disabled = false;
+                if (mainQrButton) mainQrButton.disabled = false;
+            }
+            setFirmxManualStatus('cURL ejecutado correctamente.', 'ok');
+            setFirmxStatus('Envío manual ejecutado contra FIRMX.', 'ok');
+            updateSummaries();
+        } catch (error) {
+            setFirmxManualStatus(error.message, 'error');
+            setFirmxStatus(error.message, 'error');
+        } finally {
+            executeButton.disabled = false;
+            executeButton.classList.remove('opacity-60', 'cursor-not-allowed');
+            executeButton.innerHTML = '<span class="material-symbols-outlined text-[18px]">play_arrow</span> Ejecutar cURL';
+        }
     }
 
     function updateCurlPreview(action = 'register', backendCurl = '') {
