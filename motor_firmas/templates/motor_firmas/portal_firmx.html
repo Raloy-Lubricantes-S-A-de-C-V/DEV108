@@ -632,6 +632,19 @@
         return document.getElementById('firmxDocumentName').value.trim() || fileName || '';
     }
 
+    function formatFirmxFileSize(file) {
+        if (!file || typeof file.size !== 'number') return 'Pendiente';
+        const megabytes = file.size / (1024 * 1024);
+        return `${megabytes.toFixed(megabytes < 10 ? 2 : 1)} MB`;
+    }
+
+    function getFirmxFileTypeLabel(file) {
+        if (!file) return 'Pendiente';
+        const mimeType = file.type || '';
+        const isPdf = mimeType === 'application/pdf' || String(file.name || '').toLowerCase().endsWith('.pdf');
+        return isPdf ? `PDF${mimeType ? ` (${mimeType})` : ''}` : (mimeType || 'Tipo no identificado');
+    }
+
     function setFirmxStatus(message, type = 'muted') {
         const el = document.getElementById('firmxStatus');
         if (!el) return;
@@ -1052,6 +1065,8 @@
         return `
             <div><strong>Documento:</strong> ${escapeHtml(getDocumentName() || 'Sin nombre')}</div>
             <div><strong>Archivo:</strong> ${escapeHtml(fileName)}</div>
+            <div><strong>Peso:</strong> ${escapeHtml(formatFirmxFileSize(firmxSelectedFile))}</div>
+            <div><strong>Tipo de documento:</strong> ${escapeHtml(getFirmxFileTypeLabel(firmxSelectedFile))}</div>
             <div><strong>Fecha límite:</strong> ${escapeHtml(document.getElementById('firmxDeadline').value || 'Pendiente')}</div>
         `;
     }
