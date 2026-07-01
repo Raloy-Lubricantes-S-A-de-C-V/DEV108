@@ -8,13 +8,13 @@
 <style>
     .portal-results-layout { display: grid; grid-template-columns: minmax(178px, 220px) minmax(0, 1fr); gap: 1rem; align-items: start; }
     .portal-results-main { min-width: 0; }
-    .portal-label-panel { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; background: #ffffff; border: 1px solid #c4c6cd; border-radius: 0.75rem; padding: 0.7rem; box-shadow: 0 2px 8px rgba(0,0,0,0.03); font-size: 0.72rem; }
+    .portal-label-panel { --portal-label-font-size: 0.72rem; position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; background: #ffffff; border: 1px solid #c4c6cd; border-radius: 0.75rem; padding: 0.7rem; box-shadow: 0 2px 8px rgba(0,0,0,0.03); font-size: var(--portal-label-font-size); }
     .portal-label-panel .material-symbols-outlined { font-size: 0.95rem !important; }
-    .portal-label-title { display: flex; align-items: center; gap: 0.35rem; margin: 0 0 0.6rem; color: #162839; font-weight: 800; font-size: 0.82rem; }
-    .portal-label-form { display: grid; gap: 0.38rem; margin-bottom: 0.65rem; }
-    .portal-label-input { width: 100%; border: 1px solid #c4c6cd; border-radius: 0.4rem; padding: 0.48rem 0.55rem; font-size: 0.72rem; outline: none; }
+    .portal-label-title { display: flex; align-items: center; gap: 0.35rem; margin: 0 0 0.6rem; color: #162839; font-weight: 800; font-size: var(--portal-label-font-size); }
+    .portal-label-form { display: grid; gap: 0.38rem; margin-top: 0.65rem; padding-top: 0.65rem; border-top: 1px solid #edeeef; }
+    .portal-label-input { width: 100%; border: 1px solid #c4c6cd; border-radius: 0.4rem; padding: 0.48rem 0.55rem; font-size: var(--portal-label-font-size); outline: none; }
     .portal-label-input:focus { border-color: #162839; box-shadow: 0 0 0 2px rgba(22, 40, 57, 0.12); }
-    .portal-label-create { min-height: 31px; border: 1px solid #162839; background: #162839; color: #ffffff; border-radius: 0.4rem; padding: 0.38rem 0.55rem; font-size: 0.68rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 0.28rem; }
+    .portal-label-create { min-height: 31px; border: 1px solid #162839; background: #162839; color: #ffffff; border-radius: 0.4rem; padding: 0.38rem 0.55rem; font-size: var(--portal-label-font-size); font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 0.28rem; }
     .portal-label-create:disabled { opacity: 0.65; cursor: not-allowed; }
     .portal-label-list { display: grid; gap: 0.25rem; }
     .portal-label-item { width: 100%; border: 1px solid transparent; background: transparent; color: #43474c; border-radius: 0.45rem; padding: 0.38rem 0.35rem; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.35rem; text-align: left; transition: background-color 0.2s ease, border-color 0.2s ease; }
@@ -26,26 +26,26 @@
     .portal-label-item.child { width: calc(100% - 0.85rem); margin-left: 0.85rem; padding-left: 0.3rem; grid-template-columns: auto minmax(0, 1fr) auto; }
     .portal-label-item.parent.has-children { margin-bottom: 0.1rem; }
     .portal-label-panel .portal-label-icon { width: 1rem; height: 1rem; font-size: 1rem !important; color: currentColor; line-height: 1; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .portal-label-text { min-width: 0; font-size: 0.72rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .portal-label-count { color: #74777d; font-size: 0.64rem; font-weight: 800; }
-    .portal-label-section-title { grid-column: 1 / -1; color: #74777d; font-size: 0.58rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0; padding: 0.25rem 0.35rem 0.05rem; }
+    .portal-label-text { min-width: 0; font-size: var(--portal-label-font-size); font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .portal-label-count { color: #74777d; font-size: var(--portal-label-font-size); font-weight: 800; }
+    .portal-label-section-title { grid-column: 1 / -1; color: #74777d; font-size: var(--portal-label-font-size); font-weight: 900; text-transform: uppercase; letter-spacing: 0; padding: 0.25rem 0.35rem 0.05rem; }
     .portal-label-divider { grid-column: 1 / -1; width: 100%; border: 0; border-top: 1px solid #d9dadb; margin: 0.28rem 0.15rem; }
-    .portal-label-status { min-height: 0.85rem; margin-top: 0.4rem; color: #93000a; font-size: 0.66rem; font-weight: 700; }
-    .portal-label-manage { display: none; gap: 0.35rem; margin: -0.35rem 0 0.7rem; padding: 0.55rem 0 0.7rem; border-bottom: 1px solid #edeeef; }
+    .portal-label-status { min-height: 0.85rem; margin-top: 0.4rem; color: #93000a; font-size: var(--portal-label-font-size); font-weight: 700; }
+    .portal-label-manage { display: none; gap: 0.35rem; margin-top: 0.55rem; padding-top: 0.55rem; border-top: 1px solid #edeeef; }
     .portal-label-manage.active { display: grid; }
-    .portal-label-manage-title { color: #43474c; font-size: 0.62rem; font-weight: 800; text-transform: uppercase; }
+    .portal-label-manage-title { color: #43474c; font-size: var(--portal-label-font-size); font-weight: 800; text-transform: uppercase; }
     .portal-label-manage .material-symbols-outlined { font-size: 0.9rem !important; }
-    .portal-label-manage .portal-label-input { border-radius: 0.38rem; padding: 0.42rem 0.5rem; font-size: 0.72rem; }
+    .portal-label-manage .portal-label-input { border-radius: 0.38rem; padding: 0.42rem 0.5rem; font-size: var(--portal-label-font-size); }
     .portal-sublabel-form { display: none; grid-template-columns: 1fr auto; gap: 0.32rem; }
     .portal-sublabel-form.active { display: grid; }
     .portal-sublabel-form .portal-label-input { min-width: 0; }
-    .portal-sublabel-create { min-height: 30px; border: 1px solid #c4c6cd; background: #ffffff; color: #162839; border-radius: 0.38rem; padding: 0.35rem 0.45rem; font-size: 0.68rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 0.2rem; }
+    .portal-sublabel-create { min-height: 30px; border: 1px solid #c4c6cd; background: #ffffff; color: #162839; border-radius: 0.38rem; padding: 0.35rem 0.45rem; font-size: var(--portal-label-font-size); font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 0.2rem; }
     .portal-sublabel-create:hover { background: #edeeef; }
     .portal-label-manage-actions { display: grid; grid-template-columns: 1fr auto; gap: 0.32rem; }
-    .portal-label-save, .portal-label-delete { min-height: 30px; border-radius: 0.38rem; padding: 0.35rem 0.48rem; font-size: 0.68rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 0.22rem; }
+    .portal-label-save, .portal-label-delete { min-height: 30px; border-radius: 0.38rem; padding: 0.35rem 0.48rem; font-size: var(--portal-label-font-size); font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 0.22rem; }
     .portal-label-save { border: 1px solid #162839; background: #ffffff; color: #162839; }
     .portal-label-save:hover { background: #edeeef; }
-    .portal-label-feature { min-height: 30px; border: 1px solid #efe3a8; background: #fffdf2; color: #162839; border-radius: 0.38rem; padding: 0.35rem 0.48rem; font-size: 0.68rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 0.22rem; }
+    .portal-label-feature { min-height: 30px; border: 1px solid #efe3a8; background: #fffdf2; color: #162839; border-radius: 0.38rem; padding: 0.35rem 0.48rem; font-size: var(--portal-label-font-size); font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 0.22rem; }
     .portal-label-feature:hover { background: #fff7cd; }
     .portal-label-delete { border: 1px solid #f7b9b4; background: #ffdad6; color: #93000a; }
     .portal-label-delete:hover { background: #f7b9b4; }
@@ -333,6 +333,7 @@
                 <span class="material-symbols-outlined text-[20px]">folder</span>
                 Etiquetas
             </h2>
+            <div class="portal-label-list" id="portalLabelList"></div>
             <form class="portal-label-form" id="portalLabelForm">
                 <input class="portal-label-input" id="portalLabelInput" type="text" maxlength="80" placeholder="Nueva etiqueta" autocomplete="off">
                 <button class="portal-label-create" id="portalLabelCreateBtn" type="submit">
@@ -363,7 +364,6 @@
                     </button>
                 </div>
             </div>
-            <div class="portal-label-list" id="portalLabelList"></div>
             <div class="portal-label-status" id="portalLabelStatus" aria-live="polite"></div>
         </aside>
         <div class="portal-results-main">
