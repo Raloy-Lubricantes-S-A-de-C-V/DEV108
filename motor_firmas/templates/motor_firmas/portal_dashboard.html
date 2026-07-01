@@ -19,10 +19,14 @@
     .portal-label-item { width: 100%; border: 1px solid transparent; background: transparent; color: #43474c; border-radius: 0.55rem; padding: 0.55rem 0.45rem; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.5rem; text-align: left; transition: background-color 0.2s ease, border-color 0.2s ease; }
     .portal-label-item:hover { background: #f8f9fa; border-color: #e1e3e4; }
     .portal-label-item.active { background: #edeeef; border-color: #162839; color: #162839; }
+    .portal-label-item.featured { background: #fffdf2; border-color: #efe3a8; }
+    .portal-label-item.featured.active { background: #fff7cd; border-color: #162839; }
     .portal-label-item.drag-over { background: #fff8d7; border-color: #fed023; }
     .portal-label-icon { font-size: 2rem; color: currentColor; line-height: 1; }
     .portal-label-text { min-width: 0; font-size: 0.82rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .portal-label-count { color: #74777d; font-size: 0.72rem; font-weight: 800; }
+    .portal-label-section-title { grid-column: 1 / -1; color: #74777d; font-size: 0.68rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0; padding: 0.3rem 0.45rem 0.1rem; }
+    .portal-label-divider { grid-column: 1 / -1; width: 100%; border: 0; border-top: 1px solid #d9dadb; margin: 0.35rem 0.2rem; }
     .portal-label-status { min-height: 1rem; margin-top: 0.5rem; color: #93000a; font-size: 0.74rem; font-weight: 700; }
     .portal-label-manage { display: none; gap: 0.5rem; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #edeeef; }
     .portal-label-manage.active { display: grid; }
@@ -31,9 +35,11 @@
     .portal-label-save, .portal-label-delete { min-height: 36px; border-radius: 0.5rem; padding: 0.5rem 0.65rem; font-size: 0.76rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; }
     .portal-label-save { border: 1px solid #162839; background: #ffffff; color: #162839; }
     .portal-label-save:hover { background: #edeeef; }
+    .portal-label-feature { min-height: 36px; border: 1px solid #efe3a8; background: #fffdf2; color: #162839; border-radius: 0.5rem; padding: 0.5rem 0.65rem; font-size: 0.76rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; }
+    .portal-label-feature:hover { background: #fff7cd; }
     .portal-label-delete { border: 1px solid #f7b9b4; background: #ffdad6; color: #93000a; }
     .portal-label-delete:hover { background: #f7b9b4; }
-    .portal-label-save:disabled, .portal-label-delete:disabled { opacity: 0.65; cursor: not-allowed; }
+    .portal-label-save:disabled, .portal-label-feature:disabled, .portal-label-delete:disabled { opacity: 0.65; cursor: not-allowed; }
     .doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.25rem; }
     .doc-card { background: #fff; border: 1px solid #c4c6cd; border-radius: 0.75rem; overflow: hidden; display: flex; flex-direction: column; border-top: 4px solid #162839; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
     .doc-card.doc-dragging, .doc-list-table tr.doc-dragging { opacity: 0.55; }
@@ -276,6 +282,10 @@
             <div class="portal-label-manage" id="portalLabelManage">
                 <div class="portal-label-manage-title">Etiqueta seleccionada</div>
                 <input class="portal-label-input" id="portalLabelEditInput" type="text" maxlength="80" autocomplete="off">
+                <button class="portal-label-feature" id="portalLabelFeatureBtn" type="button">
+                    <span class="material-symbols-outlined text-[18px]">star_border</span>
+                    Destacar
+                </button>
                 <div class="portal-label-manage-actions">
                     <button class="portal-label-save" id="portalLabelSaveBtn" type="button">
                         <span class="material-symbols-outlined text-[18px]">save</span>
@@ -598,16 +608,66 @@
     function renderPortalLabelManage() {
         const manage = document.getElementById('portalLabelManage');
         const input = document.getElementById('portalLabelEditInput');
-        if (!manage || !input) return;
+        const featureButton = document.getElementById('portalLabelFeatureBtn');
+        if (!manage || !input || !featureButton) return;
 
         const label = selectedPortalLabelData();
         const canManage = Boolean(label && !label.special);
         manage.classList.toggle('active', canManage);
         if (canManage) {
             input.value = label.name || '';
+            featureButton.innerHTML = `
+                <span class="material-symbols-outlined text-[18px]">${label.featured ? 'star' : 'star_border'}</span>
+                ${label.featured ? 'Quitar destacado' : 'Destacar'}
+            `;
         } else {
             input.value = '';
+            featureButton.innerHTML = '<span class="material-symbols-outlined text-[18px]">star_border</span> Destacar';
         }
+    }
+
+    function crearBotonEtiquetaPortal(label) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `portal-label-item ${label.featured ? 'featured' : ''} ${selectedPortalLabel === label.value ? 'active' : ''}`;
+        button.dataset.labelValue = label.value;
+        button.innerHTML = `
+            <span class="material-symbols-outlined portal-label-icon">${escapeHtml(label.featured ? 'folder_special' : (label.icon || 'folder'))}</span>
+            <span class="portal-label-text">${escapeHtml(label.name)}</span>
+            <span class="portal-label-count">${Number(label.count || 0)}</span>
+        `;
+        button.addEventListener('click', () => selectPortalLabel(label.value));
+
+        if (label.value !== PORTAL_LABEL_ALL) {
+            button.addEventListener('dragover', event => {
+                event.preventDefault();
+                button.classList.add('drag-over');
+                event.dataTransfer.dropEffect = 'move';
+            });
+            button.addEventListener('dragleave', () => button.classList.remove('drag-over'));
+            button.addEventListener('drop', event => {
+                event.preventDefault();
+                button.classList.remove('drag-over');
+                const token = event.dataTransfer.getData('text/plain');
+                if (!token) return;
+                asignarEtiquetaDocumento(token, label.value === PORTAL_LABEL_UNTAGGED ? '' : label.value);
+            });
+        }
+
+        return button;
+    }
+
+    function agregarTituloSeccionEtiquetas(list, title) {
+        const titleNode = document.createElement('div');
+        titleNode.className = 'portal-label-section-title';
+        titleNode.textContent = title;
+        list.appendChild(titleNode);
+    }
+
+    function agregarSeparadorEtiquetas(list) {
+        const divider = document.createElement('hr');
+        divider.className = 'portal-label-divider';
+        list.appendChild(divider);
     }
 
     function renderPortalLabels() {
@@ -615,36 +675,21 @@
         if (!list) return;
         list.innerHTML = '';
 
-        portalLabels.forEach(label => {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = `portal-label-item ${selectedPortalLabel === label.value ? 'active' : ''}`;
-            button.dataset.labelValue = label.value;
-            button.innerHTML = `
-                <span class="material-symbols-outlined portal-label-icon">${escapeHtml(label.icon || 'folder')}</span>
-                <span class="portal-label-text">${escapeHtml(label.name)}</span>
-                <span class="portal-label-count">${Number(label.count || 0)}</span>
-            `;
-            button.addEventListener('click', () => selectPortalLabel(label.value));
+        const systemLabels = portalLabels.filter(label => label.special);
+        const featuredLabels = portalLabels.filter(label => !label.special && label.featured);
+        const normalLabels = portalLabels.filter(label => !label.special && !label.featured);
 
-            if (label.value !== PORTAL_LABEL_ALL) {
-                button.addEventListener('dragover', event => {
-                    event.preventDefault();
-                    button.classList.add('drag-over');
-                    event.dataTransfer.dropEffect = 'move';
-                });
-                button.addEventListener('dragleave', () => button.classList.remove('drag-over'));
-                button.addEventListener('drop', event => {
-                    event.preventDefault();
-                    button.classList.remove('drag-over');
-                    const token = event.dataTransfer.getData('text/plain');
-                    if (!token) return;
-                    asignarEtiquetaDocumento(token, label.value === PORTAL_LABEL_UNTAGGED ? '' : label.value);
-                });
+        systemLabels.forEach(label => list.appendChild(crearBotonEtiquetaPortal(label)));
+
+        if (featuredLabels.length) {
+            agregarTituloSeccionEtiquetas(list, 'Destacados');
+            featuredLabels.forEach(label => list.appendChild(crearBotonEtiquetaPortal(label)));
+            if (normalLabels.length) {
+                agregarSeparadorEtiquetas(list);
             }
+        }
 
-            list.appendChild(button);
-        });
+        normalLabels.forEach(label => list.appendChild(crearBotonEtiquetaPortal(label)));
         renderPortalLabelManage();
     }
 
@@ -839,6 +884,42 @@
             cargarPortalDocumentos(1);
         } catch (error) {
             setPortalLabelStatus(error.message || 'No se pudo eliminar la etiqueta');
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    async function toggleDestacadoEtiquetaPortal() {
+        const button = document.getElementById('portalLabelFeatureBtn');
+        const label = selectedPortalLabelData();
+        if (!label || label.special) return;
+
+        const nextFeatured = !label.featured;
+        button.disabled = true;
+        setPortalLabelStatus('');
+        try {
+            const response = await fetch('/api/portal-etiquetas/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    accion: 'destacar',
+                    etiqueta: label.value,
+                    destacado: nextFeatured
+                })
+            });
+            const data = await response.json();
+            if (!response.ok || data.status !== 'success') {
+                throw new Error(data.error || 'No se pudo actualizar destacado');
+            }
+            selectedPortalLabel = data.label || label.value;
+            portalLabels = data.labels || [];
+            renderPortalLabels();
+            setPortalLabelStatus(nextFeatured ? 'Etiqueta agregada a destacados.' : 'Etiqueta removida de destacados.', 'ok');
+        } catch (error) {
+            setPortalLabelStatus(error.message || 'No se pudo actualizar destacado');
         } finally {
             button.disabled = false;
         }
@@ -1419,6 +1500,7 @@
     document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('portalLabelForm').addEventListener('submit', crearEtiquetaPortal);
         document.getElementById('portalLabelSaveBtn').addEventListener('click', renombrarEtiquetaPortal);
+        document.getElementById('portalLabelFeatureBtn').addEventListener('click', toggleDestacadoEtiquetaPortal);
         document.getElementById('portalLabelDeleteBtn').addEventListener('click', eliminarEtiquetaPortal);
         document.getElementById('portalLabelEditInput').addEventListener('keydown', event => {
             if (event.key === 'Enter') {

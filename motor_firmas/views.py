@@ -154,6 +154,39 @@ def _etiquetas_documentos_usuario(owner_email):
     return labels
 
 
+def _etiquetas_destacadas_documentos_usuario(owner_email, etiquetas_disponibles=None):
+    owner_email = _normalizar_email(owner_email)
+    disponibles = etiquetas_disponibles if etiquetas_disponibles is not None else _etiquetas_documentos_usuario(owner_email)
+    disponibles_por_fold = {item.casefold(): item for item in disponibles}
+
+    colaborador = _mongo_find_one(DirectorioFirmas, {'email': owner_email})
+    destacadas_raw = _json_or_default(getattr(colaborador, 'etiquetas_destacadas_documentos', []), []) if colaborador else []
+    destacadas = []
+    for item in destacadas_raw:
+        item_fold = _normalizar_etiqueta_documento(item).casefold()
+        if item_fold in disponibles_por_fold:
+            _agregar_etiqueta_unica(destacadas, disponibles_por_fold[item_fold])
+    return destacadas
+
+
+def _guardar_destacadas_documentos_usuario(owner_email, etiquetas):
+    owner_email = _normalizar_email(owner_email)
+    colaborador = _mongo_find_one(DirectorioFirmas, {'email': owner_email})
+    if not colaborador:
+        return []
+
+    disponibles = _etiquetas_documentos_usuario(owner_email)
+    disponibles_por_fold = {item.casefold(): item for item in disponibles}
+    destacadas = []
+    for item in etiquetas:
+        item_fold = _normalizar_etiqueta_documento(item).casefold()
+        if item_fold in disponibles_por_fold:
+            _agregar_etiqueta_unica(destacadas, disponibles_por_fold[item_fold])
+
+    _mongo_update_document(DirectorioFirmas, colaborador, {'etiquetas_destacadas_documentos': destacadas})
+    return destacadas
+
+
 def _guardar_etiqueta_documento_usuario(owner_email, etiqueta):
     owner_email = _normalizar_email(owner_email)
     etiqueta = _normalizar_etiqueta_documento(etiqueta)
@@ -216,7 +249,37 @@ def _actualizar_catalogo_etiquetas_usuario(owner_email, etiqueta_actual, etiquet
     if etiqueta_nueva:
         _agregar_etiqueta_unica(actualizadas, etiqueta_nueva)
 
-    _mongo_update_document(DirectorioFirmas, colaborador, {'etiquetas_documentos': actualizadas})
+    destacadas = _json_or_default(getattr(colaborador, 'etiquetas_destacadas_documentos', []), [])
+    destacadas_actualizadas = []
+    for item in destacadas:
+        item_norm = _normalizar_etiqueta_documento(item)
+        if not item_norm:
+            continue
+        if item_norm.casefold() == etiqueta_actual_fold:
+            item_norm = etiqueta_nueva
+        _agregar_etiqueta_unica(destacadas_actualizadas, item_norm)
+
+    update_doc = {'etiquetas_documentos': actualizadas}
+    if destacadas or destacadas_actualizadas:
+        update_doc['etiquetas_destacadas_documentos'] = destacadas_actualizadas
+    _mongo_update_document(DirectorioFirmas, colaborador, update_doc)
+
+
+def _actualizar_destacado_etiqueta_documento_usuario(owner_email, etiqueta, destacado):
+    owner_email = _normalizar_email(owner_email)
+    etiqueta = _resolver_etiqueta_documento_usuario(owner_email, etiqueta)
+    if not etiqueta:
+        raise ValueError("Etiqueta no encontrada.")
+
+    destacadas = _etiquetas_destacadas_documentos_usuario(owner_email)
+    if destacado:
+        _agregar_etiqueta_unica(destacadas, etiqueta)
+    else:
+        etiqueta_fold = etiqueta.casefold()
+        destacadas = [item for item in destacadas if item.casefold() != etiqueta_fold]
+
+    _guardar_destacadas_documentos_usuario(owner_email, destacadas)
+    return etiqueta
 
 
 def _renombrar_etiqueta_documento_usuario(owner_email, etiqueta_actual, etiqueta_nueva):
@@ -296,12 +359,22 @@ def _portal_etiquetas_payload(owner_email):
         },
     ]
 
-    for etiqueta in _etiquetas_documentos_usuario(owner_email):
+    etiquetas_usuario = _etiquetas_documentos_usuario(owner_email)
+    destacadas = _etiquetas_destacadas_documentos_usuario(owner_email, etiquetas_usuario)
+    destacadas_fold = {item.casefold() for item in destacadas}
+    etiquetas_ordenadas = []
+    for etiqueta in destacadas:
+        _agregar_etiqueta_unica(etiquetas_ordenadas, etiqueta)
+    for etiqueta in etiquetas_usuario:
+        _agregar_etiqueta_unica(etiquetas_ordenadas, etiqueta)
+
+    for etiqueta in etiquetas_ordenadas:
         labels.append({
             'value': etiqueta,
             'name': etiqueta,
             'count': collection.count_documents({'owner_email': owner_email, 'etiqueta': etiqueta}),
             'special': False,
+            'featured': etiqueta.casefold() in destacadas_fold,
             'icon': 'folder',
         })
 
@@ -690,6 +763,7 @@ def _mongo_to_namespace(document):
         'usuarios_permitidos': [],
         'permisos_portal': [],
         'etiquetas_documentos': [],
+        'etiquetas_destacadas_documentos': [],
         'configuracion_dashboard': {},
     }.items():
         if field in data:
@@ -2809,6 +2883,12 @@ def portal_etiquetas_api(request):
             )
         elif accion == 'eliminar':
             etiqueta = _eliminar_etiqueta_documento_usuario(owner_email, data.get('etiqueta'))
+        elif accion == 'destacar':
+            etiqueta = _actualizar_destacado_etiqueta_documento_usuario(
+                owner_email,
+                data.get('etiqueta'),
+                bool(data.get('destacado')),
+            )
         else:
             accion = 'crear'
             etiqueta = _guardar_etiqueta_documento_usuario(owner_email, data.get('nombre'))

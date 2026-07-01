@@ -62,6 +62,7 @@ class DirectorioFirmas(models.Model):
     tecnico_asignado = models.EmailField(null=True, blank=True)
     permisos_portal = models.JSONField(default=list, blank=True)
     etiquetas_documentos = models.JSONField(default=list, blank=True)
+    etiquetas_destacadas_documentos = models.JSONField(default=list, blank=True)
     ultima_actividad = models.DateTimeField(null=True, blank=True)
     
     # Notificaciones y App
