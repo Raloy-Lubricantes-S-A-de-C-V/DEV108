@@ -51,7 +51,7 @@
     .portal-label-delete { border: 1px solid #f7b9b4; background: #ffdad6; color: #93000a; }
     .portal-label-delete:hover { background: #f7b9b4; }
     .portal-label-save:disabled, .portal-label-feature:disabled, .portal-sublabel-create:disabled, .portal-label-delete:disabled { opacity: 0.65; cursor: not-allowed; }
-    .doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.25rem; }
+    .doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--portal-card-width, 320px)), 1fr)); gap: 1.1rem; }
     .doc-card { background: #fff; border: 1px solid #c4c6cd; border-radius: 0.75rem; overflow: hidden; display: flex; flex-direction: column; border-top: 4px solid #162839; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
     .doc-card.doc-dragging, .doc-list-table tr.doc-dragging { opacity: 0.55; }
     .doc-draggable { cursor: grab; }
@@ -87,20 +87,29 @@
     .view-toggle { display: inline-flex; align-items: center; gap: 0.25rem; background: #edeeef; border: 1px solid #c4c6cd; border-radius: 0.5rem; padding: 0.25rem; }
     .view-toggle-btn { min-height: 40px; border: 0; border-radius: 0.375rem; padding: 0.45rem 0.75rem; color: #162839; background: transparent; font-size: 0.86rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; transition: background-color 0.2s ease, color 0.2s ease; }
     .view-toggle-btn.active { background: #162839; color: #ffffff; }
+    .portal-card-size-control { margin-left: auto; min-height: 40px; border: 1px solid #c4c6cd; background: #ffffff; border-radius: 0.5rem; padding: 0.35rem 0.55rem; display: inline-flex; align-items: center; gap: 0.45rem; color: #162839; }
+    .portal-card-size-control.is-hidden { display: none; }
+    .portal-card-size-control .material-symbols-outlined { font-size: 18px !important; }
+    .portal-card-size-control label { font-size: 0.68rem; font-weight: 900; text-transform: uppercase; color: #43474c; white-space: nowrap; }
+    .portal-card-size-control input[type="range"] { width: 118px; accent-color: #162839; }
+    .portal-card-size-value { min-width: 42px; text-align: right; font-size: 0.68rem; font-weight: 900; color: #74777d; }
     .doc-list { display: block; }
-    .doc-list-wrap { overflow-x: auto; background: #ffffff; border: 1px solid #c4c6cd; border-radius: 0.75rem; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
-    .doc-list-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1080px; }
-    .doc-list-table th { background: #f8f9fa; color: #43474c; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; text-align: left; padding: 0.85rem 1rem; border-bottom: 1px solid #c4c6cd; white-space: nowrap; }
-    .doc-list-table td { padding: 0.9rem 1rem; border-bottom: 1px solid #edeeef; vertical-align: middle; font-size: 0.88rem; }
+    .doc-list-wrap { width: min(100%, 1040px); margin: 0 auto; overflow-x: auto; background: #ffffff; border: 1px solid #c4c6cd; border-radius: 0.75rem; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+    .doc-list-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 920px; table-layout: fixed; }
+    .doc-list-table th { background: #f8f9fa; color: #43474c; font-size: 0.64rem; font-weight: 850; text-transform: uppercase; text-align: left; padding: 0.62rem 0.52rem; border-bottom: 1px solid #c4c6cd; white-space: nowrap; }
+    .doc-list-table td { padding: 0.66rem 0.52rem; border-bottom: 1px solid #edeeef; vertical-align: middle; font-size: 0.76rem; line-height: 1.35; }
     .doc-list-table tr:last-child td { border-bottom: 0; }
-    .doc-list-title { color: #162839; font-weight: 800; word-break: break-word; }
-    .doc-list-group td { background: #edeeef; color: #162839; font-size: 0.78rem; font-weight: 800; text-transform: uppercase; border-bottom: 1px solid #c4c6cd; cursor: pointer; }
-    .doc-list-progress { width: 160px; max-width: 100%; }
-    .doc-list-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; }
-    .doc-list-action { min-height: 36px; border: 1px solid #c4c6cd; background: #ffffff; color: #162839; padding: 0.45rem 0.6rem; border-radius: 0.45rem; font-weight: 800; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; white-space: nowrap; }
+    .doc-list-table .status-badge { font-size: 0.62rem; padding: 0.22rem 0.42rem; white-space: nowrap; }
+    .doc-list-title { color: #162839; font-size: 0.76rem; font-weight: 800; word-break: break-word; line-height: 1.28; }
+    .doc-list-group td { background: #edeeef; color: #162839; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; border-bottom: 1px solid #c4c6cd; cursor: pointer; }
+    .doc-list-progress { width: 128px; max-width: 100%; }
+    .doc-list-actions { display: flex; flex-wrap: wrap; gap: 0.32rem; }
+    .doc-list-action { min-height: 32px; border: 1px solid #c4c6cd; background: #ffffff; color: #162839; padding: 0.32rem 0.44rem; border-radius: 0.38rem; font-weight: 800; font-size: 0.68rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.22rem; white-space: nowrap; }
     .doc-list-action:hover { background: #edeeef; border-color: #74777d; }
     .doc-list-action.secondary { background: #fed023; border-color: #fed023; }
     .doc-list-action.secondary:hover { background: #eec209; border-color: #eec209; }
+    .doc-list-label-cell .doc-label-chip { width: 100%; min-height: 30px; padding: 0.28rem 0.45rem; font-size: 0.68rem; justify-content: flex-start; }
+    .doc-list-label-cell .doc-label-menu { min-width: 190px; }
     .doc-label-picker { position: relative; display: inline-flex; max-width: 100%; }
     .doc-label-picker.compact { width: 100%; }
     .doc-label-chip { max-width: 100%; min-height: 34px; border: 1px solid #c4c6cd; background: #ffffff; color: #162839; border-radius: 9999px; padding: 0.35rem 0.55rem; font-size: 0.75rem; font-weight: 800; display: inline-flex; align-items: center; gap: 0.3rem; text-align: left; }
@@ -133,6 +142,8 @@
 	    @media screen and (max-width: 420px) {
 	        .doc-action-btn { font-size: 0.76rem; padding-left: 0.35rem; padding-right: 0.35rem; }
 	        .portal-label-list { grid-template-columns: 1fr; }
+	        .portal-card-size-control { width: 100%; margin-left: 0; justify-content: space-between; }
+	        .portal-card-size-control input[type="range"] { flex: 1; width: auto; }
 	    }
 </style>
 {% endblock %}
@@ -248,6 +259,12 @@
                     <span class="material-symbols-outlined text-[18px]">view_list</span>
                     Lista
                 </button>
+            </div>
+            <div class="portal-card-size-control" id="portalCardSizeControl" title="Tamaño de tarjetas">
+                <span class="material-symbols-outlined" aria-hidden="true">width</span>
+                <label for="portalCardSize">Tarjetas</label>
+                <input id="portalCardSize" type="range" min="280" max="440" step="20" value="320" aria-label="Tamaño de tarjetas">
+                <span class="portal-card-size-value" id="portalCardSizeValue">320px</span>
             </div>
         </div>
     </section>
@@ -558,6 +575,10 @@
 {% block scripts %}
 <script>
 	    const PORTAL_DEFAULT_PAGE_SIZE = 25;
+	    const PORTAL_CARD_WIDTH_DEFAULT = 320;
+	    const PORTAL_CARD_WIDTH_MIN = 280;
+	    const PORTAL_CARD_WIDTH_MAX = 440;
+	    const PORTAL_OWNER_STORAGE_ID = "{{ owner_email|escapejs }}";
 	    let currentPortalDocs = [];
 	    let portalCurrentPage = 1;
 	    let portalCurrentPageSize = PORTAL_DEFAULT_PAGE_SIZE;
@@ -585,6 +606,31 @@
         } catch (error) {}
     }
 
+    function portalUserStorageKey(name) {
+        return `portalDashboard:${PORTAL_OWNER_STORAGE_ID || 'usuario'}:${name}`;
+    }
+
+    function clampPortalCardWidth(value) {
+        const parsed = Number(value || PORTAL_CARD_WIDTH_DEFAULT);
+        if (!Number.isFinite(parsed)) return PORTAL_CARD_WIDTH_DEFAULT;
+        return Math.min(PORTAL_CARD_WIDTH_MAX, Math.max(PORTAL_CARD_WIDTH_MIN, parsed));
+    }
+
+    function getStoredPortalCardWidth() {
+        try {
+            return clampPortalCardWidth(localStorage.getItem(portalUserStorageKey('cardWidth')));
+        } catch (error) {
+            return PORTAL_CARD_WIDTH_DEFAULT;
+        }
+    }
+
+    function storePortalCardWidth(width) {
+        try {
+            localStorage.setItem(portalUserStorageKey('cardWidth'), String(width));
+        } catch (error) {}
+    }
+
+    let portalCardWidth = getStoredPortalCardWidth();
     let viewMode = getStoredViewMode();
 
     function setViewMode(mode) {
@@ -600,6 +646,19 @@
         if (!cardsBtn || !listBtn) return;
         cardsBtn.classList.toggle('active', viewMode === 'cards');
         listBtn.classList.toggle('active', viewMode === 'list');
+        const cardSizeControl = document.getElementById('portalCardSizeControl');
+        if (cardSizeControl) cardSizeControl.classList.toggle('is-hidden', viewMode !== 'cards');
+    }
+
+    function applyPortalCardWidth(width, shouldStore) {
+        portalCardWidth = clampPortalCardWidth(width);
+        const grid = document.getElementById('gridContainer');
+        if (grid) grid.style.setProperty('--portal-card-width', `${portalCardWidth}px`);
+        const input = document.getElementById('portalCardSize');
+        const value = document.getElementById('portalCardSizeValue');
+        if (input) input.value = String(portalCardWidth);
+        if (value) value.textContent = `${portalCardWidth}px`;
+        if (shouldStore) storePortalCardWidth(portalCardWidth);
     }
 
     function escapeHtml(value) {
@@ -1139,6 +1198,7 @@
         const container = document.getElementById('gridContainer');
         container.innerHTML = '';
         container.className = viewMode === 'list' ? 'doc-list' : 'doc-grid';
+        applyPortalCardWidth(portalCardWidth);
 
         if (docs.length === 0) {
             container.innerHTML = `
@@ -1191,6 +1251,15 @@
         wrap.className = 'doc-list-wrap';
         wrap.innerHTML = `
             <table class="doc-list-table">
+                <colgroup>
+                    <col style="width: 21%;">
+                    <col style="width: 11%;">
+                    <col style="width: 12%;">
+                    <col style="width: 16%;">
+                    <col style="width: 9%;">
+                    <col style="width: 13%;">
+                    <col style="width: 18%;">
+                </colgroup>
                 <thead>
                     <tr>
                         <th>Folio</th>
@@ -1689,6 +1758,12 @@
                 cargarPortalDocumentos(1);
             }
         });
+        const portalCardSize = document.getElementById('portalCardSize');
+        if (portalCardSize) {
+            portalCardSize.addEventListener('input', event => applyPortalCardWidth(event.target.value, true));
+            portalCardSize.addEventListener('change', event => applyPortalCardWidth(event.target.value, true));
+        }
+        applyPortalCardWidth(portalCardWidth);
         updateViewToggle();
         cargarPortalEtiquetas().finally(() => cargarPortalDocumentos(1));
     });
