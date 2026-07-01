@@ -714,8 +714,15 @@
 
     function selectPortalLabel(value) {
         selectedPortalLabel = selectedPortalLabel === value && value !== PORTAL_LABEL_ALL ? PORTAL_LABEL_ALL : (value || PORTAL_LABEL_ALL);
+        resetPortalPageSize();
         renderPortalLabels();
         cargarPortalDocumentos(1);
+    }
+
+    function resetPortalPageSize() {
+        portalCurrentPageSize = PORTAL_DEFAULT_PAGE_SIZE;
+        const pageSizeInput = document.getElementById('portalPageSize');
+        if (pageSizeInput) pageSizeInput.value = PORTAL_DEFAULT_PAGE_SIZE;
     }
 
     function etiquetaTexto(doc) {
@@ -878,6 +885,7 @@
                 throw new Error(data.error || 'No se pudo eliminar la etiqueta');
             }
             selectedPortalLabel = PORTAL_LABEL_UNTAGGED;
+            resetPortalPageSize();
             portalLabels = data.labels || [];
             renderPortalLabels();
             setPortalLabelStatus('Etiqueta eliminada. Los documentos quedaron sin etiqueta.', 'ok');
@@ -1492,6 +1500,7 @@
         document.getElementById('filFechaFin').value = '';
         document.getElementById('selGroup').value = 'none';
         selectedPortalLabel = PORTAL_LABEL_ALL;
+        resetPortalPageSize();
         expandedPortalGroups = new Set();
         renderPortalLabels();
         cargarPortalDocumentos(1);
