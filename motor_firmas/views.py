@@ -185,6 +185,93 @@ def _guardar_etiqueta_documento_usuario(owner_email, etiqueta):
     return etiqueta
 
 
+def _resolver_etiqueta_documento_usuario(owner_email, etiqueta):
+    etiqueta = _normalizar_etiqueta_documento(etiqueta)
+    if not etiqueta or _etiqueta_documento_es_reservada(etiqueta):
+        return ''
+    for existente in _etiquetas_documentos_usuario(owner_email):
+        if existente.casefold() == etiqueta.casefold():
+            return existente
+    return ''
+
+
+def _actualizar_catalogo_etiquetas_usuario(owner_email, etiqueta_actual, etiqueta_nueva=None):
+    owner_email = _normalizar_email(owner_email)
+    etiqueta_actual_fold = _normalizar_etiqueta_documento(etiqueta_actual).casefold()
+    etiqueta_nueva = _normalizar_etiqueta_documento(etiqueta_nueva)
+    colaborador = _mongo_find_one(DirectorioFirmas, {'email': owner_email})
+    if not colaborador:
+        return
+
+    labels = _json_or_default(getattr(colaborador, 'etiquetas_documentos', []), [])
+    actualizadas = []
+    for item in labels:
+        item_norm = _normalizar_etiqueta_documento(item)
+        if not item_norm:
+            continue
+        if item_norm.casefold() == etiqueta_actual_fold:
+            item_norm = etiqueta_nueva
+        _agregar_etiqueta_unica(actualizadas, item_norm)
+
+    if etiqueta_nueva:
+        _agregar_etiqueta_unica(actualizadas, etiqueta_nueva)
+
+    _mongo_update_document(DirectorioFirmas, colaborador, {'etiquetas_documentos': actualizadas})
+
+
+def _renombrar_etiqueta_documento_usuario(owner_email, etiqueta_actual, etiqueta_nueva):
+    owner_email = _normalizar_email(owner_email)
+    actual = _resolver_etiqueta_documento_usuario(owner_email, etiqueta_actual)
+    if not actual:
+        raise ValueError("Etiqueta no encontrada.")
+
+    nueva = _normalizar_etiqueta_documento(etiqueta_nueva)
+    if not nueva:
+        raise ValueError("La etiqueta no puede estar vacía.")
+    if _etiqueta_documento_es_reservada(nueva):
+        raise ValueError("Ese nombre está reservado para filtros del sistema.")
+
+    for existente in _etiquetas_documentos_usuario(owner_email):
+        if existente.casefold() == nueva.casefold() and existente.casefold() != actual.casefold():
+            raise ValueError("Ya existe una etiqueta con ese nombre.")
+
+    _mongo_collection(ProcesoFirma).update_many(
+        {'owner_email': owner_email, 'etiqueta': actual},
+        {'$set': {'etiqueta': nueva}},
+    )
+
+    etiqueta_docs = _mongo_find(EtiquetaDocumento, {'owner_email': owner_email, 'nombre': actual})
+    if etiqueta_docs:
+        _mongo_collection(EtiquetaDocumento).update_many(
+            {'owner_email': owner_email, 'nombre': actual},
+            {'$set': {'nombre': nueva}},
+        )
+    elif not _mongo_find_one(EtiquetaDocumento, {'owner_email': owner_email, 'nombre': nueva}):
+        _mongo_insert_model(EtiquetaDocumento, {
+            'owner_email': owner_email,
+            'nombre': nueva,
+            'created_at': _datetime_for_mongo(),
+        })
+
+    _actualizar_catalogo_etiquetas_usuario(owner_email, actual, nueva)
+    return nueva
+
+
+def _eliminar_etiqueta_documento_usuario(owner_email, etiqueta):
+    owner_email = _normalizar_email(owner_email)
+    actual = _resolver_etiqueta_documento_usuario(owner_email, etiqueta)
+    if not actual:
+        raise ValueError("Etiqueta no encontrada.")
+
+    _mongo_collection(ProcesoFirma).update_many(
+        {'owner_email': owner_email, 'etiqueta': actual},
+        {'$set': {'etiqueta': ''}},
+    )
+    _mongo_collection(EtiquetaDocumento).delete_many({'owner_email': owner_email, 'nombre': actual})
+    _actualizar_catalogo_etiquetas_usuario(owner_email, actual)
+    return actual
+
+
 def _portal_etiquetas_payload(owner_email):
     owner_email = _normalizar_email(owner_email)
     collection = _mongo_collection(ProcesoFirma)
@@ -2713,12 +2800,24 @@ def portal_etiquetas_api(request):
         return JsonResponse({"error": "JSON inválido."}, status=400)
 
     try:
-        etiqueta = _guardar_etiqueta_documento_usuario(owner_email, data.get('nombre'))
+        accion = str(data.get('accion') or 'crear').strip().lower()
+        if accion == 'renombrar':
+            etiqueta = _renombrar_etiqueta_documento_usuario(
+                owner_email,
+                data.get('etiqueta_actual'),
+                data.get('nombre'),
+            )
+        elif accion == 'eliminar':
+            etiqueta = _eliminar_etiqueta_documento_usuario(owner_email, data.get('etiqueta'))
+        else:
+            accion = 'crear'
+            etiqueta = _guardar_etiqueta_documento_usuario(owner_email, data.get('nombre'))
     except ValueError as exc:
         return JsonResponse({"error": str(exc)}, status=400)
 
     payload = _portal_etiquetas_payload(owner_email)
-    payload['created_label'] = etiqueta
+    payload['accion'] = accion
+    payload['label'] = etiqueta
     return JsonResponse(payload)
 
 

@@ -24,6 +24,16 @@
     .portal-label-text { min-width: 0; font-size: 0.82rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .portal-label-count { color: #74777d; font-size: 0.72rem; font-weight: 800; }
     .portal-label-status { min-height: 1rem; margin-top: 0.5rem; color: #93000a; font-size: 0.74rem; font-weight: 700; }
+    .portal-label-manage { display: none; gap: 0.5rem; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #edeeef; }
+    .portal-label-manage.active { display: grid; }
+    .portal-label-manage-title { color: #43474c; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; }
+    .portal-label-manage-actions { display: grid; grid-template-columns: 1fr auto; gap: 0.45rem; }
+    .portal-label-save, .portal-label-delete { min-height: 36px; border-radius: 0.5rem; padding: 0.5rem 0.65rem; font-size: 0.76rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; }
+    .portal-label-save { border: 1px solid #162839; background: #ffffff; color: #162839; }
+    .portal-label-save:hover { background: #edeeef; }
+    .portal-label-delete { border: 1px solid #f7b9b4; background: #ffdad6; color: #93000a; }
+    .portal-label-delete:hover { background: #f7b9b4; }
+    .portal-label-save:disabled, .portal-label-delete:disabled { opacity: 0.65; cursor: not-allowed; }
     .doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.25rem; }
     .doc-card { background: #fff; border: 1px solid #c4c6cd; border-radius: 0.75rem; overflow: hidden; display: flex; flex-direction: column; border-top: 4px solid #162839; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
     .doc-card.doc-dragging, .doc-list-table tr.doc-dragging { opacity: 0.55; }
@@ -263,6 +273,19 @@
                 </button>
             </form>
             <div class="portal-label-list" id="portalLabelList"></div>
+            <div class="portal-label-manage" id="portalLabelManage">
+                <div class="portal-label-manage-title">Etiqueta seleccionada</div>
+                <input class="portal-label-input" id="portalLabelEditInput" type="text" maxlength="80" autocomplete="off">
+                <div class="portal-label-manage-actions">
+                    <button class="portal-label-save" id="portalLabelSaveBtn" type="button">
+                        <span class="material-symbols-outlined text-[18px]">save</span>
+                        Guardar
+                    </button>
+                    <button class="portal-label-delete" id="portalLabelDeleteBtn" type="button" title="Eliminar etiqueta">
+                        <span class="material-symbols-outlined text-[18px]">delete</span>
+                    </button>
+                </div>
+            </div>
             <div class="portal-label-status" id="portalLabelStatus" aria-live="polite"></div>
         </aside>
         <div class="portal-results-main">
@@ -568,6 +591,25 @@
         status.style.color = type === 'ok' ? '#1f7a44' : '#93000a';
     }
 
+    function selectedPortalLabelData() {
+        return portalLabels.find(label => label.value === selectedPortalLabel) || null;
+    }
+
+    function renderPortalLabelManage() {
+        const manage = document.getElementById('portalLabelManage');
+        const input = document.getElementById('portalLabelEditInput');
+        if (!manage || !input) return;
+
+        const label = selectedPortalLabelData();
+        const canManage = Boolean(label && !label.special);
+        manage.classList.toggle('active', canManage);
+        if (canManage) {
+            input.value = label.name || '';
+        } else {
+            input.value = '';
+        }
+    }
+
     function renderPortalLabels() {
         const list = document.getElementById('portalLabelList');
         if (!list) return;
@@ -603,6 +645,7 @@
 
             list.appendChild(button);
         });
+        renderPortalLabelManage();
     }
 
     function cargarPortalEtiquetas() {
@@ -713,6 +756,89 @@
             setPortalLabelStatus('Etiqueta creada.', 'ok');
         } catch (error) {
             setPortalLabelStatus(error.message || 'No se pudo crear la etiqueta');
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    async function renombrarEtiquetaPortal() {
+        const input = document.getElementById('portalLabelEditInput');
+        const button = document.getElementById('portalLabelSaveBtn');
+        const label = selectedPortalLabelData();
+        if (!label || label.special) return;
+
+        const nombre = input.value.trim();
+        if (!nombre) {
+            setPortalLabelStatus('Escribe un nombre de etiqueta.');
+            return;
+        }
+        if (nombre === label.name) {
+            setPortalLabelStatus('');
+            return;
+        }
+
+        button.disabled = true;
+        setPortalLabelStatus('');
+        try {
+            const response = await fetch('/api/portal-etiquetas/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    accion: 'renombrar',
+                    etiqueta_actual: label.value,
+                    nombre
+                })
+            });
+            const data = await response.json();
+            if (!response.ok || data.status !== 'success') {
+                throw new Error(data.error || 'No se pudo renombrar la etiqueta');
+            }
+            selectedPortalLabel = data.label || nombre;
+            portalLabels = data.labels || [];
+            renderPortalLabels();
+            setPortalLabelStatus('Etiqueta actualizada.', 'ok');
+            cargarPortalDocumentos(1);
+        } catch (error) {
+            setPortalLabelStatus(error.message || 'No se pudo renombrar la etiqueta');
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    async function eliminarEtiquetaPortal() {
+        const button = document.getElementById('portalLabelDeleteBtn');
+        const label = selectedPortalLabelData();
+        if (!label || label.special) return;
+        if (!confirm(`¿Eliminar la etiqueta "${label.name}"? Los documentos quedarán sin etiqueta.`)) return;
+
+        button.disabled = true;
+        setPortalLabelStatus('');
+        try {
+            const response = await fetch('/api/portal-etiquetas/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    accion: 'eliminar',
+                    etiqueta: label.value
+                })
+            });
+            const data = await response.json();
+            if (!response.ok || data.status !== 'success') {
+                throw new Error(data.error || 'No se pudo eliminar la etiqueta');
+            }
+            selectedPortalLabel = PORTAL_LABEL_UNTAGGED;
+            portalLabels = data.labels || [];
+            renderPortalLabels();
+            setPortalLabelStatus('Etiqueta eliminada. Los documentos quedaron sin etiqueta.', 'ok');
+            cargarPortalDocumentos(1);
+        } catch (error) {
+            setPortalLabelStatus(error.message || 'No se pudo eliminar la etiqueta');
         } finally {
             button.disabled = false;
         }
@@ -1292,6 +1418,14 @@
 
     document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('portalLabelForm').addEventListener('submit', crearEtiquetaPortal);
+        document.getElementById('portalLabelSaveBtn').addEventListener('click', renombrarEtiquetaPortal);
+        document.getElementById('portalLabelDeleteBtn').addEventListener('click', eliminarEtiquetaPortal);
+        document.getElementById('portalLabelEditInput').addEventListener('keydown', event => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                renombrarEtiquetaPortal();
+            }
+        });
         const gridContainer = document.getElementById('gridContainer');
         gridContainer.addEventListener('dragstart', event => {
             const target = event.target instanceof Element ? event.target : event.target.parentElement;
