@@ -6,8 +6,29 @@
 {% block extra_head %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 <style>
+    .portal-results-layout { display: grid; grid-template-columns: minmax(178px, 220px) minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .portal-results-main { min-width: 0; }
+    .portal-label-panel { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; background: #ffffff; border: 1px solid #c4c6cd; border-radius: 0.75rem; padding: 0.8rem; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+    .portal-label-title { display: flex; align-items: center; gap: 0.45rem; margin: 0 0 0.75rem; color: #162839; font-weight: 800; font-size: 0.95rem; }
+    .portal-label-form { display: grid; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .portal-label-input { width: 100%; border: 1px solid #c4c6cd; border-radius: 0.5rem; padding: 0.65rem 0.7rem; font-size: 0.85rem; outline: none; }
+    .portal-label-input:focus { border-color: #162839; box-shadow: 0 0 0 2px rgba(22, 40, 57, 0.12); }
+    .portal-label-create { min-height: 38px; border: 1px solid #162839; background: #162839; color: #ffffff; border-radius: 0.5rem; padding: 0.55rem 0.7rem; font-size: 0.78rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; }
+    .portal-label-create:disabled { opacity: 0.65; cursor: not-allowed; }
+    .portal-label-list { display: grid; gap: 0.35rem; }
+    .portal-label-item { width: 100%; border: 1px solid transparent; background: transparent; color: #43474c; border-radius: 0.55rem; padding: 0.55rem 0.45rem; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.5rem; text-align: left; transition: background-color 0.2s ease, border-color 0.2s ease; }
+    .portal-label-item:hover { background: #f8f9fa; border-color: #e1e3e4; }
+    .portal-label-item.active { background: #edeeef; border-color: #162839; color: #162839; }
+    .portal-label-item.drag-over { background: #fff8d7; border-color: #fed023; }
+    .portal-label-icon { font-size: 2rem; color: currentColor; line-height: 1; }
+    .portal-label-text { min-width: 0; font-size: 0.82rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .portal-label-count { color: #74777d; font-size: 0.72rem; font-weight: 800; }
+    .portal-label-status { min-height: 1rem; margin-top: 0.5rem; color: #93000a; font-size: 0.74rem; font-weight: 700; }
     .doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.25rem; }
     .doc-card { background: #fff; border: 1px solid #c4c6cd; border-radius: 0.75rem; overflow: hidden; display: flex; flex-direction: column; border-top: 4px solid #162839; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+    .doc-card.doc-dragging, .doc-list-table tr.doc-dragging { opacity: 0.55; }
+    .doc-draggable { cursor: grab; }
+    .doc-draggable:active { cursor: grabbing; }
     .doc-card.completed { border-top-color: #27ae60; }
     .doc-card.cancelled { border-top-color: #e74c3c; opacity: 0.92; }
     .status-badge.bg-firmx { background-color: #2d9be8 !important; color: white; }
@@ -41,7 +62,7 @@
     .view-toggle-btn.active { background: #162839; color: #ffffff; }
     .doc-list { display: block; }
     .doc-list-wrap { overflow-x: auto; background: #ffffff; border: 1px solid #c4c6cd; border-radius: 0.75rem; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
-    .doc-list-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 980px; }
+    .doc-list-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1080px; }
     .doc-list-table th { background: #f8f9fa; color: #43474c; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; text-align: left; padding: 0.85rem 1rem; border-bottom: 1px solid #c4c6cd; white-space: nowrap; }
     .doc-list-table td { padding: 0.9rem 1rem; border-bottom: 1px solid #edeeef; vertical-align: middle; font-size: 0.88rem; }
     .doc-list-table tr:last-child td { border-bottom: 0; }
@@ -53,6 +74,16 @@
     .doc-list-action:hover { background: #edeeef; border-color: #74777d; }
     .doc-list-action.secondary { background: #fed023; border-color: #fed023; }
     .doc-list-action.secondary:hover { background: #eec209; border-color: #eec209; }
+    .doc-label-picker { position: relative; display: inline-flex; max-width: 100%; }
+    .doc-label-picker.compact { width: 100%; }
+    .doc-label-chip { max-width: 100%; min-height: 34px; border: 1px solid #c4c6cd; background: #ffffff; color: #162839; border-radius: 9999px; padding: 0.35rem 0.55rem; font-size: 0.75rem; font-weight: 800; display: inline-flex; align-items: center; gap: 0.3rem; text-align: left; }
+    .doc-label-chip:hover { background: #f8f9fa; border-color: #74777d; }
+    .doc-label-chip-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .doc-label-menu { display: none; position: absolute; top: calc(100% + 0.35rem); left: 0; z-index: 40; min-width: 200px; max-width: min(260px, 90vw); background: #ffffff; border: 1px solid #c4c6cd; border-radius: 0.55rem; box-shadow: 0 16px 32px rgba(0,0,0,0.16); padding: 0.35rem; }
+    .doc-label-picker.open .doc-label-menu { display: grid; gap: 0.2rem; }
+    .doc-label-option { width: 100%; border: 0; background: transparent; color: #162839; border-radius: 0.4rem; padding: 0.5rem 0.55rem; font-size: 0.78rem; font-weight: 750; display: flex; align-items: center; gap: 0.35rem; text-align: left; }
+    .doc-label-option:hover, .doc-label-option.active { background: #edeeef; }
+    .doc-label-empty { color: #74777d; padding: 0.55rem; font-size: 0.75rem; font-weight: 700; }
     .qr-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(22, 40, 57, 0.78); z-index: 1100; justify-content: center; align-items: center; backdrop-filter: blur(4px); padding: 1rem; }
     .qr-modal { width: 720px; max-width: 100%; max-height: 92vh; background: #ffffff; border: 1px solid #c4c6cd; border-radius: 0.75rem; overflow: hidden; box-shadow: 0 20px 45px rgba(0,0,0,0.2); display: flex; flex-direction: column; }
     .qr-modal-body { padding: 1.5rem; overflow-y: auto; }
@@ -67,8 +98,14 @@
     .qr-status { display: none; margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.88rem; font-weight: 700; }
     .qr-status.ok { display: block; background: #d3f9d8; color: #1f7a44; }
 	    .qr-status.error { display: block; background: #ffdad6; color: #93000a; }
+	    @media screen and (max-width: 1024px) {
+	        .portal-results-layout { grid-template-columns: 1fr; }
+	        .portal-label-panel { position: static; max-height: none; }
+	        .portal-label-list { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+	    }
 	    @media screen and (max-width: 420px) {
 	        .doc-action-btn { font-size: 0.76rem; padding-left: 0.35rem; padding-right: 0.35rem; }
+	        .portal-label-list { grid-template-columns: 1fr; }
 	    }
 </style>
 {% endblock %}
@@ -212,7 +249,26 @@
         </div>
     </section>
 
-    <section class="doc-grid" id="gridContainer"></section>
+    <section class="portal-results-layout">
+        <aside class="portal-label-panel" aria-label="Etiquetas de documentos">
+            <h2 class="portal-label-title">
+                <span class="material-symbols-outlined text-[20px]">folder</span>
+                Etiquetas
+            </h2>
+            <form class="portal-label-form" id="portalLabelForm">
+                <input class="portal-label-input" id="portalLabelInput" type="text" maxlength="80" placeholder="Nueva etiqueta" autocomplete="off">
+                <button class="portal-label-create" id="portalLabelCreateBtn" type="submit">
+                    <span class="material-symbols-outlined text-[18px]">create_new_folder</span>
+                    Nueva etiqueta
+                </button>
+            </form>
+            <div class="portal-label-list" id="portalLabelList"></div>
+            <div class="portal-label-status" id="portalLabelStatus" aria-live="polite"></div>
+        </aside>
+        <div class="portal-results-main">
+            <section class="doc-grid" id="gridContainer"></section>
+        </div>
+    </section>
 </div>
 
 <div class="qr-modal-overlay" id="qrModalOverlay">
@@ -459,6 +515,10 @@
 	    let portalFilterTimer = null;
 	    let portalDocsRequestId = 0;
 	    let expandedPortalGroups = new Set();
+	    const PORTAL_LABEL_ALL = 'all';
+	    const PORTAL_LABEL_UNTAGGED = 'sin_etiqueta';
+	    let portalLabels = [];
+	    let selectedPortalLabel = PORTAL_LABEL_ALL;
 	    const portalNeutralColor = getComputedStyle(document.documentElement).getPropertyValue('--portal-text-strong').trim() || '#202124';
 
     function getStoredViewMode() {
@@ -501,6 +561,189 @@
             .replace(/'/g, '&#039;');
     }
 
+    function setPortalLabelStatus(message, type) {
+        const status = document.getElementById('portalLabelStatus');
+        if (!status) return;
+        status.textContent = message || '';
+        status.style.color = type === 'ok' ? '#1f7a44' : '#93000a';
+    }
+
+    function renderPortalLabels() {
+        const list = document.getElementById('portalLabelList');
+        if (!list) return;
+        list.innerHTML = '';
+
+        portalLabels.forEach(label => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = `portal-label-item ${selectedPortalLabel === label.value ? 'active' : ''}`;
+            button.dataset.labelValue = label.value;
+            button.innerHTML = `
+                <span class="material-symbols-outlined portal-label-icon">${escapeHtml(label.icon || 'folder')}</span>
+                <span class="portal-label-text">${escapeHtml(label.name)}</span>
+                <span class="portal-label-count">${Number(label.count || 0)}</span>
+            `;
+            button.addEventListener('click', () => selectPortalLabel(label.value));
+
+            if (label.value !== PORTAL_LABEL_ALL) {
+                button.addEventListener('dragover', event => {
+                    event.preventDefault();
+                    button.classList.add('drag-over');
+                    event.dataTransfer.dropEffect = 'move';
+                });
+                button.addEventListener('dragleave', () => button.classList.remove('drag-over'));
+                button.addEventListener('drop', event => {
+                    event.preventDefault();
+                    button.classList.remove('drag-over');
+                    const token = event.dataTransfer.getData('text/plain');
+                    if (!token) return;
+                    asignarEtiquetaDocumento(token, label.value === PORTAL_LABEL_UNTAGGED ? '' : label.value);
+                });
+            }
+
+            list.appendChild(button);
+        });
+    }
+
+    function cargarPortalEtiquetas() {
+        return fetch('/api/portal-etiquetas/', { headers: { 'Accept': 'application/json' } })
+            .then(async response => {
+                const data = await response.json();
+                if (!response.ok || data.status !== 'success') {
+                    throw new Error(data.error || 'No se pudieron cargar las etiquetas');
+                }
+                portalLabels = data.labels || [];
+                if (!portalLabels.some(label => label.value === selectedPortalLabel)) {
+                    selectedPortalLabel = PORTAL_LABEL_ALL;
+                }
+                renderPortalLabels();
+                return data;
+            })
+            .catch(error => {
+                setPortalLabelStatus(error.message || 'No se pudieron cargar las etiquetas');
+            });
+    }
+
+    function selectPortalLabel(value) {
+        selectedPortalLabel = selectedPortalLabel === value && value !== PORTAL_LABEL_ALL ? PORTAL_LABEL_ALL : (value || PORTAL_LABEL_ALL);
+        renderPortalLabels();
+        cargarPortalDocumentos(1);
+    }
+
+    function etiquetaTexto(doc) {
+        return doc.etiqueta ? doc.etiqueta : 'Sin etiqueta';
+    }
+
+    function etiquetaOpcionesHtml(doc) {
+        const labels = portalLabels.filter(label => !label.special);
+        const current = doc.etiqueta || '';
+        let html = `
+            <button type="button" class="doc-label-option ${!current ? 'active' : ''}" data-label-option data-token="${escapeHtml(doc.token)}" data-label-value="">
+                <span class="material-symbols-outlined text-[16px]">folder_off</span>
+                Sin etiqueta
+            </button>
+        `;
+
+        if (!labels.length) {
+            html += '<div class="doc-label-empty">Sin etiquetas creadas</div>';
+            return html;
+        }
+
+        labels.forEach(label => {
+            html += `
+                <button type="button" class="doc-label-option ${current === label.value ? 'active' : ''}" data-label-option data-token="${escapeHtml(doc.token)}" data-label-value="${escapeHtml(label.value)}">
+                    <span class="material-symbols-outlined text-[16px]">folder</span>
+                    <span class="doc-label-chip-text">${escapeHtml(label.name)}</span>
+                </button>
+            `;
+        });
+        return html;
+    }
+
+    function etiquetaPickerHtml(doc, compact) {
+        const labelText = etiquetaTexto(doc);
+        return `
+            <div class="doc-label-picker ${compact ? 'compact' : ''}">
+                <button type="button" class="doc-label-chip" data-label-picker-trigger data-token="${escapeHtml(doc.token)}" title="Etiqueta">
+                    <span class="material-symbols-outlined text-[16px]">${doc.etiqueta ? 'folder' : 'folder_off'}</span>
+                    <span class="doc-label-chip-text">${escapeHtml(labelText)}</span>
+                    <span class="material-symbols-outlined text-[16px]">expand_more</span>
+                </button>
+                <div class="doc-label-menu" role="menu">
+                    ${etiquetaOpcionesHtml(doc)}
+                </div>
+            </div>
+        `;
+    }
+
+    function closeDocLabelMenus(exceptPicker) {
+        document.querySelectorAll('.doc-label-picker.open').forEach(picker => {
+            if (picker !== exceptPicker) picker.classList.remove('open');
+        });
+    }
+
+    async function crearEtiquetaPortal(event) {
+        event.preventDefault();
+        const input = document.getElementById('portalLabelInput');
+        const button = document.getElementById('portalLabelCreateBtn');
+        const nombre = input.value.trim();
+        if (!nombre) {
+            setPortalLabelStatus('Escribe un nombre de etiqueta.');
+            return;
+        }
+
+        button.disabled = true;
+        setPortalLabelStatus('');
+        try {
+            const response = await fetch('/api/portal-etiquetas/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ nombre })
+            });
+            const data = await response.json();
+            if (!response.ok || data.status !== 'success') {
+                throw new Error(data.error || 'No se pudo crear la etiqueta');
+            }
+            portalLabels = data.labels || [];
+            input.value = '';
+            renderPortalLabels();
+            setPortalLabelStatus('Etiqueta creada.', 'ok');
+        } catch (error) {
+            setPortalLabelStatus(error.message || 'No se pudo crear la etiqueta');
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    async function asignarEtiquetaDocumento(token, etiqueta) {
+        closeDocLabelMenus();
+        setPortalLabelStatus('');
+        try {
+            const response = await fetch('/api/portal-documento-etiqueta/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ token, etiqueta })
+            });
+            const data = await response.json();
+            if (!response.ok || data.status !== 'success') {
+                throw new Error(data.error || 'No se pudo actualizar la etiqueta');
+            }
+            portalLabels = data.labels || portalLabels;
+            const doc = currentPortalDocs.find(item => item.token === token);
+            if (doc && data.documento) doc.etiqueta = data.documento.etiqueta || '';
+            renderPortalLabels();
+            cargarPortalDocumentos(portalCurrentPage);
+        } catch (error) {
+            setPortalLabelStatus(error.message || 'No se pudo actualizar la etiqueta');
+        }
+    }
+
     function portalPayload(page) {
         return {
             page: Number(page || 1),
@@ -508,7 +751,8 @@
             filFolio: document.getElementById('filFolio').value,
             filEstado: document.getElementById('filEstado').value,
             filFechaIni: document.getElementById('filFechaIni').value,
-            filFechaFin: document.getElementById('filFechaFin').value
+            filFechaFin: document.getElementById('filFechaFin').value,
+            filEtiqueta: selectedPortalLabel
         };
     }
 
@@ -637,6 +881,7 @@
                         <th>Folio</th>
                         <th>Estado</th>
                         <th>Enviado</th>
+                        <th>Etiqueta</th>
                         <th>Firmas</th>
                         <th>Progreso</th>
                         <th>Acciones</th>
@@ -663,7 +908,7 @@
                 const groupRow = document.createElement('tr');
                 groupRow.className = 'doc-list-group';
                 groupRow.innerHTML = `
-                    <td colspan="6">
+                    <td colspan="7">
                         <div class="flex items-center justify-between gap-3">
                             <span class="inline-flex items-center gap-2">
                                 <span class="material-symbols-outlined text-[18px]">${expanded ? 'expand_less' : 'chevron_right'}</span>
@@ -719,7 +964,9 @@
         const div = document.createElement('div');
         const { badgeClass, statusText, colorProgress } = statusMeta(doc);
 
-        div.className = `doc-card ${doc.status === 'COMPLETED' ? 'completed' : ''} ${doc.status === 'CANCELLED' ? 'cancelled' : ''}`;
+        div.className = `doc-card doc-draggable ${doc.status === 'COMPLETED' ? 'completed' : ''} ${doc.status === 'CANCELLED' ? 'cancelled' : ''}`;
+        div.draggable = true;
+        div.dataset.docToken = doc.token;
 
         let progressHTML = '';
         if (doc.status !== 'CANCELLED') {
@@ -789,6 +1036,7 @@
                     <span class="material-symbols-outlined text-outline text-[18px]">event</span>
                     <span>Enviado: <strong>${escapeHtml(doc.fecha_formato)}</strong></span>
                 </div>
+                <div>${etiquetaPickerHtml(doc, false)}</div>
                 ${progressHTML}
             </div>
             <div class="doc-card-footer">
@@ -801,6 +1049,9 @@
     function crearFilaLista(doc) {
         const tr = document.createElement('tr');
         const { badgeClass, statusText, colorProgress } = statusMeta(doc);
+        tr.className = 'doc-draggable';
+        tr.draggable = true;
+        tr.dataset.docToken = doc.token;
         const progressCell = doc.status === 'CANCELLED'
             ? `<span class="text-status-danger font-bold text-xs">Proceso detenido</span>`
             : `
@@ -852,6 +1103,7 @@
             <td><div class="doc-list-title">${escapeHtml(doc.reference_id)}</div></td>
             <td><span class="status-badge ${badgeClass}">${statusText}</span></td>
             <td>${escapeHtml(doc.fecha_formato)}</td>
+            <td class="doc-list-label-cell">${etiquetaPickerHtml(doc, true)}</td>
             <td><strong>${doc.firmas_hechas}</strong> de ${doc.total_firmas}</td>
             <td>${progressCell}</td>
             <td><div class="doc-list-actions">${actions}</div></td>
@@ -1032,11 +1284,61 @@
         document.getElementById('filFechaIni').value = '';
         document.getElementById('filFechaFin').value = '';
         document.getElementById('selGroup').value = 'none';
+        selectedPortalLabel = PORTAL_LABEL_ALL;
         expandedPortalGroups = new Set();
+        renderPortalLabels();
         cargarPortalDocumentos(1);
     }
 
     document.addEventListener("DOMContentLoaded", () => {
+        document.getElementById('portalLabelForm').addEventListener('submit', crearEtiquetaPortal);
+        const gridContainer = document.getElementById('gridContainer');
+        gridContainer.addEventListener('dragstart', event => {
+            const target = event.target instanceof Element ? event.target : event.target.parentElement;
+            const item = target ? target.closest('[data-doc-token]') : null;
+            if (!item) return;
+            event.dataTransfer.setData('text/plain', item.dataset.docToken);
+            event.dataTransfer.effectAllowed = 'move';
+            item.classList.add('doc-dragging');
+        });
+        gridContainer.addEventListener('dragend', event => {
+            const target = event.target instanceof Element ? event.target : event.target.parentElement;
+            const item = target ? target.closest('[data-doc-token]') : null;
+            if (item) item.classList.remove('doc-dragging');
+            document.querySelectorAll('.portal-label-item.drag-over').forEach(label => label.classList.remove('drag-over'));
+        });
+        document.addEventListener('click', event => {
+            const target = event.target instanceof Element ? event.target : event.target.parentElement;
+            const trigger = target ? target.closest('[data-label-picker-trigger]') : null;
+            if (trigger) {
+                event.preventDefault();
+                event.stopPropagation();
+                const picker = trigger.closest('.doc-label-picker');
+                const isOpen = picker.classList.contains('open');
+                closeDocLabelMenus(picker);
+                picker.classList.toggle('open', !isOpen);
+                return;
+            }
+
+            const option = target ? target.closest('[data-label-option]') : null;
+            if (option) {
+                event.preventDefault();
+                event.stopPropagation();
+                asignarEtiquetaDocumento(option.dataset.token, option.dataset.labelValue || '');
+                return;
+            }
+
+            if (!target || !target.closest('.doc-label-picker')) {
+                closeDocLabelMenus();
+            }
+        });
+        document.addEventListener('focusin', event => {
+            const target = event.target instanceof Element ? event.target : event.target.parentElement;
+            if (!target || !target.closest('.doc-label-picker')) closeDocLabelMenus();
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') closeDocLabelMenus();
+        });
         document.getElementById('filFolio').addEventListener('input', () => {
             clearTimeout(portalFilterTimer);
             portalFilterTimer = setTimeout(() => cargarPortalDocumentos(1), 350);
@@ -1062,7 +1364,7 @@
             }
         });
         updateViewToggle();
-        cargarPortalDocumentos(1);
+        cargarPortalEtiquetas().finally(() => cargarPortalDocumentos(1));
     });
 
     let plantillasApiData = {{ plantillas_api|safe|default:"[]" }};

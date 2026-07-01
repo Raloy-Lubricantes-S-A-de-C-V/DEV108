@@ -23,6 +23,7 @@ class ProcesoFirma(models.Model):
     valores_capturados = models.JSONField(default=dict, blank=True)
 
     owner_email = models.CharField(max_length=200, null=True, blank=True)
+    etiqueta = models.CharField(max_length=80, blank=True, default='')
     created_at = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
@@ -60,6 +61,7 @@ class DirectorioFirmas(models.Model):
     # Nuevos campos para administración
     tecnico_asignado = models.EmailField(null=True, blank=True)
     permisos_portal = models.JSONField(default=list, blank=True)
+    etiquetas_documentos = models.JSONField(default=list, blank=True)
     ultima_actividad = models.DateTimeField(null=True, blank=True)
     
     # Notificaciones y App
@@ -151,3 +153,15 @@ class ConfiguracionFirmex(models.Model):
 
     def __str__(self):
         return f"Configuración FIRMX - {self.updated_at}"
+
+
+class EtiquetaDocumento(models.Model):
+    owner_email = models.CharField(max_length=200)
+    nombre = models.CharField(max_length=80)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        unique_together = ('owner_email', 'nombre')
+
+    def __str__(self):
+        return f"{self.owner_email} - {self.nombre}"

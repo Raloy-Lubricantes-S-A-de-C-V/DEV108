@@ -12,6 +12,8 @@
     .admin-table tbody tr:hover { background: #f8f9fa; }
     .admin-group-row td { background: #f3f4f5; color: #162839; font-weight: 700; border-left: 4px solid #162839; cursor: pointer; }
     .admin-pager-input { width: 5rem; text-align: center; }
+    .admin-label-badge { display: inline-flex; align-items: center; gap: 0.25rem; border: 1px solid #c4c6cd; border-radius: 9999px; padding: 0.3rem 0.55rem; color: #162839; background: #ffffff; font-size: 0.74rem; font-weight: 800; max-width: 180px; }
+    .admin-label-badge span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
 {% endblock %}
 
@@ -129,6 +131,7 @@
                         <th>Dominio</th>
                         <th>Fecha</th>
                         <th>Progreso</th>
+                        <th>Etiqueta</th>
                         <th>Estado</th>
                         <th>Acciones</th>
                     </tr>
@@ -574,7 +577,7 @@
             renderTable();
         })
         .catch(err => {
-            tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-status-danger py-10">${escapeHtml(err.message || 'Error al cargar documentos')}</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-status-danger py-10">${escapeHtml(err.message || 'Error al cargar documentos')}</td></tr>`;
         })
         .finally(() => {
             if (requestId === docsRequestId) setLoadingDocs(false);
@@ -604,7 +607,7 @@
         const groupProp = selGroup.value;
 
         if (docs.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-outline py-10">No hay documentos para mostrar.</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="8" class="text-center text-outline py-10">No hay documentos para mostrar.</td></tr>';
             return;
         }
 
@@ -625,7 +628,7 @@
                 trGroup.className = 'admin-group-row';
                 const label = groupProp === 'status' ? estadoLabel(groupName) : groupName;
                 trGroup.innerHTML = `
-                    <td colspan="7">
+                    <td colspan="8">
                         <div class="flex items-center justify-between gap-3">
                             <span class="inline-flex items-center gap-2">
                                 <span class="material-symbols-outlined text-[18px]">${expanded ? 'expand_less' : 'chevron_right'}</span>
@@ -668,6 +671,13 @@
                     <span class="material-symbols-outlined text-[16px]">edit_location_alt</span> Ajustar
                </a>`
             : '';
+        const etiqueta = doc.etiqueta || '';
+        const etiquetaHtml = `
+            <span class="admin-label-badge" title="${escapeHtml(etiqueta || 'Sin etiqueta')}">
+                <span class="material-symbols-outlined text-[15px]">${etiqueta ? 'folder' : 'folder_off'}</span>
+                <span>${escapeHtml(etiqueta || 'Sin etiqueta')}</span>
+            </span>
+        `;
 
         tr.innerHTML = `
             <td><span class="font-bold text-primary">${doc.reference_id}</span></td>
@@ -675,6 +685,7 @@
             <td class="text-on-surface-variant font-medium text-xs">@${doc.dominio}</td>
             <td class="text-on-surface-variant text-xs">${doc.fecha}</td>
             <td class="text-primary font-semibold text-xs">${doc.progreso} Firmas</td>
+            <td>${etiquetaHtml}</td>
             <td><span class="status-badge ${badgeClass}">${statusText}</span></td>
             <td>
                 <div class="flex items-center gap-2 flex-wrap">

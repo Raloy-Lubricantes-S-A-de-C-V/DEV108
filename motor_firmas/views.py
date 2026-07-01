@@ -18,7 +18,7 @@ from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.utils import timezone
 from django.contrib.auth.hashers import check_password, make_password
 from .models import ProcesoFirma, DirectorioFirmas, OTPLogin, AdministradorPortal, PlantillaFormulario, CarpetaDominio, \
-    DocumentoPDFUsuario, AreaFirmex, ConfiguracionFirmex
+    DocumentoPDFUsuario, AreaFirmex, ConfiguracionFirmex, EtiquetaDocumento
 from .utils import estampar_firma_en_pdf, estampar_variables_en_pdf, crear_notificacion_firma, reubicar_firmas_en_pdf
 
 # WEBHOOKS DE N8N
@@ -44,6 +44,9 @@ BRAND_LEGACY_INVERTED_LOGO_URL = "/static/motor_firmas/img/raloy-logo-inverted.s
 BRAND_DEFAULT_NAME = "Raloy Lubricantes"
 BRAND_LOGO_ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 FIRMX_TERMINAL_STATUSES = {'COMPLETED', 'CANCELLED'}
+PORTAL_LABEL_ALL_VALUE = 'all'
+PORTAL_LABEL_UNTAGGED_VALUE = 'sin_etiqueta'
+PORTAL_LABEL_RESERVED_NAMES = {'all', 'todo', 'sin etiqueta', 'sin_etiqueta'}
 
 _MONGO_CLIENT = None
 
@@ -97,6 +100,125 @@ def _normalizar_email(email):
 def _normalizar_dominio(dominio):
     dominio = str(dominio or '').strip().lower()
     return dominio[1:] if dominio.startswith('@') else dominio
+
+
+def _normalizar_etiqueta_documento(etiqueta):
+    etiqueta = re.sub(r'\s+', ' ', str(etiqueta or '').strip())
+    return etiqueta[:80]
+
+
+def _etiqueta_documento_es_reservada(etiqueta):
+    return _normalizar_etiqueta_documento(etiqueta).casefold() in PORTAL_LABEL_RESERVED_NAMES
+
+
+def _query_sin_etiqueta_documento(owner_email=None):
+    query = {
+        '$or': [
+            {'etiqueta': {'$exists': False}},
+            {'etiqueta': None},
+            {'etiqueta': ''},
+        ]
+    }
+    if owner_email:
+        query['owner_email'] = _normalizar_email(owner_email)
+    return query
+
+
+def _agregar_etiqueta_unica(labels, etiqueta):
+    etiqueta = _normalizar_etiqueta_documento(etiqueta)
+    if not etiqueta:
+        return
+    existentes = {str(item).casefold() for item in labels}
+    if etiqueta.casefold() not in existentes:
+        labels.append(etiqueta)
+
+
+def _etiquetas_documentos_usuario(owner_email):
+    owner_email = _normalizar_email(owner_email)
+    labels = []
+
+    for etiqueta in _mongo_find(EtiquetaDocumento, {'owner_email': owner_email}, [('created_at', 1)]):
+        _agregar_etiqueta_unica(labels, getattr(etiqueta, 'nombre', ''))
+
+    colaborador = _mongo_find_one(DirectorioFirmas, {'email': owner_email})
+    for etiqueta in _json_or_default(getattr(colaborador, 'etiquetas_documentos', []), []) if colaborador else []:
+        _agregar_etiqueta_unica(labels, etiqueta)
+
+    try:
+        etiquetas_usadas = _mongo_collection(ProcesoFirma).distinct('etiqueta', {'owner_email': owner_email})
+    except Exception:
+        etiquetas_usadas = []
+    for etiqueta in sorted([_normalizar_etiqueta_documento(e) for e in etiquetas_usadas if _normalizar_etiqueta_documento(e)], key=str.casefold):
+        _agregar_etiqueta_unica(labels, etiqueta)
+
+    return labels
+
+
+def _guardar_etiqueta_documento_usuario(owner_email, etiqueta):
+    owner_email = _normalizar_email(owner_email)
+    etiqueta = _normalizar_etiqueta_documento(etiqueta)
+    if not etiqueta:
+        raise ValueError("La etiqueta no puede estar vacía.")
+    if _etiqueta_documento_es_reservada(etiqueta):
+        raise ValueError("Ese nombre está reservado para filtros del sistema.")
+
+    existentes = _etiquetas_documentos_usuario(owner_email)
+    for existente in existentes:
+        if existente.casefold() == etiqueta.casefold():
+            etiqueta = existente
+            break
+    else:
+        _mongo_insert_model(EtiquetaDocumento, {
+            'owner_email': owner_email,
+            'nombre': etiqueta,
+            'created_at': _datetime_for_mongo(),
+        })
+
+    colaborador = _mongo_find_one(DirectorioFirmas, {'email': owner_email})
+    if colaborador:
+        labels = _json_or_default(getattr(colaborador, 'etiquetas_documentos', []), [])
+        before_count = len(labels)
+        _agregar_etiqueta_unica(labels, etiqueta)
+        if len(labels) != before_count:
+            _mongo_update_document(DirectorioFirmas, colaborador, {'etiquetas_documentos': labels})
+
+    return etiqueta
+
+
+def _portal_etiquetas_payload(owner_email):
+    owner_email = _normalizar_email(owner_email)
+    collection = _mongo_collection(ProcesoFirma)
+    base_query = {'owner_email': owner_email}
+    total = collection.count_documents(base_query)
+    sin_etiqueta = collection.count_documents(_query_sin_etiqueta_documento(owner_email))
+
+    labels = [
+        {
+            'value': PORTAL_LABEL_ALL_VALUE,
+            'name': 'Todo',
+            'count': total,
+            'special': True,
+            'icon': 'folder_open',
+        },
+        {
+            'value': PORTAL_LABEL_UNTAGGED_VALUE,
+            'name': 'Sin etiqueta',
+            'count': sin_etiqueta,
+            'special': True,
+            'icon': 'folder_off',
+        },
+    ]
+
+    for etiqueta in _etiquetas_documentos_usuario(owner_email):
+        labels.append({
+            'value': etiqueta,
+            'name': etiqueta,
+            'count': collection.count_documents({'owner_email': owner_email, 'etiqueta': etiqueta}),
+            'special': False,
+            'icon': 'folder',
+        })
+
+    return {'status': 'success', 'labels': labels}
 
 
 def _dominio_de_email(email):
@@ -480,6 +602,7 @@ def _mongo_to_namespace(document):
         'firmantes_config': [],
         'usuarios_permitidos': [],
         'permisos_portal': [],
+        'etiquetas_documentos': [],
         'configuracion_dashboard': {},
     }.items():
         if field in data:
@@ -642,6 +765,7 @@ def _admin_dashboard_doc_payload(proceso):
     owner_doc = getattr(proceso, 'owner_email', '') or ''
     created_at = getattr(proceso, 'created_at', None)
     status = getattr(proceso, 'status', 'UNKNOWN') or 'UNKNOWN'
+    etiqueta = _normalizar_etiqueta_documento(getattr(proceso, 'etiqueta', ''))
     return {
         'reference_id': getattr(proceso, 'reference_id', 'N/A'),
         'token': str(getattr(proceso, 'token_acceso', '')),
@@ -650,6 +774,7 @@ def _admin_dashboard_doc_payload(proceso):
         'status': status,
         'fecha': created_at.strftime("%Y-%m-%d %H:%M:%S") if created_at else '',
         'progreso': f"{sum(1 for f in firmantes if f.get('fecha_firma'))}/{len(firmantes)}",
+        'etiqueta': etiqueta,
         'firmx_id': firmx_id or '',
         'can_adjust': status == 'COMPLETED' and not firmx_id,
     }
@@ -753,6 +878,14 @@ def _portal_dashboard_docs_query(owner_email, filtros=None):
     if fecha_query:
         condiciones.append({'created_at': fecha_query})
 
+    etiqueta_filtro = str(filtros.get('filEtiqueta') or PORTAL_LABEL_ALL_VALUE).strip()
+    if etiqueta_filtro == PORTAL_LABEL_UNTAGGED_VALUE:
+        condiciones.append(_query_sin_etiqueta_documento())
+    elif etiqueta_filtro and etiqueta_filtro.casefold() not in (PORTAL_LABEL_ALL_VALUE, 'todo'):
+        etiqueta = _normalizar_etiqueta_documento(etiqueta_filtro)
+        if etiqueta:
+            condiciones.append({'etiqueta': etiqueta})
+
     return condiciones[0] if len(condiciones) == 1 else {'$and': condiciones}
 
 
@@ -765,6 +898,7 @@ def _portal_dashboard_doc_payload(proceso):
     summary_data = _json_or_default(getattr(proceso, 'summary_data', {}) or {}, {})
     firmx_id = summary_data.get('firmx_id') or ''
     status = getattr(proceso, 'status', 'UNKNOWN') or 'UNKNOWN'
+    etiqueta = _normalizar_etiqueta_documento(getattr(proceso, 'etiqueta', ''))
     return {
         'reference_id': getattr(proceso, 'reference_id', 'N/A'),
         'token': str(getattr(proceso, 'token_acceso', '')),
@@ -777,6 +911,7 @@ def _portal_dashboard_doc_payload(proceso):
         'porcentaje': porcentaje,
         'can_adjust': status == 'COMPLETED' and not firmx_id,
         'firmx_id': firmx_id,
+        'etiqueta': etiqueta,
     }
 
 
@@ -1285,6 +1420,7 @@ def _crear_proceso_firma_mongo(
         'document_variables': _mongo_json_field(document_variables, {}),
         'valores_capturados': _mongo_json_field(valores_capturados, {}),
         'owner_email': owner_email,
+        'etiqueta': '',
         'created_at': timezone.now().replace(tzinfo=None),
     }
     _mongo_collection(ProcesoFirma).insert_one(document)
@@ -2557,6 +2693,72 @@ def portal_dashboard_docs_api(request):
     except ValueError:
         return JsonResponse({"error": "JSON inválido."}, status=400)
     return JsonResponse(_portal_dashboard_docs_page(owner_email, data))
+
+
+@csrf_exempt
+def portal_etiquetas_api(request):
+    owner_email = request.session.get('owner_email')
+    if not owner_email:
+        return JsonResponse({"error": "No autorizado"}, status=403)
+
+    if request.method == 'GET':
+        return JsonResponse(_portal_etiquetas_payload(owner_email))
+
+    if request.method != 'POST':
+        return JsonResponse({"error": "Método no permitido"}, status=405)
+
+    try:
+        data = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({"error": "JSON inválido."}, status=400)
+
+    try:
+        etiqueta = _guardar_etiqueta_documento_usuario(owner_email, data.get('nombre'))
+    except ValueError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+
+    payload = _portal_etiquetas_payload(owner_email)
+    payload['created_label'] = etiqueta
+    return JsonResponse(payload)
+
+
+@csrf_exempt
+def portal_documento_etiqueta_api(request):
+    owner_email = request.session.get('owner_email')
+    if not owner_email:
+        return JsonResponse({"error": "No autorizado"}, status=403)
+    if request.method != 'POST':
+        return JsonResponse({"error": "Método no permitido"}, status=405)
+
+    try:
+        data = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({"error": "JSON inválido."}, status=400)
+
+    proceso = _mongo_find_proceso_by_token(data.get('token'))
+    if not proceso:
+        return JsonResponse({"error": "Documento no encontrado."}, status=404)
+    if not _validar_acceso_owner(proceso, owner_email):
+        return JsonResponse({"error": "No tienes permiso sobre este documento."}, status=403)
+
+    raw_etiqueta = data.get('etiqueta', '')
+    if str(raw_etiqueta or '').strip() == PORTAL_LABEL_UNTAGGED_VALUE:
+        raw_etiqueta = ''
+
+    etiqueta = _normalizar_etiqueta_documento(raw_etiqueta)
+    if etiqueta:
+        try:
+            etiqueta = _guardar_etiqueta_documento_usuario(owner_email, etiqueta)
+        except ValueError as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
+
+    _actualizar_proceso_firma_mongo(proceso, etiqueta=etiqueta)
+    payload = _portal_etiquetas_payload(owner_email)
+    payload['documento'] = {
+        'token': str(getattr(proceso, 'token_acceso', '')),
+        'etiqueta': etiqueta,
+    }
+    return JsonResponse(payload)
 
 
 def portal_firmx(request):
