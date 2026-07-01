@@ -6,13 +6,31 @@
 {% block extra_head %}
 <style>
     .admin-table-wrap { overflow-x: auto; border: 1px solid #c4c6cd; border-radius: 0.5rem; }
-    .admin-table { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; }
-    .admin-table th { background: #f8f9fa; padding: 1rem; text-align: left; font-size: 0.75rem; text-transform: uppercase; color: #43474c; border-bottom: 1px solid #c4c6cd; white-space: nowrap; }
-    .admin-table td { padding: 1rem; border-bottom: 1px solid #edeeef; font-size: 0.875rem; vertical-align: middle; }
+    .admin-table { width: 100%; min-width: 1120px; table-layout: fixed; border-collapse: separate; border-spacing: 0; background: #fff; }
+    .admin-table th { background: #f8f9fa; padding: 0.85rem 0.9rem; text-align: left; font-size: 0.72rem; text-transform: uppercase; color: #43474c; border-bottom: 1px solid #c4c6cd; white-space: nowrap; }
+    .admin-table td { padding: 0.85rem 0.9rem; border-bottom: 1px solid #edeeef; font-size: 0.82rem; vertical-align: middle; line-height: 1.35; }
     .admin-table tbody tr:hover { background: #f8f9fa; }
+    .admin-table th:nth-child(7) { text-align: center; }
+    .admin-table th:nth-child(8) { text-align: right; }
+    .admin-col-folio { width: 12%; }
+    .admin-col-creator { width: 17%; }
+    .admin-col-domain { width: 13%; }
+    .admin-col-date { width: 12%; }
+    .admin-col-progress { width: 9%; }
+    .admin-col-label { width: 14%; }
+    .admin-col-status { width: 10%; }
+    .admin-col-actions { width: 13%; }
+    .admin-table-cell-clip { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .admin-table-folio { display: inline-block; max-width: 100%; color: #162839; font-weight: 800; line-height: 1.35; overflow-wrap: anywhere; }
+    .admin-table-date { white-space: nowrap; }
+    .admin-table-progress { color: #162839; font-size: 0.78rem; font-weight: 800; line-height: 1.25; }
+    .admin-table-status { text-align: center; }
+    .admin-table-actions { text-align: right; }
+    .admin-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.42rem; flex-wrap: wrap; }
+    .admin-row-actions .admin-inline-action { min-height: 2rem; padding: 0.42rem 0.62rem; }
     .admin-group-row td { background: #f3f4f5; color: #162839; font-weight: 700; border-left: 4px solid #162839; cursor: pointer; }
     .admin-pager-input { width: 5rem; text-align: center; }
-    .admin-label-badge { display: inline-flex; align-items: center; gap: 0.25rem; border: 1px solid #c4c6cd; border-radius: 9999px; padding: 0.3rem 0.55rem; color: #162839; background: #ffffff; font-size: 0.74rem; font-weight: 800; max-width: 180px; }
+    .admin-label-badge { display: inline-flex; align-items: center; gap: 0.25rem; border: 1px solid #c4c6cd; border-radius: 9999px; padding: 0.3rem 0.55rem; color: #162839; background: #ffffff; font-size: 0.72rem; font-weight: 800; max-width: 100%; }
     .admin-label-badge span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
 {% endblock %}
@@ -124,6 +142,16 @@
 
             <div class="admin-table-wrap">
                 <table class="admin-table" id="docTable">
+                    <colgroup>
+                        <col class="admin-col-folio">
+                        <col class="admin-col-creator">
+                        <col class="admin-col-domain">
+                        <col class="admin-col-date">
+                        <col class="admin-col-progress">
+                        <col class="admin-col-label">
+                        <col class="admin-col-status">
+                        <col class="admin-col-actions">
+                    </colgroup>
                     <thead>
                     <tr>
                         <th>Folio</th>
@@ -680,15 +708,15 @@
         `;
 
         tr.innerHTML = `
-            <td><span class="font-bold text-primary">${doc.reference_id}</span></td>
-            <td class="text-on-surface-variant">${doc.owner_email}</td>
-            <td class="text-on-surface-variant font-medium text-xs">@${doc.dominio}</td>
-            <td class="text-on-surface-variant text-xs">${doc.fecha}</td>
-            <td class="text-primary font-semibold text-xs">${doc.progreso} Firmas</td>
+            <td><span class="admin-table-folio">${escapeHtml(doc.reference_id)}</span></td>
+            <td class="admin-table-cell-clip text-on-surface-variant" title="${escapeHtml(doc.owner_email)}">${escapeHtml(doc.owner_email)}</td>
+            <td class="admin-table-cell-clip text-on-surface-variant font-medium" title="@${escapeHtml(doc.dominio)}">@${escapeHtml(doc.dominio)}</td>
+            <td class="admin-table-date text-on-surface-variant">${escapeHtml(doc.fecha)}</td>
+            <td class="admin-table-progress">${escapeHtml(doc.progreso)} Firmas</td>
             <td>${etiquetaHtml}</td>
-            <td><span class="status-badge ${badgeClass}">${statusText}</span></td>
-            <td>
-                <div class="flex items-center gap-2 flex-wrap">
+            <td class="admin-table-status"><span class="status-badge ${badgeClass}">${statusText}</span></td>
+            <td class="admin-table-actions">
+                <div class="admin-row-actions">
                     <a href="/trazabilidad/${doc.token}/" target="_blank" rel="noopener noreferrer" class="admin-inline-action">
                         <span class="material-symbols-outlined text-[16px]">visibility</span> Ver
                     </a>
