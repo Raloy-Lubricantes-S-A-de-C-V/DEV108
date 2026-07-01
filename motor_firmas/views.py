@@ -47,6 +47,7 @@ FIRMX_TERMINAL_STATUSES = {'COMPLETED', 'CANCELLED'}
 PORTAL_LABEL_ALL_VALUE = 'all'
 PORTAL_LABEL_UNTAGGED_VALUE = 'sin_etiqueta'
 PORTAL_LABEL_RESERVED_NAMES = {'all', 'todo', 'sin etiqueta', 'sin_etiqueta'}
+PORTAL_LABEL_PATH_SEPARATOR = ' / '
 
 _MONGO_CLIENT = None
 
@@ -102,9 +103,44 @@ def _normalizar_dominio(dominio):
     return dominio[1:] if dominio.startswith('@') else dominio
 
 
+def _normalizar_componente_etiqueta_documento(etiqueta):
+    etiqueta = str(etiqueta or '').replace('/', ' ')
+    etiqueta = re.sub(r'\s+', ' ', etiqueta.strip())
+    return etiqueta
+
+
 def _normalizar_etiqueta_documento(etiqueta):
-    etiqueta = re.sub(r'\s+', ' ', str(etiqueta or '').strip())
-    return etiqueta[:80]
+    partes = [
+        _normalizar_componente_etiqueta_documento(parte)
+        for parte in str(etiqueta or '').split('/')
+    ]
+    partes = [parte for parte in partes if parte]
+    if not partes:
+        return ''
+    if len(partes) == 1:
+        return partes[0][:80]
+    return f"{partes[0]}{PORTAL_LABEL_PATH_SEPARATOR}{partes[1]}"[:80]
+
+
+def _partes_etiqueta_documento(etiqueta):
+    etiqueta = _normalizar_etiqueta_documento(etiqueta)
+    if not etiqueta:
+        return '', ''
+    partes = [parte.strip() for parte in etiqueta.split(PORTAL_LABEL_PATH_SEPARATOR, 1)]
+    return partes[0], partes[1] if len(partes) > 1 else ''
+
+
+def _ruta_etiqueta_documento(parent, child=''):
+    parent = _normalizar_componente_etiqueta_documento(parent)
+    child = _normalizar_componente_etiqueta_documento(child)
+    if not parent:
+        return ''
+    return _normalizar_etiqueta_documento(f"{parent}/{child}" if child else parent)
+
+
+def _es_subetiqueta_documento(etiqueta):
+    _, child = _partes_etiqueta_documento(etiqueta)
+    return bool(child)
 
 
 def _etiqueta_documento_es_reservada(etiqueta):
@@ -122,6 +158,24 @@ def _query_sin_etiqueta_documento(owner_email=None):
     if owner_email:
         query['owner_email'] = _normalizar_email(owner_email)
     return query
+
+
+def _query_etiqueta_documento(owner_email, etiqueta):
+    etiqueta = _normalizar_etiqueta_documento(etiqueta)
+    parent, child = _partes_etiqueta_documento(etiqueta)
+    if child:
+        etiqueta_query = {'etiqueta': etiqueta}
+    else:
+        etiqueta_query = {
+            '$or': [
+                {'etiqueta': etiqueta},
+                {'etiqueta': {'$regex': f"^{re.escape(parent + PORTAL_LABEL_PATH_SEPARATOR)}"}},
+            ]
+        }
+
+    if owner_email:
+        return {'$and': [{'owner_email': _normalizar_email(owner_email)}, etiqueta_query]}
+    return etiqueta_query
 
 
 def _agregar_etiqueta_unica(labels, etiqueta):
@@ -151,7 +205,13 @@ def _etiquetas_documentos_usuario(owner_email):
     for etiqueta in sorted([_normalizar_etiqueta_documento(e) for e in etiquetas_usadas if _normalizar_etiqueta_documento(e)], key=str.casefold):
         _agregar_etiqueta_unica(labels, etiqueta)
 
-    return labels
+    labels_con_padres = []
+    for etiqueta in labels:
+        parent, child = _partes_etiqueta_documento(etiqueta)
+        _agregar_etiqueta_unica(labels_con_padres, parent)
+        if child:
+            _agregar_etiqueta_unica(labels_con_padres, _ruta_etiqueta_documento(parent, child))
+    return labels_con_padres
 
 
 def _etiquetas_destacadas_documentos_usuario(owner_email, etiquetas_disponibles=None):
@@ -190,9 +250,10 @@ def _guardar_destacadas_documentos_usuario(owner_email, etiquetas):
 def _guardar_etiqueta_documento_usuario(owner_email, etiqueta):
     owner_email = _normalizar_email(owner_email)
     etiqueta = _normalizar_etiqueta_documento(etiqueta)
+    parent, child = _partes_etiqueta_documento(etiqueta)
     if not etiqueta:
         raise ValueError("La etiqueta no puede estar vacía.")
-    if _etiqueta_documento_es_reservada(etiqueta):
+    if _etiqueta_documento_es_reservada(etiqueta) or _etiqueta_documento_es_reservada(parent):
         raise ValueError("Ese nombre está reservado para filtros del sistema.")
 
     existentes = _etiquetas_documentos_usuario(owner_email)
@@ -207,15 +268,38 @@ def _guardar_etiqueta_documento_usuario(owner_email, etiqueta):
             'created_at': _datetime_for_mongo(),
         })
 
+    if child and not _mongo_find_one(EtiquetaDocumento, {'owner_email': owner_email, 'nombre': parent}):
+        _mongo_insert_model(EtiquetaDocumento, {
+            'owner_email': owner_email,
+            'nombre': parent,
+            'created_at': _datetime_for_mongo(),
+        })
+
     colaborador = _mongo_find_one(DirectorioFirmas, {'email': owner_email})
     if colaborador:
         labels = _json_or_default(getattr(colaborador, 'etiquetas_documentos', []), [])
         before_count = len(labels)
+        if child:
+            _agregar_etiqueta_unica(labels, parent)
         _agregar_etiqueta_unica(labels, etiqueta)
         if len(labels) != before_count:
             _mongo_update_document(DirectorioFirmas, colaborador, {'etiquetas_documentos': labels})
 
     return etiqueta
+
+
+def _guardar_subetiqueta_documento_usuario(owner_email, etiqueta_padre, subetiqueta):
+    owner_email = _normalizar_email(owner_email)
+    parent = _resolver_etiqueta_documento_usuario(owner_email, etiqueta_padre)
+    parent_name, parent_child = _partes_etiqueta_documento(parent)
+    if not parent or parent_child:
+        raise ValueError("Selecciona una carpeta principal válida.")
+
+    child = _normalizar_componente_etiqueta_documento(subetiqueta)
+    if not child:
+        raise ValueError("La subcarpeta no puede estar vacía.")
+    etiqueta = _ruta_etiqueta_documento(parent_name, child)
+    return _guardar_etiqueta_documento_usuario(owner_email, etiqueta)
 
 
 def _resolver_etiqueta_documento_usuario(owner_email, etiqueta):
@@ -229,40 +313,54 @@ def _resolver_etiqueta_documento_usuario(owner_email, etiqueta):
 
 
 def _actualizar_catalogo_etiquetas_usuario(owner_email, etiqueta_actual, etiqueta_nueva=None):
+    return _actualizar_catalogo_etiquetas_por_mapa(
+        owner_email,
+        {_normalizar_etiqueta_documento(etiqueta_actual): _normalizar_etiqueta_documento(etiqueta_nueva)}
+        if etiqueta_nueva else {},
+        [_normalizar_etiqueta_documento(etiqueta_actual)] if not etiqueta_nueva else [],
+    )
+
+
+def _actualizar_catalogo_etiquetas_por_mapa(owner_email, reemplazos=None, eliminadas=None):
     owner_email = _normalizar_email(owner_email)
-    etiqueta_actual_fold = _normalizar_etiqueta_documento(etiqueta_actual).casefold()
-    etiqueta_nueva = _normalizar_etiqueta_documento(etiqueta_nueva)
+    reemplazos = {
+        _normalizar_etiqueta_documento(key): _normalizar_etiqueta_documento(value)
+        for key, value in (reemplazos or {}).items()
+        if _normalizar_etiqueta_documento(key)
+    }
+    eliminadas = {
+        _normalizar_etiqueta_documento(value).casefold()
+        for value in (eliminadas or [])
+        if _normalizar_etiqueta_documento(value)
+    }
     colaborador = _mongo_find_one(DirectorioFirmas, {'email': owner_email})
     if not colaborador:
-        return
+        return []
+
+    reemplazos_fold = {key.casefold(): value for key, value in reemplazos.items()}
+
+    def aplicar(items):
+        actualizadas = []
+        for item in items:
+            item_norm = _normalizar_etiqueta_documento(item)
+            if not item_norm or item_norm.casefold() in eliminadas:
+                continue
+            item_norm = reemplazos_fold.get(item_norm.casefold(), item_norm)
+            _agregar_etiqueta_unica(actualizadas, item_norm)
+        for item_norm in reemplazos.values():
+            _agregar_etiqueta_unica(actualizadas, item_norm)
+        return actualizadas
 
     labels = _json_or_default(getattr(colaborador, 'etiquetas_documentos', []), [])
-    actualizadas = []
-    for item in labels:
-        item_norm = _normalizar_etiqueta_documento(item)
-        if not item_norm:
-            continue
-        if item_norm.casefold() == etiqueta_actual_fold:
-            item_norm = etiqueta_nueva
-        _agregar_etiqueta_unica(actualizadas, item_norm)
-
-    if etiqueta_nueva:
-        _agregar_etiqueta_unica(actualizadas, etiqueta_nueva)
-
+    actualizadas = aplicar(labels)
     destacadas = _json_or_default(getattr(colaborador, 'etiquetas_destacadas_documentos', []), [])
-    destacadas_actualizadas = []
-    for item in destacadas:
-        item_norm = _normalizar_etiqueta_documento(item)
-        if not item_norm:
-            continue
-        if item_norm.casefold() == etiqueta_actual_fold:
-            item_norm = etiqueta_nueva
-        _agregar_etiqueta_unica(destacadas_actualizadas, item_norm)
+    destacadas_actualizadas = aplicar(destacadas)
 
     update_doc = {'etiquetas_documentos': actualizadas}
     if destacadas or destacadas_actualizadas:
         update_doc['etiquetas_destacadas_documentos'] = destacadas_actualizadas
     _mongo_update_document(DirectorioFirmas, colaborador, update_doc)
+    return actualizadas
 
 
 def _actualizar_destacado_etiqueta_documento_usuario(owner_email, etiqueta, destacado):
@@ -282,41 +380,73 @@ def _actualizar_destacado_etiqueta_documento_usuario(owner_email, etiqueta, dest
     return etiqueta
 
 
+def _etiquetas_subarbol_documento_usuario(owner_email, etiqueta_padre):
+    parent, child = _partes_etiqueta_documento(etiqueta_padre)
+    if child:
+        return [_ruta_etiqueta_documento(parent, child)]
+
+    etiquetas = []
+    for etiqueta in _etiquetas_documentos_usuario(owner_email):
+        item_parent, item_child = _partes_etiqueta_documento(etiqueta)
+        if item_parent != parent:
+            continue
+        if item_child:
+            _agregar_etiqueta_unica(etiquetas, _ruta_etiqueta_documento(item_parent, item_child))
+        else:
+            _agregar_etiqueta_unica(etiquetas, item_parent)
+    return etiquetas
+
+
 def _renombrar_etiqueta_documento_usuario(owner_email, etiqueta_actual, etiqueta_nueva):
     owner_email = _normalizar_email(owner_email)
     actual = _resolver_etiqueta_documento_usuario(owner_email, etiqueta_actual)
     if not actual:
         raise ValueError("Etiqueta no encontrada.")
 
-    nueva = _normalizar_etiqueta_documento(etiqueta_nueva)
-    if not nueva:
+    actual_parent, actual_child = _partes_etiqueta_documento(actual)
+    nuevo_nombre = _normalizar_componente_etiqueta_documento(etiqueta_nueva)
+    if not nuevo_nombre:
         raise ValueError("La etiqueta no puede estar vacía.")
-    if _etiqueta_documento_es_reservada(nueva):
+    if _etiqueta_documento_es_reservada(nuevo_nombre):
         raise ValueError("Ese nombre está reservado para filtros del sistema.")
 
+    if actual_child:
+        nueva = _ruta_etiqueta_documento(actual_parent, nuevo_nombre)
+        cambios = {actual: nueva}
+    else:
+        nueva = _ruta_etiqueta_documento(nuevo_nombre)
+        cambios = {}
+        for etiqueta in _etiquetas_subarbol_documento_usuario(owner_email, actual):
+            parent, child = _partes_etiqueta_documento(etiqueta)
+            cambios[etiqueta] = _ruta_etiqueta_documento(nuevo_nombre, child)
+
+    cambios_fold = {key.casefold(): value for key, value in cambios.items()}
     for existente in _etiquetas_documentos_usuario(owner_email):
-        if existente.casefold() == nueva.casefold() and existente.casefold() != actual.casefold():
+        existente_fold = existente.casefold()
+        if existente_fold in cambios_fold:
+            continue
+        if cambios_fold and any(valor.casefold() == existente_fold for valor in cambios.values()):
             raise ValueError("Ya existe una etiqueta con ese nombre.")
 
-    _mongo_collection(ProcesoFirma).update_many(
-        {'owner_email': owner_email, 'etiqueta': actual},
-        {'$set': {'etiqueta': nueva}},
-    )
-
-    etiqueta_docs = _mongo_find(EtiquetaDocumento, {'owner_email': owner_email, 'nombre': actual})
-    if etiqueta_docs:
-        _mongo_collection(EtiquetaDocumento).update_many(
-            {'owner_email': owner_email, 'nombre': actual},
-            {'$set': {'nombre': nueva}},
+    for anterior, posterior in cambios.items():
+        _mongo_collection(ProcesoFirma).update_many(
+            {'owner_email': owner_email, 'etiqueta': anterior},
+            {'$set': {'etiqueta': posterior}},
         )
-    elif not _mongo_find_one(EtiquetaDocumento, {'owner_email': owner_email, 'nombre': nueva}):
-        _mongo_insert_model(EtiquetaDocumento, {
-            'owner_email': owner_email,
-            'nombre': nueva,
-            'created_at': _datetime_for_mongo(),
-        })
+        _mongo_collection(EtiquetaDocumento).update_many(
+            {'owner_email': owner_email, 'nombre': anterior},
+            {'$set': {'nombre': posterior}},
+        )
 
-    _actualizar_catalogo_etiquetas_usuario(owner_email, actual, nueva)
+    for posterior in cambios.values():
+        if not _mongo_find_one(EtiquetaDocumento, {'owner_email': owner_email, 'nombre': posterior}):
+            _mongo_insert_model(EtiquetaDocumento, {
+                'owner_email': owner_email,
+                'nombre': posterior,
+                'created_at': _datetime_for_mongo(),
+            })
+
+    _actualizar_catalogo_etiquetas_por_mapa(owner_email, cambios)
     return nueva
 
 
@@ -326,13 +456,27 @@ def _eliminar_etiqueta_documento_usuario(owner_email, etiqueta):
     if not actual:
         raise ValueError("Etiqueta no encontrada.")
 
-    _mongo_collection(ProcesoFirma).update_many(
-        {'owner_email': owner_email, 'etiqueta': actual},
-        {'$set': {'etiqueta': ''}},
-    )
-    _mongo_collection(EtiquetaDocumento).delete_many({'owner_email': owner_email, 'nombre': actual})
-    _actualizar_catalogo_etiquetas_usuario(owner_email, actual)
-    return actual
+    parent, child = _partes_etiqueta_documento(actual)
+    if child:
+        fallback = parent
+        _mongo_collection(ProcesoFirma).update_many(
+            {'owner_email': owner_email, 'etiqueta': actual},
+            {'$set': {'etiqueta': parent}},
+        )
+        _mongo_collection(EtiquetaDocumento).delete_many({'owner_email': owner_email, 'nombre': actual})
+        _actualizar_catalogo_etiquetas_por_mapa(owner_email, eliminadas=[actual])
+        _guardar_etiqueta_documento_usuario(owner_email, parent)
+        return {'deleted': actual, 'fallback': fallback}
+
+    eliminadas = _etiquetas_subarbol_documento_usuario(owner_email, actual)
+    for etiqueta_eliminada in eliminadas:
+        _mongo_collection(ProcesoFirma).update_many(
+            {'owner_email': owner_email, 'etiqueta': etiqueta_eliminada},
+            {'$set': {'etiqueta': ''}},
+        )
+    _mongo_collection(EtiquetaDocumento).delete_many({'owner_email': owner_email, 'nombre': {'$in': eliminadas}})
+    _actualizar_catalogo_etiquetas_por_mapa(owner_email, eliminadas=eliminadas)
+    return {'deleted': actual, 'fallback': PORTAL_LABEL_UNTAGGED_VALUE}
 
 
 def _portal_etiquetas_payload(owner_email):
@@ -368,11 +512,24 @@ def _portal_etiquetas_payload(owner_email):
     for etiqueta in etiquetas_usuario:
         _agregar_etiqueta_unica(etiquetas_ordenadas, etiqueta)
 
+    parents_con_hijos = set()
+    for etiqueta in etiquetas_usuario:
+        parent, child = _partes_etiqueta_documento(etiqueta)
+        if child:
+            parents_con_hijos.add(parent.casefold())
+
     for etiqueta in etiquetas_ordenadas:
+        parent, child = _partes_etiqueta_documento(etiqueta)
+        etiqueta_query = _query_etiqueta_documento(owner_email, etiqueta)
         labels.append({
             'value': etiqueta,
             'name': etiqueta,
-            'count': collection.count_documents({'owner_email': owner_email, 'etiqueta': etiqueta}),
+            'short_name': child or parent,
+            'parent': parent,
+            'child': child,
+            'depth': 1 if child else 0,
+            'has_children': not child and parent.casefold() in parents_con_hijos,
+            'count': collection.count_documents(etiqueta_query),
             'special': False,
             'featured': etiqueta.casefold() in destacadas_fold,
             'icon': 'folder',
@@ -1045,7 +1202,7 @@ def _portal_dashboard_docs_query(owner_email, filtros=None):
     elif etiqueta_filtro and etiqueta_filtro.casefold() not in (PORTAL_LABEL_ALL_VALUE, 'todo'):
         etiqueta = _normalizar_etiqueta_documento(etiqueta_filtro)
         if etiqueta:
-            condiciones.append({'etiqueta': etiqueta})
+            condiciones.append(_query_etiqueta_documento(None, etiqueta))
 
     return condiciones[0] if len(condiciones) == 1 else {'$and': condiciones}
 
@@ -2889,6 +3046,12 @@ def portal_etiquetas_api(request):
                 data.get('etiqueta'),
                 bool(data.get('destacado')),
             )
+        elif accion == 'crear_hija':
+            etiqueta = _guardar_subetiqueta_documento_usuario(
+                owner_email,
+                data.get('etiqueta_padre'),
+                data.get('nombre'),
+            )
         else:
             accion = 'crear'
             etiqueta = _guardar_etiqueta_documento_usuario(owner_email, data.get('nombre'))
@@ -2897,7 +3060,11 @@ def portal_etiquetas_api(request):
 
     payload = _portal_etiquetas_payload(owner_email)
     payload['accion'] = accion
-    payload['label'] = etiqueta
+    if isinstance(etiqueta, dict):
+        payload['label'] = etiqueta.get('deleted', '')
+        payload['fallback_label'] = etiqueta.get('fallback', PORTAL_LABEL_UNTAGGED_VALUE)
+    else:
+        payload['label'] = etiqueta
     return JsonResponse(payload)
 
 

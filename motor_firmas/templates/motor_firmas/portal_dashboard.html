@@ -22,6 +22,9 @@
     .portal-label-item.featured { background: #fffdf2; border-color: #efe3a8; }
     .portal-label-item.featured.active { background: #fff7cd; border-color: #162839; }
     .portal-label-item.drag-over { background: #fff8d7; border-color: #fed023; }
+    .portal-label-item.child { width: calc(100% - 1.05rem); margin-left: 1.05rem; padding-left: 0.35rem; grid-template-columns: auto minmax(0, 1fr) auto; }
+    .portal-label-item.child .portal-label-icon { font-size: 1.55rem; }
+    .portal-label-item.parent.has-children { margin-bottom: 0.1rem; }
     .portal-label-icon { font-size: 2rem; color: currentColor; line-height: 1; }
     .portal-label-text { min-width: 0; font-size: 0.82rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .portal-label-count { color: #74777d; font-size: 0.72rem; font-weight: 800; }
@@ -31,6 +34,11 @@
     .portal-label-manage { display: none; gap: 0.5rem; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #edeeef; }
     .portal-label-manage.active { display: grid; }
     .portal-label-manage-title { color: #43474c; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; }
+    .portal-sublabel-form { display: none; grid-template-columns: 1fr auto; gap: 0.45rem; }
+    .portal-sublabel-form.active { display: grid; }
+    .portal-sublabel-form .portal-label-input { min-width: 0; padding-left: 0.55rem; padding-right: 0.55rem; }
+    .portal-sublabel-create { min-height: 36px; border: 1px solid #c4c6cd; background: #ffffff; color: #162839; border-radius: 0.5rem; padding: 0.5rem 0.55rem; font-size: 0.76rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 0.25rem; }
+    .portal-sublabel-create:hover { background: #edeeef; }
     .portal-label-manage-actions { display: grid; grid-template-columns: 1fr auto; gap: 0.45rem; }
     .portal-label-save, .portal-label-delete { min-height: 36px; border-radius: 0.5rem; padding: 0.5rem 0.65rem; font-size: 0.76rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem; }
     .portal-label-save { border: 1px solid #162839; background: #ffffff; color: #162839; }
@@ -39,7 +47,7 @@
     .portal-label-feature:hover { background: #fff7cd; }
     .portal-label-delete { border: 1px solid #f7b9b4; background: #ffdad6; color: #93000a; }
     .portal-label-delete:hover { background: #f7b9b4; }
-    .portal-label-save:disabled, .portal-label-feature:disabled, .portal-label-delete:disabled { opacity: 0.65; cursor: not-allowed; }
+    .portal-label-save:disabled, .portal-label-feature:disabled, .portal-sublabel-create:disabled, .portal-label-delete:disabled { opacity: 0.65; cursor: not-allowed; }
     .doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.25rem; }
     .doc-card { background: #fff; border: 1px solid #c4c6cd; border-radius: 0.75rem; overflow: hidden; display: flex; flex-direction: column; border-top: 4px solid #162839; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
     .doc-card.doc-dragging, .doc-list-table tr.doc-dragging { opacity: 0.55; }
@@ -286,6 +294,12 @@
                     <span class="material-symbols-outlined text-[18px]">star_border</span>
                     Destacar
                 </button>
+                <form class="portal-sublabel-form" id="portalSubLabelForm">
+                    <input class="portal-label-input" id="portalSubLabelInput" type="text" maxlength="80" placeholder="Subcarpeta" autocomplete="off">
+                    <button class="portal-sublabel-create" id="portalSubLabelCreateBtn" type="submit" title="Nueva subcarpeta">
+                        <span class="material-symbols-outlined text-[18px]">create_new_folder</span>
+                    </button>
+                </form>
                 <div class="portal-label-manage-actions">
                     <button class="portal-label-save" id="portalLabelSaveBtn" type="button">
                         <span class="material-symbols-outlined text-[18px]">save</span>
@@ -609,31 +623,40 @@
         const manage = document.getElementById('portalLabelManage');
         const input = document.getElementById('portalLabelEditInput');
         const featureButton = document.getElementById('portalLabelFeatureBtn');
-        if (!manage || !input || !featureButton) return;
+        const subLabelForm = document.getElementById('portalSubLabelForm');
+        const subLabelInput = document.getElementById('portalSubLabelInput');
+        if (!manage || !input || !featureButton || !subLabelForm || !subLabelInput) return;
 
         const label = selectedPortalLabelData();
         const canManage = Boolean(label && !label.special);
+        const canCreateChild = Boolean(canManage && Number(label.depth || 0) === 0);
         manage.classList.toggle('active', canManage);
+        subLabelForm.classList.toggle('active', canCreateChild);
         if (canManage) {
-            input.value = label.name || '';
+            input.value = label.short_name || label.name || '';
             featureButton.innerHTML = `
                 <span class="material-symbols-outlined text-[18px]">${label.featured ? 'star' : 'star_border'}</span>
                 ${label.featured ? 'Quitar destacado' : 'Destacar'}
             `;
+            if (!canCreateChild) subLabelInput.value = '';
         } else {
             input.value = '';
+            subLabelInput.value = '';
             featureButton.innerHTML = '<span class="material-symbols-outlined text-[18px]">star_border</span> Destacar';
         }
     }
 
-    function crearBotonEtiquetaPortal(label) {
+    function crearBotonEtiquetaPortal(label, options = {}) {
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = `portal-label-item ${label.featured ? 'featured' : ''} ${selectedPortalLabel === label.value ? 'active' : ''}`;
+        const isChild = Number(label.depth || 0) > 0 && !options.forceTopLevel;
+        const labelText = options.forceFullName ? label.name : (label.short_name || label.name);
+        button.className = `portal-label-item ${isChild ? 'child' : 'parent'} ${label.has_children ? 'has-children' : ''} ${label.featured ? 'featured' : ''} ${selectedPortalLabel === label.value ? 'active' : ''}`;
         button.dataset.labelValue = label.value;
+        button.title = label.name || label.value;
         button.innerHTML = `
             <span class="material-symbols-outlined portal-label-icon">${escapeHtml(label.featured ? 'folder_special' : (label.icon || 'folder'))}</span>
-            <span class="portal-label-text">${escapeHtml(label.name)}</span>
+            <span class="portal-label-text">${escapeHtml(labelText)}</span>
             <span class="portal-label-count">${Number(label.count || 0)}</span>
         `;
         button.addEventListener('click', () => selectPortalLabel(label.value));
@@ -655,6 +678,31 @@
         }
 
         return button;
+    }
+
+    function renderPortalLabelGroup(list, labels) {
+        const labelsByValue = new Set(labels.map(label => label.value));
+        const rendered = new Set();
+
+        labels.filter(label => Number(label.depth || 0) === 0).forEach(parentLabel => {
+            list.appendChild(crearBotonEtiquetaPortal(parentLabel));
+            rendered.add(parentLabel.value);
+            labels
+                .filter(label => Number(label.depth || 0) > 0 && label.parent === parentLabel.value)
+                .forEach(childLabel => {
+                    list.appendChild(crearBotonEtiquetaPortal(childLabel));
+                    rendered.add(childLabel.value);
+                });
+        });
+
+        labels
+            .filter(label => !rendered.has(label.value))
+            .forEach(label => {
+                list.appendChild(crearBotonEtiquetaPortal(label, {
+                    forceFullName: Number(label.depth || 0) > 0 && !labelsByValue.has(label.parent),
+                    forceTopLevel: Number(label.depth || 0) > 0 && !labelsByValue.has(label.parent)
+                }));
+            });
     }
 
     function agregarTituloSeccionEtiquetas(list, title) {
@@ -683,13 +731,13 @@
 
         if (featuredLabels.length) {
             agregarTituloSeccionEtiquetas(list, 'Destacados');
-            featuredLabels.forEach(label => list.appendChild(crearBotonEtiquetaPortal(label)));
+            renderPortalLabelGroup(list, featuredLabels);
             if (normalLabels.length) {
                 agregarSeparadorEtiquetas(list);
             }
         }
 
-        normalLabels.forEach(label => list.appendChild(crearBotonEtiquetaPortal(label)));
+        renderPortalLabelGroup(list, normalLabels);
         renderPortalLabelManage();
     }
 
@@ -813,6 +861,52 @@
         }
     }
 
+    async function crearSubetiquetaPortal(event) {
+        event.preventDefault();
+        const parentLabel = selectedPortalLabelData();
+        const input = document.getElementById('portalSubLabelInput');
+        const button = document.getElementById('portalSubLabelCreateBtn');
+        if (!parentLabel || parentLabel.special || Number(parentLabel.depth || 0) !== 0) return;
+
+        const nombre = input.value.trim();
+        if (!nombre) {
+            setPortalLabelStatus('Escribe un nombre de subcarpeta.');
+            return;
+        }
+
+        button.disabled = true;
+        setPortalLabelStatus('');
+        try {
+            const response = await fetch('/api/portal-etiquetas/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    accion: 'crear_hija',
+                    etiqueta_padre: parentLabel.value,
+                    nombre
+                })
+            });
+            const data = await response.json();
+            if (!response.ok || data.status !== 'success') {
+                throw new Error(data.error || 'No se pudo crear la subcarpeta');
+            }
+            selectedPortalLabel = data.label || selectedPortalLabel;
+            resetPortalPageSize();
+            portalLabels = data.labels || [];
+            input.value = '';
+            renderPortalLabels();
+            setPortalLabelStatus('Subcarpeta creada.', 'ok');
+            cargarPortalDocumentos(1);
+        } catch (error) {
+            setPortalLabelStatus(error.message || 'No se pudo crear la subcarpeta');
+        } finally {
+            button.disabled = false;
+        }
+    }
+
     async function renombrarEtiquetaPortal() {
         const input = document.getElementById('portalLabelEditInput');
         const button = document.getElementById('portalLabelSaveBtn');
@@ -824,7 +918,7 @@
             setPortalLabelStatus('Escribe un nombre de etiqueta.');
             return;
         }
-        if (nombre === label.name) {
+        if (nombre === (label.short_name || label.name)) {
             setPortalLabelStatus('');
             return;
         }
@@ -864,7 +958,10 @@
         const button = document.getElementById('portalLabelDeleteBtn');
         const label = selectedPortalLabelData();
         if (!label || label.special) return;
-        if (!confirm(`¿Eliminar la etiqueta "${label.name}"? Los documentos quedarán sin etiqueta.`)) return;
+        const deleteMessage = Number(label.depth || 0) > 0
+            ? `¿Eliminar la subcarpeta "${label.name}"? Los documentos pasarán a "${label.parent}".`
+            : `¿Eliminar la etiqueta "${label.name}"? Los documentos quedarán sin etiqueta.`;
+        if (!confirm(deleteMessage)) return;
 
         button.disabled = true;
         setPortalLabelStatus('');
@@ -884,11 +981,11 @@
             if (!response.ok || data.status !== 'success') {
                 throw new Error(data.error || 'No se pudo eliminar la etiqueta');
             }
-            selectedPortalLabel = PORTAL_LABEL_UNTAGGED;
+            selectedPortalLabel = data.fallback_label || PORTAL_LABEL_UNTAGGED;
             resetPortalPageSize();
             portalLabels = data.labels || [];
             renderPortalLabels();
-            setPortalLabelStatus('Etiqueta eliminada. Los documentos quedaron sin etiqueta.', 'ok');
+            setPortalLabelStatus(Number(label.depth || 0) > 0 ? 'Subcarpeta eliminada. Los documentos pasaron al padre.' : 'Etiqueta eliminada. Los documentos quedaron sin etiqueta.', 'ok');
             cargarPortalDocumentos(1);
         } catch (error) {
             setPortalLabelStatus(error.message || 'No se pudo eliminar la etiqueta');
@@ -1508,6 +1605,7 @@
 
     document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('portalLabelForm').addEventListener('submit', crearEtiquetaPortal);
+        document.getElementById('portalSubLabelForm').addEventListener('submit', crearSubetiquetaPortal);
         document.getElementById('portalLabelSaveBtn').addEventListener('click', renombrarEtiquetaPortal);
         document.getElementById('portalLabelFeatureBtn').addEventListener('click', toggleDestacadoEtiquetaPortal);
         document.getElementById('portalLabelDeleteBtn').addEventListener('click', eliminarEtiquetaPortal);
