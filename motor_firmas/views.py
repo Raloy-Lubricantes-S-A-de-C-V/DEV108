@@ -214,7 +214,7 @@ def _etiquetas_documentos_usuario(owner_email):
     return labels_con_padres
 
 
-def _etiquetas_destacadas_documentos_usuario(owner_email, etiquetas_disponibles=None):
+def _familias_destacadas_documentos_usuario(owner_email, etiquetas_disponibles=None):
     owner_email = _normalizar_email(owner_email)
     disponibles = etiquetas_disponibles if etiquetas_disponibles is not None else _etiquetas_documentos_usuario(owner_email)
     disponibles_por_fold = {item.casefold(): item for item in disponibles}
@@ -223,9 +223,21 @@ def _etiquetas_destacadas_documentos_usuario(owner_email, etiquetas_disponibles=
     destacadas_raw = _json_or_default(getattr(colaborador, 'etiquetas_destacadas_documentos', []), []) if colaborador else []
     destacadas = []
     for item in destacadas_raw:
-        item_fold = _normalizar_etiqueta_documento(item).casefold()
-        if item_fold in disponibles_por_fold:
-            _agregar_etiqueta_unica(destacadas, disponibles_por_fold[item_fold])
+        parent, _ = _partes_etiqueta_documento(item)
+        parent_fold = parent.casefold()
+        if parent_fold in disponibles_por_fold:
+            _agregar_etiqueta_unica(destacadas, disponibles_por_fold[parent_fold])
+    return destacadas
+
+
+def _etiquetas_destacadas_documentos_usuario(owner_email, etiquetas_disponibles=None):
+    familias = _familias_destacadas_documentos_usuario(owner_email, etiquetas_disponibles)
+    familias_fold = {item.casefold() for item in familias}
+    destacadas = []
+    for etiqueta in (etiquetas_disponibles if etiquetas_disponibles is not None else _etiquetas_documentos_usuario(owner_email)):
+        parent, _ = _partes_etiqueta_documento(etiqueta)
+        if parent.casefold() in familias_fold:
+            _agregar_etiqueta_unica(destacadas, etiqueta)
     return destacadas
 
 
@@ -239,9 +251,10 @@ def _guardar_destacadas_documentos_usuario(owner_email, etiquetas):
     disponibles_por_fold = {item.casefold(): item for item in disponibles}
     destacadas = []
     for item in etiquetas:
-        item_fold = _normalizar_etiqueta_documento(item).casefold()
-        if item_fold in disponibles_por_fold:
-            _agregar_etiqueta_unica(destacadas, disponibles_por_fold[item_fold])
+        parent, _ = _partes_etiqueta_documento(item)
+        parent_fold = parent.casefold()
+        if parent_fold in disponibles_por_fold:
+            _agregar_etiqueta_unica(destacadas, disponibles_por_fold[parent_fold])
 
     _mongo_update_document(DirectorioFirmas, colaborador, {'etiquetas_destacadas_documentos': destacadas})
     return destacadas
@@ -369,12 +382,13 @@ def _actualizar_destacado_etiqueta_documento_usuario(owner_email, etiqueta, dest
     if not etiqueta:
         raise ValueError("Etiqueta no encontrada.")
 
-    destacadas = _etiquetas_destacadas_documentos_usuario(owner_email)
+    parent, _ = _partes_etiqueta_documento(etiqueta)
+    destacadas = _familias_destacadas_documentos_usuario(owner_email)
     if destacado:
-        _agregar_etiqueta_unica(destacadas, etiqueta)
+        _agregar_etiqueta_unica(destacadas, parent)
     else:
-        etiqueta_fold = etiqueta.casefold()
-        destacadas = [item for item in destacadas if item.casefold() != etiqueta_fold]
+        parent_fold = parent.casefold()
+        destacadas = [item for item in destacadas if item.casefold() != parent_fold]
 
     _guardar_destacadas_documentos_usuario(owner_email, destacadas)
     return etiqueta
