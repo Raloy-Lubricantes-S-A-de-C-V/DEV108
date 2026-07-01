@@ -51,7 +51,7 @@
     .portal-label-delete { border: 1px solid #f7b9b4; background: #ffdad6; color: #93000a; }
     .portal-label-delete:hover { background: #f7b9b4; }
     .portal-label-save:disabled, .portal-label-feature:disabled, .portal-sublabel-create:disabled, .portal-label-delete:disabled { opacity: 0.65; cursor: not-allowed; }
-    .doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--portal-card-width, 320px)), 1fr)); gap: 1.1rem; }
+    .doc-grid { display: grid; grid-template-columns: repeat(var(--portal-cols, 3), minmax(0, 1fr)); gap: 1rem; }
     .doc-card { background: #fff; border: 1px solid #c4c6cd; border-radius: 0.75rem; overflow: hidden; display: flex; flex-direction: column; border-top: 4px solid #162839; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
     .doc-card.doc-dragging, .doc-list-table tr.doc-dragging { opacity: 0.55; }
     .doc-draggable { cursor: grab; }
@@ -59,12 +59,12 @@
     .doc-card.completed { border-top-color: #27ae60; }
     .doc-card.cancelled { border-top-color: #e74c3c; opacity: 0.92; }
     .status-badge.bg-firmx { background-color: #2d9be8 !important; color: white; }
-    .doc-card-head { padding: 1.25rem; border-bottom: 1px solid #e1e3e4; display: flex; justify-content: space-between; gap: 0.75rem; align-items: flex-start; }
-    .doc-card-title { margin: 0; font-size: 1.05rem; color: #162839; font-weight: 700; word-break: break-word; line-height: 1.3; }
-    .doc-card-body { padding: 1.25rem; flex: 1; display: flex; flex-direction: column; gap: 1rem; }
-    .doc-card-footer { padding: 1rem 1.25rem; background: #f8f9fa; border-top: 1px solid #e1e3e4; }
-    .progress-wrapper { background: #f3f4f5; padding: 1rem; border-radius: 0.5rem; border: 1px solid #e1e3e4; }
-    .progress-header { display: flex; justify-content: space-between; margin-bottom: 0.65rem; font-size: 0.85rem; font-weight: 700; color: #162839; }
+    .doc-card-head { padding: 1rem; border-bottom: 1px solid #e1e3e4; display: flex; justify-content: space-between; gap: 0.75rem; align-items: flex-start; }
+    .doc-card-title { margin: 0; font-size: 0.97rem; color: #162839; font-weight: 700; word-break: break-word; line-height: 1.3; }
+    .doc-card-body { padding: 1rem; flex: 1; display: flex; flex-direction: column; gap: 0.85rem; }
+    .doc-card-footer { padding: 0.75rem 1rem; background: #f8f9fa; border-top: 1px solid #e1e3e4; }
+    .progress-wrapper { background: #f3f4f5; padding: 0.82rem; border-radius: 0.5rem; border: 1px solid #e1e3e4; }
+    .progress-header { display: flex; justify-content: space-between; margin-bottom: 0.6rem; font-size: 0.82rem; font-weight: 700; color: #162839; }
     .progress-container { width: 100%; background: #d9dadb; border-radius: 9999px; height: 8px; overflow: hidden; }
     .progress-bar { height: 100%; background: #162839; border-radius: 9999px; transition: width 0.3s ease; }
     .progress-bar.completed { background: #27ae60; }
@@ -79,8 +79,8 @@
     .api-url { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 0.85rem; color: #43474c; background: #edeeef; padding: 0.5rem 0.75rem; border-radius: 0.5rem; word-break: break-all; }
     .api-btn-send { background: #162839; color: white; border: none; padding: 0.85rem 1rem; border-radius: 0.5rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
     .api-btn-send:disabled { background: #74777d; cursor: not-allowed; }
-    .doc-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
-    .doc-action-btn { min-height: 48px; border: 1px solid #c4c6cd; background: #ffffff; color: #162839; padding: 0.75rem 0.65rem; border-radius: 0.5rem; font-weight: 800; font-size: 0.82rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; text-align: center; transition: background-color 0.2s ease, border-color 0.2s ease; }
+    .doc-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+    .doc-action-btn { min-height: 38px; border: 1px solid #c4c6cd; background: #ffffff; color: #162839; padding: 0.5rem 0.55rem; border-radius: 0.5rem; font-weight: 800; font-size: 0.77rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; text-align: center; transition: background-color 0.2s ease, border-color 0.2s ease; }
     .doc-action-btn:hover { background: #edeeef; border-color: #74777d; }
     .doc-action-btn.secondary { background: #fed023; border-color: #fed023; color: #162839; }
     .doc-action-btn.secondary:hover { background: #eec209; border-color: #eec209; }
@@ -91,8 +91,10 @@
     .portal-card-size-control.is-hidden { display: none; }
     .portal-card-size-control .material-symbols-outlined { font-size: 18px !important; }
     .portal-card-size-control label { font-size: 0.68rem; font-weight: 900; text-transform: uppercase; color: #43474c; white-space: nowrap; }
-    .portal-card-size-control input[type="range"] { width: 118px; accent-color: #162839; }
-    .portal-card-size-value { min-width: 42px; text-align: right; font-size: 0.68rem; font-weight: 900; color: #74777d; }
+    .portal-cols-btns { display: inline-flex; gap: 0.2rem; }
+    .portal-cols-btn { min-height: 28px; min-width: 28px; border: 1px solid #c4c6cd; background: #fff; color: #162839; border-radius: 0.35rem; padding: 0.2rem 0.45rem; font-size: 0.72rem; font-weight: 900; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background-color 0.15s ease, border-color 0.15s ease; }
+    .portal-cols-btn.active { background: #162839; color: #fff; border-color: #162839; }
+    .portal-cols-btn:hover:not(.active) { background: #edeeef; }
     .doc-list { display: block; }
     .doc-list-wrap { width: min(100%, 1040px); margin: 0 auto; overflow-x: auto; background: #ffffff; border: 1px solid #c4c6cd; border-radius: 0.75rem; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
     .doc-list-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 920px; table-layout: fixed; }
@@ -104,7 +106,7 @@
     .doc-list-group td { background: #edeeef; color: #162839; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; border-bottom: 1px solid #c4c6cd; cursor: pointer; }
     .doc-list-progress { width: 128px; max-width: 100%; }
     .doc-list-actions { display: flex; flex-wrap: wrap; gap: 0.32rem; }
-    .doc-list-action { min-height: 32px; border: 1px solid #c4c6cd; background: #ffffff; color: #162839; padding: 0.32rem 0.44rem; border-radius: 0.38rem; font-weight: 800; font-size: 0.68rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.22rem; white-space: nowrap; }
+    .doc-list-action { min-height: 28px; border: 1px solid #c4c6cd; background: #ffffff; color: #162839; padding: 0.25rem 0.38rem; border-radius: 0.38rem; font-weight: 800; font-size: 0.64rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.18rem; white-space: nowrap; }
     .doc-list-action:hover { background: #edeeef; border-color: #74777d; }
     .doc-list-action.secondary { background: #fed023; border-color: #fed023; }
     .doc-list-action.secondary:hover { background: #eec209; border-color: #eec209; }
@@ -134,16 +136,38 @@
     .qr-status { display: none; margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.88rem; font-weight: 700; }
     .qr-status.ok { display: block; background: #d3f9d8; color: #1f7a44; }
 	    .qr-status.error { display: block; background: #ffdad6; color: #93000a; }
+    .doc-grid[data-cols="4"] .doc-card-head { padding: 0.72rem 0.82rem; }
+    .doc-grid[data-cols="4"] .doc-card-title { font-size: 0.88rem; }
+    .doc-grid[data-cols="4"] .doc-card-body { padding: 0.72rem 0.82rem; gap: 0.62rem; }
+    .doc-grid[data-cols="4"] .doc-card-footer { padding: 0.55rem 0.82rem; }
+    .doc-grid[data-cols="4"] .doc-actions { gap: 0.42rem; }
+    .doc-grid[data-cols="4"] .doc-action-btn { min-height: 32px; padding: 0.32rem 0.38rem; font-size: 0.7rem; gap: 0.25rem; }
+    .doc-grid[data-cols="4"] .doc-action-btn .material-symbols-outlined { font-size: 15px !important; }
+    .doc-grid[data-cols="4"] .progress-wrapper { padding: 0.62rem; }
+    .doc-grid[data-cols="4"] .progress-header { font-size: 0.75rem; margin-bottom: 0.5rem; }
+    .doc-grid[data-cols="5"] .doc-card-head { padding: 0.5rem 0.62rem; }
+    .doc-grid[data-cols="5"] .doc-card-title { font-size: 0.8rem; }
+    .doc-grid[data-cols="5"] .doc-card-body { padding: 0.5rem 0.62rem; gap: 0.45rem; }
+    .doc-grid[data-cols="5"] .doc-card-footer { padding: 0.38rem 0.62rem; }
+    .doc-grid[data-cols="5"] .doc-actions { gap: 0.32rem; }
+    .doc-grid[data-cols="5"] .doc-action-btn { min-height: 26px; padding: 0.22rem 0.28rem; font-size: 0.62rem; gap: 0.18rem; }
+    .doc-grid[data-cols="5"] .doc-action-btn .material-symbols-outlined { font-size: 13px !important; }
+    .doc-grid[data-cols="5"] .progress-wrapper { padding: 0.45rem 0.5rem; }
+    .doc-grid[data-cols="5"] .progress-header { font-size: 0.68rem; margin-bottom: 0.38rem; }
 	    @media screen and (max-width: 1024px) {
 	        .portal-results-layout { grid-template-columns: 1fr; }
 	        .portal-label-panel { position: static; max-height: none; }
 	        .portal-label-list { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 	    }
+	    @media screen and (max-width: 768px) {
+	        .doc-grid[data-cols="5"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+	        .doc-grid[data-cols="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	    }
 	    @media screen and (max-width: 420px) {
-	        .doc-action-btn { font-size: 0.76rem; padding-left: 0.35rem; padding-right: 0.35rem; }
+	        .doc-action-btn { font-size: 0.72rem; padding-left: 0.35rem; padding-right: 0.35rem; }
 	        .portal-label-list { grid-template-columns: 1fr; }
-	        .portal-card-size-control { width: 100%; margin-left: 0; justify-content: space-between; }
-	        .portal-card-size-control input[type="range"] { flex: 1; width: auto; }
+	        .portal-card-size-control { margin-left: 0; }
+	        .doc-grid { grid-template-columns: 1fr !important; }
 	    }
 </style>
 {% endblock %}
@@ -260,11 +284,14 @@
                     Lista
                 </button>
             </div>
-            <div class="portal-card-size-control" id="portalCardSizeControl" title="Tamaño de tarjetas">
-                <span class="material-symbols-outlined" aria-hidden="true">width</span>
-                <label for="portalCardSize">Tarjetas</label>
-                <input id="portalCardSize" type="range" min="280" max="440" step="20" value="320" aria-label="Tamaño de tarjetas">
-                <span class="portal-card-size-value" id="portalCardSizeValue">320px</span>
+            <div class="portal-card-size-control" id="portalCardSizeControl" title="Columnas de tarjetas">
+                <span class="material-symbols-outlined" aria-hidden="true">view_column</span>
+                <label>Columnas</label>
+                <div class="portal-cols-btns" id="portalColsBtns">
+                    <button type="button" class="portal-cols-btn" data-cols="3" onclick="applyPortalCols(3, true)">3</button>
+                    <button type="button" class="portal-cols-btn" data-cols="4" onclick="applyPortalCols(4, true)">4</button>
+                    <button type="button" class="portal-cols-btn" data-cols="5" onclick="applyPortalCols(5, true)">5</button>
+                </div>
             </div>
         </div>
     </section>
@@ -575,9 +602,7 @@
 {% block scripts %}
 <script>
 	    const PORTAL_DEFAULT_PAGE_SIZE = 25;
-	    const PORTAL_CARD_WIDTH_DEFAULT = 320;
-	    const PORTAL_CARD_WIDTH_MIN = 280;
-	    const PORTAL_CARD_WIDTH_MAX = 440;
+	    const PORTAL_COLS_DEFAULT = 3;
 	    const PORTAL_OWNER_STORAGE_ID = "{{ owner_email|escapejs }}";
 	    let currentPortalDocs = [];
 	    let portalCurrentPage = 1;
@@ -610,27 +635,22 @@
         return `portalDashboard:${PORTAL_OWNER_STORAGE_ID || 'usuario'}:${name}`;
     }
 
-    function clampPortalCardWidth(value) {
-        const parsed = Number(value || PORTAL_CARD_WIDTH_DEFAULT);
-        if (!Number.isFinite(parsed)) return PORTAL_CARD_WIDTH_DEFAULT;
-        return Math.min(PORTAL_CARD_WIDTH_MAX, Math.max(PORTAL_CARD_WIDTH_MIN, parsed));
-    }
-
-    function getStoredPortalCardWidth() {
+    function getStoredPortalCols() {
         try {
-            return clampPortalCardWidth(localStorage.getItem(portalUserStorageKey('cardWidth')));
+            const stored = Number(localStorage.getItem(portalUserStorageKey('cols')));
+            return [3, 4, 5].includes(stored) ? stored : PORTAL_COLS_DEFAULT;
         } catch (error) {
-            return PORTAL_CARD_WIDTH_DEFAULT;
+            return PORTAL_COLS_DEFAULT;
         }
     }
 
-    function storePortalCardWidth(width) {
+    function storePortalCols(cols) {
         try {
-            localStorage.setItem(portalUserStorageKey('cardWidth'), String(width));
+            localStorage.setItem(portalUserStorageKey('cols'), String(cols));
         } catch (error) {}
     }
 
-    let portalCardWidth = getStoredPortalCardWidth();
+    let portalCols = getStoredPortalCols();
     let viewMode = getStoredViewMode();
 
     function setViewMode(mode) {
@@ -650,15 +670,17 @@
         if (cardSizeControl) cardSizeControl.classList.toggle('is-hidden', viewMode !== 'cards');
     }
 
-    function applyPortalCardWidth(width, shouldStore) {
-        portalCardWidth = clampPortalCardWidth(width);
+    function applyPortalCols(cols, shouldStore) {
+        portalCols = [3, 4, 5].includes(Number(cols)) ? Number(cols) : PORTAL_COLS_DEFAULT;
         const grid = document.getElementById('gridContainer');
-        if (grid) grid.style.setProperty('--portal-card-width', `${portalCardWidth}px`);
-        const input = document.getElementById('portalCardSize');
-        const value = document.getElementById('portalCardSizeValue');
-        if (input) input.value = String(portalCardWidth);
-        if (value) value.textContent = `${portalCardWidth}px`;
-        if (shouldStore) storePortalCardWidth(portalCardWidth);
+        if (grid) {
+            grid.style.setProperty('--portal-cols', String(portalCols));
+            grid.dataset.cols = String(portalCols);
+        }
+        document.querySelectorAll('.portal-cols-btn').forEach(btn => {
+            btn.classList.toggle('active', Number(btn.dataset.cols) === portalCols);
+        });
+        if (shouldStore) storePortalCols(portalCols);
     }
 
     function escapeHtml(value) {
@@ -1198,7 +1220,7 @@
         const container = document.getElementById('gridContainer');
         container.innerHTML = '';
         container.className = viewMode === 'list' ? 'doc-list' : 'doc-grid';
-        applyPortalCardWidth(portalCardWidth);
+        applyPortalCols(portalCols);
 
         if (docs.length === 0) {
             container.innerHTML = `
@@ -1758,12 +1780,7 @@
                 cargarPortalDocumentos(1);
             }
         });
-        const portalCardSize = document.getElementById('portalCardSize');
-        if (portalCardSize) {
-            portalCardSize.addEventListener('input', event => applyPortalCardWidth(event.target.value, true));
-            portalCardSize.addEventListener('change', event => applyPortalCardWidth(event.target.value, true));
-        }
-        applyPortalCardWidth(portalCardWidth);
+        applyPortalCols(portalCols);
         updateViewToggle();
         cargarPortalEtiquetas().finally(() => cargarPortalDocumentos(1));
     });
