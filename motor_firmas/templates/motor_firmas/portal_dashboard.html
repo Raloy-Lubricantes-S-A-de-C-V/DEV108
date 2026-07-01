@@ -136,6 +136,10 @@
     .qr-status { display: none; margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.88rem; font-weight: 700; }
     .qr-status.ok { display: block; background: #d3f9d8; color: #1f7a44; }
 	    .qr-status.error { display: block; background: #ffdad6; color: #93000a; }
+    .doc-grid[data-cols="4"] .doc-actions:has(> :nth-child(3)) .doc-action-btn { font-size: 0 !important; gap: 0; padding-left: 0.32rem; padding-right: 0.32rem; }
+    .doc-grid[data-cols="4"] .doc-actions:has(> :nth-child(3)) .doc-action-btn .material-symbols-outlined { font-size: 15px !important; }
+    .doc-grid[data-cols="5"] .doc-actions:has(> :nth-child(2)) .doc-action-btn { font-size: 0 !important; gap: 0; padding-left: 0.28rem; padding-right: 0.28rem; }
+    .doc-grid[data-cols="5"] .doc-actions:has(> :nth-child(2)) .doc-action-btn .material-symbols-outlined { font-size: 13px !important; }
     .doc-grid[data-cols="4"] .doc-card-head { padding: 0.72rem 0.82rem; }
     .doc-grid[data-cols="4"] .doc-card-title { font-size: 0.88rem; }
     .doc-grid[data-cols="4"] .doc-card-body { padding: 0.72rem 0.82rem; gap: 0.62rem; }
@@ -152,6 +156,10 @@
     .doc-grid[data-cols="5"] .doc-actions { gap: 0.32rem; }
     .doc-grid[data-cols="5"] .doc-action-btn { min-height: 26px; padding: 0.22rem 0.28rem; font-size: 0.62rem; gap: 0.18rem; }
     .doc-grid[data-cols="5"] .doc-action-btn .material-symbols-outlined { font-size: 13px !important; }
+    .doc-grid[data-cols="4"] .doc-actions.icon-only .doc-action-btn { font-size: 0 !important; gap: 0; padding-left: 0.32rem; padding-right: 0.32rem; }
+    .doc-grid[data-cols="4"] .doc-actions.icon-only .doc-action-btn .material-symbols-outlined { font-size: 15px !important; }
+    .doc-grid[data-cols="5"] .doc-actions.icon-only .doc-action-btn { font-size: 0 !important; gap: 0; padding-left: 0.28rem; padding-right: 0.28rem; }
+    .doc-grid[data-cols="5"] .doc-actions.icon-only .doc-action-btn .material-symbols-outlined { font-size: 13px !important; }
     .doc-grid[data-cols="5"] .progress-wrapper { padding: 0.45rem 0.5rem; }
     .doc-grid[data-cols="5"] .progress-header { font-size: 0.68rem; margin-bottom: 0.38rem; }
 	    @media screen and (max-width: 1024px) {
@@ -676,11 +684,28 @@
         if (grid) {
             grid.style.setProperty('--portal-cols', String(portalCols));
             grid.dataset.cols = String(portalCols);
+            updateCardActionDensity(grid);
         }
         document.querySelectorAll('.portal-cols-btn').forEach(btn => {
             btn.classList.toggle('active', Number(btn.dataset.cols) === portalCols);
         });
         if (shouldStore) storePortalCols(portalCols);
+    }
+
+    function shouldUseIconOnlyActions(actionCount) {
+        const count = Number(actionCount || 0);
+        return (portalCols === 4 && count >= 3) || (portalCols === 5 && count >= 2);
+    }
+
+    function docActionsClass(actionCount) {
+        return `doc-actions${shouldUseIconOnlyActions(actionCount) ? ' icon-only' : ''}`;
+    }
+
+    function updateCardActionDensity(root) {
+        (root || document).querySelectorAll('.doc-actions').forEach(actions => {
+            const actionCount = actions.querySelectorAll('.doc-action-btn').length;
+            actions.classList.toggle('icon-only', shouldUseIconOnlyActions(actionCount));
+        });
     }
 
     function escapeHtml(value) {
@@ -1397,12 +1422,12 @@
 
         const footerActions = isCompletedFirmx(doc)
             ? `
-                <div class="doc-actions">
-                    <a href="/trazabilidad/${doc.token}/" target="_blank" rel="noopener noreferrer" class="doc-action-btn">
+                <div class="${docActionsClass(2)}">
+                    <a href="/trazabilidad/${doc.token}/" target="_blank" rel="noopener noreferrer" class="doc-action-btn" title="Ver trazabilidad">
                         <span class="material-symbols-outlined text-[18px]">visibility</span>
                         Ver trazabilidad
                     </a>
-                    <a href="${firmxDocumentUrl(doc)}" target="_blank" rel="noopener noreferrer" class="doc-action-btn">
+                    <a href="${firmxDocumentUrl(doc)}" target="_blank" rel="noopener noreferrer" class="doc-action-btn" title="Ver documento">
                         <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span>
                         Ver documento
                     </a>
@@ -1410,23 +1435,23 @@
             `
             : doc.status === 'COMPLETED'
             ? `
-                <div class="doc-actions">
-                    <a href="/trazabilidad/${doc.token}/" target="_blank" class="doc-action-btn">
+                <div class="${docActionsClass(3)}">
+                    <a href="/trazabilidad/${doc.token}/" target="_blank" class="doc-action-btn" title="Ver trazabilidad">
                         <span class="material-symbols-outlined text-[18px]">visibility</span>
                         Ver trazabilidad
                     </a>
-                    <button type="button" onclick="openQrWizard('${doc.token}')" class="doc-action-btn">
+                    <button type="button" onclick="openQrWizard('${doc.token}')" class="doc-action-btn" title="Compartir QR">
                         <span class="material-symbols-outlined text-[18px]">qr_code_2</span>
                         Compartir QR
                     </button>
-                    <a href="/portal/ajustar-firmas/${doc.token}/" class="doc-action-btn secondary">
+                    <a href="/portal/ajustar-firmas/${doc.token}/" class="doc-action-btn secondary" title="Ajustar firmas">
                         <span class="material-symbols-outlined text-[18px]">edit_location_alt</span>
                         Ajustar firmas
                     </a>
                 </div>
             `
             : `
-                <a href="/trazabilidad/${doc.token}/" target="_blank" class="doc-action-btn w-full">
+                <a href="/trazabilidad/${doc.token}/" target="_blank" class="doc-action-btn w-full" title="Ver trazabilidad">
                     <span class="material-symbols-outlined text-[18px]">visibility</span>
                     Ver trazabilidad
                 </a>
