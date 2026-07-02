@@ -328,8 +328,8 @@
             </button>
         </div>
         <div class="admin-sidebar-tools">
-            <section class="admin-side-card admin-tool-card is-open" data-admin-tool>
-                <button type="button" class="admin-tool-header" aria-expanded="true" aria-controls="adminToolPlantillas">
+            <section class="admin-side-card admin-tool-card" data-admin-tool>
+                <button type="button" class="admin-tool-header" aria-expanded="false" aria-controls="adminToolPlantillas">
                     <span class="admin-tool-heading">
                         <span class="material-symbols-outlined text-primary">dynamic_form</span>
                         Gestión de Plantillas
@@ -568,15 +568,17 @@
         }
 
         function openOnlyTool(activeCard) {
-            toolCards.forEach(card => setToolOpen(card, card === activeCard));
+            toolCards.forEach(card => setToolOpen(card, Boolean(activeCard && card === activeCard)));
         }
 
         toolCards.forEach(card => {
             const header = card.querySelector('.admin-tool-header');
             if (!header) return;
-            header.addEventListener('click', () => openOnlyTool(card));
+            header.addEventListener('click', () => {
+                openOnlyTool(card.classList.contains('is-open') ? null : card);
+            });
         });
-        openOnlyTool(toolCards.find(card => card.classList.contains('is-open')) || toolCards[0]);
+        openOnlyTool(null);
         window.addEventListener('resize', () => {
             const openCard = toolCards.find(card => card.classList.contains('is-open'));
             if (openCard) setToolOpen(openCard, true);
