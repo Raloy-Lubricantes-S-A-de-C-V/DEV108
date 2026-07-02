@@ -11,10 +11,10 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -3344,
-        -96
+        -4608,
+        -1504
       ],
-      "id": "65fdcfe6-fd67-4778-8deb-3ee58503e43a",
+      "id": "25546434-e6d7-4a1e-a244-7dec43ae4c81",
       "name": "Webhook",
       "webhookId": "bcace2c7-4726-4adf-8819-958417531d55"
     },
@@ -25,11 +25,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -3120,
-        -96
+        -4384,
+        -1504
       ],
-      "id": "c3710a35-e9c5-4027-b110-3e68e28e71b9",
-      "name": "Normalizar Solicitud"
+      "id": "412816bd-7872-432c-973c-8cc6d9d2fc7d",
+      "name": "Normalizar Solicitud2"
     },
     {
       "parameters": {
@@ -41,7 +41,7 @@
           "parameters": [
             {
               "name": "q",
-              "value": "={{ $node[\"Normalizar Solicitud\"].json.formatos_query }}"
+              "value": "={{ $node[\"Normalizar Solicitud2\"].json.formatos_query }}"
             },
             {
               "name": "fields",
@@ -62,11 +62,11 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -2896,
-        -96
+        -4160,
+        -1504
       ],
-      "id": "21a79be3-2279-4f11-8ad4-57646ea3dda5",
-      "name": "Buscar Formatos Inicial",
+      "id": "ed8be79a-56a8-4bc4-906b-6d2065ec89e1",
+      "name": "Buscar Formatos Inicial2",
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "5U0tNgPLDllo3BTf",
@@ -86,7 +86,7 @@
           "conditions": [
             {
               "id": "a55dd6e4-ff27-4504-8897-4b3891e8ca38",
-              "leftValue": "={{ !$node[\"Normalizar Solicitud\"].json.formatos_folder_id && ($json.files || []).length === 0 }}",
+              "leftValue": "={{ !$node[\"Normalizar Solicitud2\"].json.formatos_folder_id && ($json.files || []).length === 0 }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -101,11 +101,11 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -2672,
-        -96
+        -3936,
+        -1504
       ],
-      "id": "26e8a051-b025-4de9-898b-c92d6a77368d",
-      "name": "IF Crear Formatos"
+      "id": "df81c95f-593c-4e97-8d57-d8efb96c571a",
+      "name": "IF Crear Formatos2"
     },
     {
       "parameters": {
@@ -128,17 +128,17 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { name: $node[\"Normalizar Solicitud\"].json.formatos_folder_name, mimeType: 'application/vnd.google-apps.folder', parents: [$node[\"Normalizar Solicitud\"].json.root_folder_id] } }}",
+        "jsonBody": "={{ { name: $node[\"Normalizar Solicitud2\"].json.formatos_folder_name, mimeType: 'application/vnd.google-apps.folder', parents: [$node[\"Normalizar Solicitud2\"].json.root_folder_id] } }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -2464,
-        -336
+        -3728,
+        -1744
       ],
-      "id": "3129d691-95b3-47e1-8029-4e774cf9d50a",
-      "name": "Crear Formatos",
+      "id": "7917a6f1-36c5-4b05-b696-f5d15e7514fb",
+      "name": "Crear Formatos2",
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "5U0tNgPLDllo3BTf",
@@ -156,7 +156,7 @@
           "parameters": [
             {
               "name": "q",
-              "value": "={{ $node[\"Normalizar Solicitud\"].json.formatos_query }}"
+              "value": "={{ $node[\"Normalizar Solicitud2\"].json.formatos_query }}"
             },
             {
               "name": "fields",
@@ -177,11 +177,11 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -2240,
-        -80
+        -3504,
+        -1488
       ],
-      "id": "b306045b-4ce0-4360-93af-8d1b91bf2906",
-      "name": "Buscar Formatos Final",
+      "id": "69fb2a5b-80a5-4d2f-a6ed-db2f6f6b5efc",
+      "name": "Buscar Formatos Final2",
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "5U0tNgPLDllo3BTf",
@@ -191,16 +191,16 @@
     },
     {
       "parameters": {
-        "jsCode": "const base = $('Normalizar Solicitud').first().json;\nconst files = $input.first().json.files || [];\nconst formatosFolderId = base.formatos_folder_id || (files[0] && files[0].id) || '';\nif (!formatosFolderId) {\n  throw new Error('No se pudo crear o localizar la carpeta Formatos.');\n}\nreturn [{ json: { ...base, formatos_folder_id: formatosFolderId } }];"
+        "jsCode": "const base = $('Normalizar Solicitud2').first().json;\nconst files = $input.first().json.files || [];\nconst formatosFolderId = base.formatos_folder_id || (files[0] && files[0].id) || '';\nif (!formatosFolderId) {\n  throw new Error('No se pudo crear o localizar la carpeta Formatos.');\n}\nreturn [{ json: { ...base, formatos_folder_id: formatosFolderId } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2016,
-        -80
+        -3280,
+        -1488
       ],
-      "id": "4896fb3c-d6f1-48e5-9feb-e5b628fb5b25",
-      "name": "Resolver Formatos"
+      "id": "e1a2fd24-e3a5-4b6b-931f-989aad411e30",
+      "name": "Resolver Formatos2"
     },
     {
       "parameters": {
@@ -212,7 +212,7 @@
           "parameters": [
             {
               "name": "q",
-              "value": "={{ $node[\"Normalizar Solicitud\"].json.pdfs_query }}"
+              "value": "={{ $node[\"Normalizar Solicitud2\"].json.pdfs_query }}"
             },
             {
               "name": "fields",
@@ -233,11 +233,11 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -1776,
-        -80
+        -3040,
+        -1488
       ],
-      "id": "45d3ca9e-43d9-411b-ba34-a38339ade5e7",
-      "name": "Buscar PDFs Inicial",
+      "id": "fa550e90-dfee-46f9-84fa-46ca0481d26a",
+      "name": "Buscar PDFs Inicial2",
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "5U0tNgPLDllo3BTf",
@@ -257,7 +257,7 @@
           "conditions": [
             {
               "id": "95b21685-a110-4946-9299-c61c89c4f618",
-              "leftValue": "={{ !$node[\"Resolver Formatos\"].json.pdfs_folder_id && ($json.files || []).length === 0 }}",
+              "leftValue": "={{ !$node[\"Resolver Formatos2\"].json.pdfs_folder_id && ($json.files || []).length === 0 }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -272,11 +272,11 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -1552,
-        -80
+        -2816,
+        -1488
       ],
-      "id": "9d16116e-c3c5-48b6-9ab6-642add45b4e7",
-      "name": "IF Crear PDFs"
+      "id": "ccb089bf-033e-44df-b7c8-41b0df0e4eae",
+      "name": "IF Crear PDFs2"
     },
     {
       "parameters": {
@@ -299,17 +299,17 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { name: $node[\"Normalizar Solicitud\"].json.pdfs_folder_name, mimeType: 'application/vnd.google-apps.folder', parents: [$node[\"Normalizar Solicitud\"].json.root_folder_id] } }}",
+        "jsonBody": "={{ { name: $node[\"Normalizar Solicitud2\"].json.pdfs_folder_name, mimeType: 'application/vnd.google-apps.folder', parents: [$node[\"Normalizar Solicitud2\"].json.root_folder_id] } }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -1328,
-        -192
+        -2592,
+        -1600
       ],
-      "id": "1bd8dddc-aa3f-4bf8-9e99-afdde4568c7c",
-      "name": "Crear PDFs",
+      "id": "81f1159a-5b6a-463b-bf4d-617f95c193b7",
+      "name": "Crear PDFs2",
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "5U0tNgPLDllo3BTf",
@@ -327,7 +327,7 @@
           "parameters": [
             {
               "name": "q",
-              "value": "={{ $node[\"Normalizar Solicitud\"].json.pdfs_query }}"
+              "value": "={{ $node[\"Normalizar Solicitud2\"].json.pdfs_query }}"
             },
             {
               "name": "fields",
@@ -348,11 +348,11 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -1104,
-        -64
+        -2368,
+        -1472
       ],
-      "id": "26284983-c7ee-4d00-b06c-d5ff77427b9f",
-      "name": "Buscar PDFs Final",
+      "id": "eee95f00-bd6d-4183-a67b-4479abfd646a",
+      "name": "Buscar PDFs Final2",
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "5U0tNgPLDllo3BTf",
@@ -362,16 +362,16 @@
     },
     {
       "parameters": {
-        "jsCode": "const base = $('Resolver Formatos').first().json;\nconst files = $input.first().json.files || [];\nconst pdfsFolderId = base.pdfs_folder_id || (files[0] && files[0].id) || '';\nif (!pdfsFolderId) {\n  throw new Error('No se pudo crear o localizar la carpeta PDFs.');\n}\nreturn [{ json: { ...base, pdfs_folder_id: pdfsFolderId } }];"
+        "jsCode": "const base = $('Resolver Formatos2').first().json;\nconst files = $input.first().json.files || [];\nconst pdfsFolderId = base.pdfs_folder_id || (files[0] && files[0].id) || '';\nif (!pdfsFolderId) {\n  throw new Error('No se pudo crear o localizar la carpeta PDFs.');\n}\nreturn [{ json: { ...base, pdfs_folder_id: pdfsFolderId } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -880,
-        -96
+        -2144,
+        -1504
       ],
-      "id": "44d974c5-8c12-4d24-bfa1-61dd7d12c4e2",
-      "name": "Resolver PDFs"
+      "id": "0154e111-d392-4320-8a6a-9b6625ddaa6b",
+      "name": "Resolver PDFs2"
     },
     {
       "parameters": {
@@ -400,15 +400,15 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -656,
-        -96
+        -1920,
+        -1504
       ],
-      "id": "e422567c-864a-40fa-bbf5-f87a255ebfb9",
-      "name": "IF Hay Doc"
+      "id": "7c7331bd-379e-4e47-ab4f-003809da8641",
+      "name": "IF Hay Doc2"
     },
     {
       "parameters": {
-        "url": "={{ 'https://www.googleapis.com/drive/v3/files/' + $node[\"Resolver PDFs\"].json.doc_id }}",
+        "url": "={{ 'https://www.googleapis.com/drive/v3/files/' + $node[\"Resolver PDFs2\"].json.doc_id }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleDriveOAuth2Api",
         "sendQuery": true,
@@ -429,11 +429,11 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -432,
-        -192
+        -1696,
+        -1600
       ],
-      "id": "0e495320-b2ff-46b9-affe-c670328be0be",
-      "name": "Obtener Doc",
+      "id": "d4d0be27-cf0e-4c8e-854b-0deda818c836",
+      "name": "Obtener Doc2",
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "5U0tNgPLDllo3BTf",
@@ -443,16 +443,16 @@
     },
     {
       "parameters": {
-        "jsCode": "const base = $('Resolver PDFs').first().json;\nconst targetFolderId = base.formatos_folder_id;\nconst parentsFromDrive = Array.isArray($json.parents) ? $json.parents.filter(Boolean) : [];\nconst fallbackParents = [base.parent_folder, base.root_folder_id].filter(Boolean);\nconst currentParents = parentsFromDrive.length ? parentsFromDrive : fallbackParents;\nconst removeParents = [...new Set(currentParents)].filter((id) => id !== targetFolderId).join(',');\nreturn [{ json: { ...base, doc_name: $json.name || '', doc_webViewLink: $json.webViewLink || '', doc_current_parents: currentParents, remove_parents: removeParents } }];"
+        "jsCode": "const base = $('Resolver PDFs2').first().json;\nconst targetFolderId = base.formatos_folder_id;\nconst parentsFromDrive = Array.isArray($json.parents) ? $json.parents.filter(Boolean) : [];\nconst fallbackParents = [base.parent_folder, base.root_folder_id].filter(Boolean);\nconst currentParents = parentsFromDrive.length ? parentsFromDrive : fallbackParents;\nconst removeParents = [...new Set(currentParents)].filter((id) => id !== targetFolderId).join(',');\nreturn [{ json: { ...base, doc_name: $json.name || '', doc_webViewLink: $json.webViewLink || '', doc_current_parents: currentParents, remove_parents: removeParents } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -208,
-        -192
+        -1472,
+        -1600
       ],
-      "id": "5bea740e-b2e8-4b87-8087-763d9f34490d",
-      "name": "Resolver Doc"
+      "id": "d02f6798-c04e-46b6-8219-4c0956fbb789",
+      "name": "Resolver Doc2"
     },
     {
       "parameters": {
@@ -481,11 +481,11 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        16,
-        -192
+        -1248,
+        -1600
       ],
-      "id": "3261a2e8-945e-4e09-8f12-53d97fcf6cdc",
-      "name": "IF Tiene Padres Para Remover"
+      "id": "2f72de36-4a6d-4195-a9d9-dc50a340e604",
+      "name": "IF Tiene Padres Para Remover2"
     },
     {
       "parameters": {
@@ -519,51 +519,12 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        240,
-        -288
+        -1024,
+        -1712
       ],
-      "id": "64604db4-f515-473b-a588-2449966dfb5c",
-      "name": "Mover Doc a Formatos",
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "id": "5U0tNgPLDllo3BTf",
-          "name": "Google Drive Aplicaciones Grupo Nova"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "method": "PATCH",
-        "url": "={{ 'https://www.googleapis.com/drive/v3/files/' + $json.doc_id }}",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "googleDriveOAuth2Api",
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "addParents",
-              "value": "={{ $json.formatos_folder_id }}"
-            },
-            {
-              "name": "fields",
-              "value": "id,name,parents,webViewLink"
-            },
-            {
-              "name": "supportsAllDrives",
-              "value": "true"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        240,
-        -96
-      ],
-      "id": "17f12a2e-36b5-4b0c-abf0-90b03a1b6da7",
-      "name": "Agregar Doc a Formatos",
+      "id": "490061aa-6414-416a-be22-c413fc1f1766",
+      "name": "Mover Doc a Formatos2",
+      "alwaysOutputData": true,
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "5U0tNgPLDllo3BTf",
@@ -574,17 +535,17 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { status: 'success', storage_policy: $node[\"Resolver PDFs\"].json.storage_policy, root_folder_id: $node[\"Resolver PDFs\"].json.root_folder_id, formatos_folder_id: $node[\"Resolver PDFs\"].json.formatos_folder_id, pdfs_folder_id: $node[\"Resolver PDFs\"].json.pdfs_folder_id, doc_id: $node[\"Resolver PDFs\"].json.doc_id || '', moved_doc: $json.id ? { id: $json.id, name: $json.name, parents: $json.parents, webViewLink: $json.webViewLink } : null } }}",
+        "responseBody": "={{ { status: 'success', storage_policy: $node[\"Resolver PDFs2\"].json.storage_policy, root_folder_id: $node[\"Resolver PDFs2\"].json.root_folder_id, formatos_folder_id: $node[\"Resolver PDFs2\"].json.formatos_folder_id, pdfs_folder_id: $node[\"Resolver PDFs2\"].json.pdfs_folder_id, doc_id: $node[\"Resolver PDFs2\"].json.doc_id || '', moved_doc: ($json.id || $json.doc_id) ? { id: $json.id || $json.doc_id, name: $json.name || $json.doc_name, parents: $json.parents || $json.doc_current_parents || [], webViewLink: $json.webViewLink || $json.doc_webViewLink } : null } }}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        464,
-        -192
+        -528,
+        -1584
       ],
-      "id": "79716851-b86a-432b-98d4-0dbb93c42230",
-      "name": "Responder OK"
+      "id": "c805c15b-3b01-476e-8ebc-1d21992e0e61",
+      "name": "Responder OK2"
     },
     {
       "parameters": {
@@ -595,11 +556,11 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        -512,
-        416
+        -1776,
+        -992
       ],
-      "id": "bd157967-2094-4e4b-bd45-f057eaf98089",
-      "name": "Responder Sin Doc"
+      "id": "39c4ab54-de7a-4b27-92a1-712d94dcca6f",
+      "name": "Responder Sin Doc2"
     },
     {
       "parameters": {
@@ -628,11 +589,11 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -800,
-        272
+        -2064,
+        -1136
       ],
-      "id": "602799c7-d5a5-4133-ad30-9449478c7f95",
-      "name": "IF Hay PDF"
+      "id": "952286b2-8349-4328-bdec-00f0b73829cc",
+      "name": "IF Hay PDF2"
     },
     {
       "parameters": {
@@ -657,11 +618,11 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -320,
-        224
+        -1584,
+        -1184
       ],
-      "id": "46652b10-98ac-4e91-a937-0934bdeb8085",
-      "name": "Obtener PDF",
+      "id": "0c57bcc3-e1e8-4cbd-939d-7001c6051f41",
+      "name": "Obtener PDF2",
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "5U0tNgPLDllo3BTf",
@@ -671,16 +632,16 @@
     },
     {
       "parameters": {
-        "jsCode": "const base = $('Resolver PDFs').first().json;\nconst targetFolderId = base.pdfs_folder_id;\nconst parentsFromDrive = Array.isArray($json.parents) ? $json.parents.filter(Boolean) : [];\nconst fallbackParents = [base.parent_folder, base.root_folder_id].filter(Boolean);\nconst currentParents = parentsFromDrive.length ? parentsFromDrive : fallbackParents;\nconst removeParents = [...new Set(currentParents)].filter((id) => id !== targetFolderId).join(',');\nreturn [{ json: { ...base, pdf_name: $json.name || '', pdf_webViewLink: $json.webViewLink || '', pdf_current_parents: currentParents, remove_pdf_parents: removeParents } }];"
+        "jsCode": "const base = $('Resolver PDFs2').first().json;\nconst targetFolderId = base.pdfs_folder_id;\nconst parentsFromDrive = Array.isArray($json.parents) ? $json.parents.filter(Boolean) : [];\nconst fallbackParents = [base.parent_folder, base.root_folder_id].filter(Boolean);\nconst currentParents = parentsFromDrive.length ? parentsFromDrive : fallbackParents;\nconst removeParents = [...new Set(currentParents)].filter((id) => id !== targetFolderId).join(',');\nreturn [{ json: { ...base, pdf_name: $json.name || '', pdf_webViewLink: $json.webViewLink || '', pdf_current_parents: currentParents, remove_pdf_parents: removeParents } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
-        160
+        -1264,
+        -1248
       ],
-      "id": "aa837c11-02b8-44f7-99c2-b90275ac2ea2",
-      "name": "Resolver PDF"
+      "id": "5748f819-d792-4271-b25d-acb2202ae186",
+      "name": "Resolver PDF2"
     },
     {
       "parameters": {
@@ -709,11 +670,11 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        240,
-        144
+        -1024,
+        -1264
       ],
-      "id": "09334c35-0d65-4bde-9537-9f37dcb2d5fd",
-      "name": "IF PDF Tiene Padres Para Remover"
+      "id": "bdd652fd-beed-4f4b-a396-2862fe05c812",
+      "name": "IF PDF Tiene Padres Para Remover2"
     },
     {
       "parameters": {
@@ -747,11 +708,12 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        480,
-        48
+        -784,
+        -1360
       ],
-      "id": "48dcaf17-b931-4127-b059-5bb58f1196e7",
-      "name": "Mover PDF a PDFs",
+      "id": "a004e01d-6f14-4914-b577-1492c99509e7",
+      "name": "Mover PDF a PDFs2",
+      "alwaysOutputData": true,
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "5U0tNgPLDllo3BTf",
@@ -787,11 +749,12 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        544,
-        208
+        -720,
+        -1200
       ],
-      "id": "d5431f94-abfa-4064-b3b0-1fc52dcc9317",
-      "name": "Agregar PDF a PDFs",
+      "id": "4b70abdc-5fb2-457b-ba66-044b5ea5d13c",
+      "name": "Agregar PDF a PDFs2",
+      "alwaysOutputData": true,
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "5U0tNgPLDllo3BTf",
@@ -802,17 +765,17 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { status: 'success', storage_policy: $node[\"Resolver PDFs\"].json.storage_policy, root_folder_id: $node[\"Resolver PDFs\"].json.root_folder_id, formatos_folder_id: $node[\"Resolver PDFs\"].json.formatos_folder_id, pdfs_folder_id: $node[\"Resolver PDFs\"].json.pdfs_folder_id, pdf_file_id: $json.id, moved_pdf: { id: $json.id, name: $json.name, parents: $json.parents, webViewLink: $json.webViewLink } } }}",
+        "responseBody": "={{ { status: 'success', storage_policy: $node[\"Resolver PDFs2\"].json.storage_policy, root_folder_id: $node[\"Resolver PDFs2\"].json.root_folder_id, formatos_folder_id: $node[\"Resolver PDFs2\"].json.formatos_folder_id, pdfs_folder_id: $node[\"Resolver PDFs2\"].json.pdfs_folder_id, pdf_file_id: $json.id, moved_pdf: { id: $json.id, name: $json.name, parents: $json.parents, webViewLink: $json.webViewLink } } }}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        800,
-        112
+        -464,
+        -1296
       ],
-      "id": "c54787e0-255f-4246-8f9b-84ded1d82891",
-      "name": "Responder PDF OK"
+      "id": "6176f69c-e472-4379-b51d-a35d0afe00e9",
+      "name": "Responder PDF OK2"
     }
   ],
   "pinData": {},
@@ -821,302 +784,291 @@
       "main": [
         [
           {
-            "node": "Normalizar Solicitud",
+            "node": "Normalizar Solicitud2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Normalizar Solicitud": {
+    "Normalizar Solicitud2": {
       "main": [
         [
           {
-            "node": "Buscar Formatos Inicial",
+            "node": "Buscar Formatos Inicial2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Buscar Formatos Inicial": {
+    "Buscar Formatos Inicial2": {
       "main": [
         [
           {
-            "node": "IF Crear Formatos",
+            "node": "IF Crear Formatos2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "IF Crear Formatos": {
+    "IF Crear Formatos2": {
       "main": [
         [
           {
-            "node": "Crear Formatos",
+            "node": "Crear Formatos2",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Buscar Formatos Final",
+            "node": "Buscar Formatos Final2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Crear Formatos": {
+    "Crear Formatos2": {
       "main": [
         [
           {
-            "node": "Buscar Formatos Final",
+            "node": "Buscar Formatos Final2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Buscar Formatos Final": {
+    "Buscar Formatos Final2": {
       "main": [
         [
           {
-            "node": "Resolver Formatos",
+            "node": "Resolver Formatos2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Resolver Formatos": {
+    "Resolver Formatos2": {
       "main": [
         [
           {
-            "node": "Buscar PDFs Inicial",
+            "node": "Buscar PDFs Inicial2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Buscar PDFs Inicial": {
+    "Buscar PDFs Inicial2": {
       "main": [
         [
           {
-            "node": "IF Crear PDFs",
+            "node": "IF Crear PDFs2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "IF Crear PDFs": {
+    "IF Crear PDFs2": {
       "main": [
         [
           {
-            "node": "Crear PDFs",
+            "node": "Crear PDFs2",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Buscar PDFs Final",
+            "node": "Buscar PDFs Final2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Crear PDFs": {
+    "Crear PDFs2": {
       "main": [
         [
           {
-            "node": "Buscar PDFs Final",
+            "node": "Buscar PDFs Final2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Buscar PDFs Final": {
+    "Buscar PDFs Final2": {
       "main": [
         [
           {
-            "node": "Resolver PDFs",
+            "node": "Resolver PDFs2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Resolver PDFs": {
+    "Resolver PDFs2": {
       "main": [
         [
           {
-            "node": "IF Hay Doc",
+            "node": "IF Hay Doc2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "IF Hay Doc": {
+    "IF Hay Doc2": {
       "main": [
         [
           {
-            "node": "Obtener Doc",
+            "node": "Obtener Doc2",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "IF Hay PDF",
+            "node": "IF Hay PDF2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Obtener Doc": {
+    "Obtener Doc2": {
       "main": [
         [
           {
-            "node": "Resolver Doc",
+            "node": "Resolver Doc2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Resolver Doc": {
+    "Resolver Doc2": {
       "main": [
         [
           {
-            "node": "IF Tiene Padres Para Remover",
+            "node": "IF Tiene Padres Para Remover2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "IF Tiene Padres Para Remover": {
+    "IF Tiene Padres Para Remover2": {
       "main": [
         [
           {
-            "node": "Mover Doc a Formatos",
+            "node": "Mover Doc a Formatos2",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Agregar Doc a Formatos",
+            "node": "Responder OK2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Mover Doc a Formatos": {
+    "Mover Doc a Formatos2": {
       "main": [
         [
           {
-            "node": "Responder OK",
+            "node": "Responder OK2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Agregar Doc a Formatos": {
+    "IF Hay PDF2": {
       "main": [
         [
           {
-            "node": "Responder OK",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "IF Hay PDF": {
-      "main": [
-        [
-          {
-            "node": "Obtener PDF",
+            "node": "Obtener PDF2",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Responder Sin Doc",
+            "node": "Responder Sin Doc2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Obtener PDF": {
+    "Obtener PDF2": {
       "main": [
         [
           {
-            "node": "Resolver PDF",
+            "node": "Resolver PDF2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Resolver PDF": {
+    "Resolver PDF2": {
       "main": [
         [
           {
-            "node": "IF PDF Tiene Padres Para Remover",
+            "node": "IF PDF Tiene Padres Para Remover2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "IF PDF Tiene Padres Para Remover": {
+    "IF PDF Tiene Padres Para Remover2": {
       "main": [
         [
           {
-            "node": "Mover PDF a PDFs",
+            "node": "Mover PDF a PDFs2",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Agregar PDF a PDFs",
+            "node": "Agregar PDF a PDFs2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Mover PDF a PDFs": {
+    "Mover PDF a PDFs2": {
       "main": [
         [
           {
-            "node": "Responder PDF OK",
+            "node": "Responder PDF OK2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Agregar PDF a PDFs": {
+    "Agregar PDF a PDFs2": {
       "main": [
         [
           {
-            "node": "Responder PDF OK",
+            "node": "Responder PDF OK2",
             "type": "main",
             "index": 0
           }
@@ -1130,7 +1082,7 @@
     "callerPolicy": "workflowsFromSameOwner",
     "availableInMCP": false
   },
-  "versionId": "34599149-752f-40c1-a2a1-317f9df66b3e",
+  "versionId": "4420b8ad-0c2b-4caa-8b20-5929311c8bdc",
   "meta": {
     "instanceId": "8f60456bf9961bd86877bcafc48ad054f66c033835b5187d280f6686f7dbdba1"
   },
