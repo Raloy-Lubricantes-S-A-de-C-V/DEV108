@@ -16,8 +16,8 @@
     .admin-table td:nth-child(7) { text-align: center; }
     .admin-table th:nth-child(8),
     .admin-table td:nth-child(8) { text-align: center; }
-    .admin-col-folio { width: 10%; }
-    .admin-col-creator { width: 22%; }
+    .admin-col-folio { width: 18%; }
+    .admin-col-creator { width: 14%; }
     .admin-col-domain { width: 11%; }
     .admin-col-label { width: 12%; }
     .admin-col-date { width: 11%; }
@@ -27,7 +27,8 @@
     .admin-table-cell-clip { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .admin-table-creator { min-width: 0; max-width: 0; font-size: 0.71rem; color: #43474c; }
     .admin-table-domain { min-width: 0; max-width: 0; font-size: 0.69rem; color: #5f6368; font-weight: 600; }
-    .admin-table-folio { display: block; min-width: 0; color: #162839; font-size: 0.72rem; font-weight: 800; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .admin-table-folio-cell { min-width: 0; overflow: visible; white-space: normal; }
+    .admin-table-folio { display: block; min-width: 0; color: #162839; font-size: 0.72rem; font-weight: 800; line-height: 1.25; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
     .admin-table-label { min-width: 0; max-width: 0; }
     .admin-label-chip { width: 100%; min-width: 0; display: inline-flex; align-items: center; justify-content: flex-start; gap: 0.25rem; color: #162839; background: #f8f9fa; border: 1px solid #d9dadb; border-radius: 9999px; padding: 0.2rem 0.42rem; font-size: 0.64rem; font-weight: 800; line-height: 1.2; }
     .admin-label-chip .material-symbols-outlined { flex-shrink: 0; font-size: 0.85rem !important; }
@@ -873,7 +874,7 @@
                </a>`
             : '';
         tr.innerHTML = `
-            <td class="admin-table-cell-clip"><span class="admin-table-folio" title="${escapeHtml(doc.reference_id)}">${escapeHtml(doc.reference_id)}</span></td>
+            <td class="admin-table-folio-cell"><span class="admin-table-folio" title="${escapeHtml(doc.reference_id)}">${escapeHtml(doc.reference_id)}</span></td>
             <td class="admin-table-creator admin-table-cell-clip" title="${escapeHtml(doc.owner_email)}">${escapeHtml(doc.owner_email)}</td>
             <td class="admin-table-domain admin-table-cell-clip" title="@${escapeHtml(doc.dominio)}">@${escapeHtml(doc.dominio)}</td>
             <td class="admin-table-label">${adminEtiquetaHtml(doc)}</td>
