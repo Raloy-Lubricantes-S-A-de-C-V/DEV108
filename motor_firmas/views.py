@@ -55,12 +55,16 @@ DEFAULT_DRIVE_ARCHIVE_ROOT_FOLDER_ID = '1sCj-iPiNtyitSHz5O2Mv3KSDGZiDDgf0'
 DEFAULT_DRIVE_FORMATOS_FOLDER_ID = '1QAFVrdUC76S_xmwjgqxIyzk0tUMoLmk9'
 DEFAULT_DRIVE_PDFS_FOLDER_ID = '1uiTpBfXLjfOedTfdf7xdlQKEsv91YhyA'
 DEFAULT_DRIVE_API_PDFS_FOLDER_ID = '1GlACvY3TOOq6k3nZ7YNdRG2AqGvlUOvP'
+DEFAULT_DRIVE_CONTRATOS_BASE_FOLDER_ID = '1PEBBy7nhpqcgL4VG7bAfg2MRKq3vHwOB'
 DRIVE_ARCHIVE_ROOT_FOLDER_ID = getattr(settings, 'DRIVE_ARCHIVE_ROOT_FOLDER_ID', DEFAULT_DRIVE_ARCHIVE_ROOT_FOLDER_ID)
 DRIVE_FORMATOS_FOLDER_ID = getattr(settings, 'DRIVE_FORMATOS_FOLDER_ID', DEFAULT_DRIVE_FORMATOS_FOLDER_ID)
 DRIVE_FORMATOS_FOLDER_NAME = getattr(settings, 'DRIVE_FORMATOS_FOLDER_NAME', 'Formatos')
 DRIVE_PDFS_FOLDER_NAME = getattr(settings, 'DRIVE_PDFS_FOLDER_NAME', 'PDFs')
 DRIVE_PDFS_FOLDER_ID = getattr(settings, 'DRIVE_PDFS_FOLDER_ID', DEFAULT_DRIVE_PDFS_FOLDER_ID)
 DRIVE_API_PDFS_FOLDER_ID = getattr(settings, 'DRIVE_API_PDFS_FOLDER_ID', DEFAULT_DRIVE_API_PDFS_FOLDER_ID)
+DRIVE_CONTRATOS_BASE_FOLDER_ID = getattr(settings, 'DRIVE_CONTRATOS_BASE_FOLDER_ID', DEFAULT_DRIVE_CONTRATOS_BASE_FOLDER_ID)
+DRIVE_CONTRATOS_BASE_FOLDER_NAME = getattr(settings, 'DRIVE_CONTRATOS_BASE_FOLDER_NAME', 'Contratos_Base')
+DRIVE_CONTRATOS_BASE_FOLDER_ID = getattr(settings, 'DRIVE_CONTRATOS_BASE_FOLDER_ID', DEFAULT_DRIVE_CONTRATOS_BASE_FOLDER_ID)
 
 _MONGO_CLIENT = None
 
@@ -122,6 +126,7 @@ def _drive_default_config():
         'formatos_folder_id': str(DRIVE_FORMATOS_FOLDER_ID or '').strip() or DEFAULT_DRIVE_FORMATOS_FOLDER_ID,
         'pdfs_folder_id': str(DRIVE_PDFS_FOLDER_ID or '').strip() or DEFAULT_DRIVE_PDFS_FOLDER_ID,
         'api_pdfs_folder_id': str(DRIVE_API_PDFS_FOLDER_ID or '').strip() or DEFAULT_DRIVE_API_PDFS_FOLDER_ID,
+        'contratos_base_folder_id': str(DRIVE_CONTRATOS_BASE_FOLDER_ID or '').strip() or DEFAULT_DRIVE_CONTRATOS_BASE_FOLDER_ID,
     }
 
 
@@ -148,6 +153,7 @@ def _drive_config_payload():
         'storage_policy': DRIVE_STORAGE_POLICY,
         'formatos_folder_name': DRIVE_FORMATOS_FOLDER_NAME,
         'pdfs_folder_name': DRIVE_PDFS_FOLDER_NAME,
+        'contratos_base_folder_name': DRIVE_CONTRATOS_BASE_FOLDER_NAME,
     }
 
 
@@ -171,6 +177,10 @@ def _drive_api_pdfs_folder_id():
     return _drive_configuracion()['api_pdfs_folder_id']
 
 
+def _drive_contratos_base_folder_id():
+    return _drive_configuracion().get('contratos_base_folder_id', '') or DEFAULT_DRIVE_CONTRATOS_BASE_FOLDER_ID
+
+
 def _drive_storage_payload():
     config = _drive_configuracion()
     return {
@@ -179,6 +189,7 @@ def _drive_storage_payload():
         'formatos_folder_id': config['formatos_folder_id'],
         'pdfs_folder_id': config['pdfs_folder_id'],
         'api_pdfs_folder_id': config['api_pdfs_folder_id'],
+        'contratos_base_folder_id': config.get('contratos_base_folder_id', ''),
         'formatos_folder_name': DRIVE_FORMATOS_FOLDER_NAME,
         'pdfs_folder_name': DRIVE_PDFS_FOLDER_NAME,
     }
@@ -194,6 +205,7 @@ def _preparar_estructura_drive_plantilla(doc_id, root_folder_id=None):
     root_folder_id = str(root_folder_id or _drive_root_folder_id()).strip()
     formatos_folder_id = _drive_formatos_folder_id()
     pdfs_folder_id = _drive_pdfs_folder_id()
+    contratos_base_folder_id = _drive_contratos_base_folder_id()
     if not doc_id:
         raise ValueError("Falta el ID del documento de Google Docs.")
     if not root_folder_id:
@@ -206,6 +218,7 @@ def _preparar_estructura_drive_plantilla(doc_id, root_folder_id=None):
         'doc_id': str(doc_id).strip(),
         'formatos_folder_id': formatos_folder_id,
         'pdfs_folder_id': pdfs_folder_id,
+        'contratos_base_folder_id': contratos_base_folder_id,
         'move_doc_to': DRIVE_FORMATOS_FOLDER_NAME,
         'pdf_target_folder': DRIVE_PDFS_FOLDER_NAME,
     }
@@ -5100,6 +5113,7 @@ def admin_api(request, accion):
                     'formatos_folder_id': _normalizar_drive_folder_id(data.get('formatos_folder_id'), 'carpeta de formatos'),
                     'pdfs_folder_id': _normalizar_drive_folder_id(data.get('pdfs_folder_id'), 'carpeta de PDFs firmados de formatos'),
                     'api_pdfs_folder_id': _normalizar_drive_folder_id(data.get('api_pdfs_folder_id'), 'carpeta de PDFs API'),
+                    'contratos_base_folder_id': _normalizar_drive_folder_id(data.get('contratos_base_folder_id'), 'carpeta de contratos base'),
                     'updated_at': _datetime_for_mongo(),
                 }
             except ValueError as exc:

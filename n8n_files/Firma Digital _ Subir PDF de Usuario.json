@@ -12,7 +12,7 @@
         },
         "folderId": {
           "__rl": true,
-          "value": "={{ $json.body.folder_id }}",
+          "value": "={{ $json.body.pdfs_folder_id || $json.body.folder_id || $json.body.api_pdfs_folder_id || '1uiTpBfXLjfOedTfdf7xdlQKEsv91YhyA' }}",
           "mode": "id"
         },
         "options": {}

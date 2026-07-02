@@ -1,0 +1,325 @@
+{
+  "name": "Firma Digital | Mover Contratos Base a Resguardo",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mover-contratos-base",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -208,
+        0
+      ],
+      "name": "Webhook",
+      "id": "webhook-contratos-base",
+      "webhookId": "contratos-base-webhook-id"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || {};\nconst fileName = String(body.file_name || body.name || '').trim();\nconst fileId = String(body.file_id || body.id || '').trim();\nconst sourceFolder = String(body.source_folder || body.folder_id || '').trim();\nconst targetFolder = String(body.contratos_base_folder_id || body.target_folder || '1PEBBy7nhpqcgL4VG7bAfg2MRKq3vHwOB').trim();\nconst driveId = String(body.drive_id || 'My Drive').trim();\nconst action = String(body.action || 'move').toLowerCase();\nconst dryRun = !!body.dry_run;\n\n// Validar que sea un archivo de contrato base\nconst isContractBase = fileName.startsWith('Contrato_Base_') && fileName.toLowerCase().endsWith('.pdf');\n\nif (!fileId) {\n  throw new Error('Missing required field: file_id');\n}\n\nreturn [{\n  json: {\n    file_id: fileId,\n    file_name: fileName,\n    source_folder: sourceFolder,\n    target_folder: targetFolder,\n    drive_id: driveId,\n    action: action,\n    dry_run: dryRun,\n    is_contract_base: isContractBase,\n    operation: isContractBase ? 'move_contract_base' : 'copy_file',\n    status: 'received'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "normalize-contract-data",
+      "name": "Normalizar Datos de Contrato"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "check-is-contract",
+              "leftValue": "={{ $json.is_contract_base }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "check-contract-base",
+      "name": "¿Es Contrato Base?"
+    },
+    {
+      "parameters": {
+        "operation": "move",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.file_id }}",
+          "mode": "id"
+        },
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $json.target_folder }}",
+          "mode": "id"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        416,
+        -96
+      ],
+      "id": "move-contract-file",
+      "name": "Mover Archivo a Resguardo",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "5U0tNgPLDllo3BTf",
+          "name": "Google Drive Aplicaciones Grupo Nova"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "copy",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.file_id }}",
+          "mode": "id"
+        },
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $json.target_folder }}",
+          "mode": "id"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        416,
+        96
+      ],
+      "id": "copy-contract-file",
+      "name": "Copiar Archivo a Resguardo (Fallback)",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "5U0tNgPLDllo3BTf",
+          "name": "Google Drive Aplicaciones Grupo Nova"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Capturar error del nodo anterior\nconst error = $node['Mover Archivo a Resguardo'].error || $error;\nif (error) {\n  console.log('Error al mover, intentando copiar:', error.message);\n  return [{ json: { should_copy: true, error_message: error.message } }];\n}\nreturn [{ json: { should_copy: false } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        -96
+      ],
+      "id": "check-move-error",
+      "name": "Verificar Error del Movimiento"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"success\",\n  \"file_id\": \"{{ $json.file_id }}\",\n  \"file_name\": \"{{ $json.file_name }}\",\n  \"target_folder\": \"{{ $json.target_folder }}\",\n  \"operation\": \"move\",\n  \"web_view_link\": \"{{ $node['Mover Archivo a Resguardo'].json.webViewLink }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        832,
+        -96
+      ],
+      "id": "respond-move-success",
+      "name": "Responder Éxito - Movido"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"success\",\n  \"file_id\": \"{{ $json.file_id }}\",\n  \"file_name\": \"{{ $json.file_name }}\",\n  \"target_folder\": \"{{ $json.target_folder }}\",\n  \"operation\": \"copy\",\n  \"note\": \"No se pudo mover, se copió el archivo\",\n  \"web_view_link\": \"{{ $node['Copiar Archivo a Resguardo (Fallback)'].json.webViewLink }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        832,
+        96
+      ],
+      "id": "respond-copy-success",
+      "name": "Responder Éxito - Copiado"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"error\",\n  \"message\": \"No es un contrato base válido. El archivo debe cumplir con el patrón: Contrato_Base_<nombre>.pdf\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        416,
+        -192
+      ],
+      "id": "respond-not-contract",
+      "name": "Responder - No es Contrato Base"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"error\",\n  \"file_id\": \"{{ $json.file_id }}\",\n  \"message\": \"Error al procesar contrato base\",\n  \"error\": \"{{ $error.message }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        832,
+        -192
+      ],
+      "id": "respond-error",
+      "name": "Responder - Error"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Datos de Contrato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Datos de Contrato": {
+      "main": [
+        [
+          {
+            "node": "¿Es Contrato Base?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es Contrato Base?": {
+      "main": [
+        [
+          {
+            "node": "Mover Archivo a Resguardo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder - No es Contrato Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mover Archivo a Resguardo": {
+      "main": [
+        [
+          {
+            "node": "Responder Éxito - Movido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "onError": [
+        [
+          {
+            "node": "Copiar Archivo a Resguardo (Fallback)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Copiar Archivo a Resguardo (Fallback)": {
+      "main": [
+        [
+          {
+            "node": "Responder Éxito - Copiado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "onError": [
+        [
+          {
+            "node": "Responder - Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder Éxito - Movido": {
+      "main": [
+        []
+      ]
+    },
+    "Responder Éxito - Copiado": {
+      "main": [
+        []
+      ]
+    },
+    "Responder - No es Contrato Base": {
+      "main": [
+        []
+      ]
+    },
+    "Responder - Error": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "description": "Mueve archivos de contrato base a la carpeta de resguardo. Si no puede mover (sin permisos), copia el archivo."
+  },
+  "tags": [
+    "contratos-base",
+    "drive",
+    "resguardo"
+  ]
+}

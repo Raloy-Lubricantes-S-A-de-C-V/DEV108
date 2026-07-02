@@ -161,6 +161,7 @@ class ConfiguracionDriveResguardo(models.Model):
     formatos_folder_id = models.CharField(max_length=200)
     pdfs_folder_id = models.CharField(max_length=200)
     api_pdfs_folder_id = models.CharField(max_length=200)
+    contratos_base_folder_id = models.CharField(max_length=200, blank=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
