@@ -73,7 +73,7 @@
                     {% endif %}
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-outline-variant bg-white">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-outline-variant bg-white">
                     <div class="px-5 py-4 text-center">
                         <p class="text-xs font-bold uppercase text-text-muted mb-1">Generado</p>
                         <p class="text-sm font-semibold text-primary">{{ proceso.created_at|date:"d/m/Y H:i" }}</p>
@@ -86,6 +86,13 @@
                         <p class="text-xs font-bold uppercase text-text-muted mb-1">Cierre</p>
                         <p class="text-sm font-semibold {% if proceso.status == 'COMPLETED' %}text-status-success{% elif proceso.status == 'CANCELLED' %}text-status-danger{% else %}text-primary{% endif %}">
                             {% if proceso.status == 'COMPLETED' %}Finalizado{% elif proceso.status == 'CANCELLED' %}Cancelado{% else %}Pendiente{% endif %}
+                        </p>
+                    </div>
+                    <div class="px-5 py-4 text-center">
+                        <p class="text-xs font-bold uppercase text-text-muted mb-1">Etiqueta</p>
+                        <p class="text-sm font-semibold text-primary inline-flex items-center justify-center gap-1 max-w-full">
+                            <span class="material-symbols-outlined text-[16px] shrink-0">{% if proceso.etiqueta %}folder{% else %}folder_off{% endif %}</span>
+                            <span class="truncate" title="{% if proceso.etiqueta %}{{ proceso.etiqueta }}{% else %}Sin etiqueta{% endif %}">{% if proceso.etiqueta %}{{ proceso.etiqueta }}{% else %}Sin etiqueta{% endif %}</span>
                         </p>
                     </div>
                 </div>

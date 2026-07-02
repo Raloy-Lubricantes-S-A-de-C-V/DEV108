@@ -6,20 +6,19 @@
 {% block extra_head %}
 <style>
     .admin-table-wrap { overflow-x: auto; border: 1px solid #c4c6cd; border-radius: 0.5rem; }
-    .admin-table { width: 100%; min-width: 1080px; table-layout: fixed; border-collapse: separate; border-spacing: 0; background: #fff; }
+    .admin-table { width: 100%; min-width: 960px; table-layout: fixed; border-collapse: separate; border-spacing: 0; background: #fff; }
     .admin-table th { background: #f8f9fa; padding: 0.7rem 0.75rem; text-align: left; font-size: 0.66rem; text-transform: uppercase; color: #43474c; border-bottom: 1px solid #c4c6cd; white-space: nowrap; }
     .admin-table td { padding: 0.68rem 0.75rem; border-bottom: 1px solid #edeeef; font-size: 0.74rem; vertical-align: middle; line-height: 1.25; }
     .admin-table tbody tr:hover { background: #f8f9fa; }
-    .admin-table th:nth-child(7) { text-align: center; }
-    .admin-table th:nth-child(8) { text-align: right; }
-    .admin-col-folio { width: 12%; }
-    .admin-col-creator { width: 17%; }
-    .admin-col-domain { width: 13%; }
-    .admin-col-date { width: 12%; }
-    .admin-col-progress { width: 9%; }
-    .admin-col-label { width: 14%; }
-    .admin-col-status { width: 10%; }
-    .admin-col-actions { width: 13%; }
+    .admin-table th:nth-child(6) { text-align: center; }
+    .admin-table th:nth-child(7) { text-align: right; }
+    .admin-col-folio { width: 14%; }
+    .admin-col-creator { width: 20%; }
+    .admin-col-domain { width: 14%; }
+    .admin-col-date { width: 14%; }
+    .admin-col-progress { width: 10%; }
+    .admin-col-status { width: 12%; }
+    .admin-col-actions { width: 16%; }
     .admin-table-cell-clip { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .admin-table-folio { display: inline-block; max-width: 100%; color: #162839; font-size: 0.75rem; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
     .admin-table-date { font-size: 0.72rem; white-space: nowrap; }
@@ -32,9 +31,6 @@
     .admin-table .status-badge { padding: 0.18rem 0.5rem; font-size: 0.68rem; }
     .admin-group-row td { background: #f3f4f5; color: #162839; font-size: 0.76rem; font-weight: 700; border-left: 4px solid #162839; cursor: pointer; }
     .admin-pager-input { width: 5rem; text-align: center; }
-    .admin-label-badge { display: inline-flex; align-items: center; gap: 0.2rem; border: 1px solid #c4c6cd; border-radius: 9999px; padding: 0.22rem 0.45rem; color: #162839; background: #ffffff; font-size: 0.68rem; font-weight: 800; max-width: 100%; }
-    .admin-label-badge .material-symbols-outlined { font-size: 0.86rem !important; }
-    .admin-label-badge span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
 {% endblock %}
 
@@ -151,7 +147,6 @@
                         <col class="admin-col-domain">
                         <col class="admin-col-date">
                         <col class="admin-col-progress">
-                        <col class="admin-col-label">
                         <col class="admin-col-status">
                         <col class="admin-col-actions">
                     </colgroup>
@@ -162,7 +157,6 @@
                         <th>Dominio</th>
                         <th>Fecha</th>
                         <th>Progreso</th>
-                        <th>Etiqueta</th>
                         <th>Estado</th>
                         <th>Acciones</th>
                     </tr>
@@ -608,7 +602,7 @@
             renderTable();
         })
         .catch(err => {
-            tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-status-danger py-10">${escapeHtml(err.message || 'Error al cargar documentos')}</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-status-danger py-10">${escapeHtml(err.message || 'Error al cargar documentos')}</td></tr>`;
         })
         .finally(() => {
             if (requestId === docsRequestId) setLoadingDocs(false);
@@ -638,7 +632,7 @@
         const groupProp = selGroup.value;
 
         if (docs.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="8" class="text-center text-outline py-10">No hay documentos para mostrar.</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-outline py-10">No hay documentos para mostrar.</td></tr>';
             return;
         }
 
@@ -659,7 +653,7 @@
                 trGroup.className = 'admin-group-row';
                 const label = groupProp === 'status' ? estadoLabel(groupName) : groupName;
                 trGroup.innerHTML = `
-                    <td colspan="8">
+                    <td colspan="7">
                         <div class="flex items-center justify-between gap-3">
                             <span class="inline-flex items-center gap-2">
                                 <span class="material-symbols-outlined text-[18px]">${expanded ? 'expand_less' : 'chevron_right'}</span>
@@ -702,21 +696,12 @@
                     <span class="material-symbols-outlined text-[16px]">edit_location_alt</span> Ajustar
                </a>`
             : '';
-        const etiqueta = doc.etiqueta || '';
-        const etiquetaHtml = `
-            <span class="admin-label-badge" title="${escapeHtml(etiqueta || 'Sin etiqueta')}">
-                <span class="material-symbols-outlined text-[15px]">${etiqueta ? 'folder' : 'folder_off'}</span>
-                <span>${escapeHtml(etiqueta || 'Sin etiqueta')}</span>
-            </span>
-        `;
-
         tr.innerHTML = `
             <td><span class="admin-table-folio">${escapeHtml(doc.reference_id)}</span></td>
             <td class="admin-table-cell-clip text-on-surface-variant" title="${escapeHtml(doc.owner_email)}">${escapeHtml(doc.owner_email)}</td>
             <td class="admin-table-cell-clip text-on-surface-variant font-medium" title="@${escapeHtml(doc.dominio)}">@${escapeHtml(doc.dominio)}</td>
             <td class="admin-table-date text-on-surface-variant">${escapeHtml(doc.fecha)}</td>
             <td class="admin-table-progress">${escapeHtml(doc.progreso)} Firmas</td>
-            <td>${etiquetaHtml}</td>
             <td class="admin-table-status"><span class="status-badge ${badgeClass}">${statusText}</span></td>
             <td class="admin-table-actions">
                 <div class="admin-row-actions">
