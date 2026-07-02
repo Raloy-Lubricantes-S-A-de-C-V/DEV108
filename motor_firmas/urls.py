@@ -10,6 +10,7 @@ urlpatterns = [
     path('firmar/<uuid:token>/<str:firmante_token>/', views.vista_firma_ui, name='vista_firma'),
     path('api/procesar/<uuid:token>/', views.procesar_firma, name='procesar_firma_old'),
     path('api/procesar/<uuid:token>/<str:firmante_token>/', views.procesar_firma, name='procesar_firma'),
+    path('documento-pdf/<uuid:token>/', views.ver_pdf_proceso, name='ver_pdf_proceso'),
     path('trazabilidad/<uuid:token>/', views.vista_trazabilidad, name='vista_trazabilidad'),
     path('trazabilidad/qr/<path:codigo>/', views.vista_trazabilidad_qr, name='vista_trazabilidad_qr'),
     path('api/trazabilidad-qr/<uuid:token>/', views.generar_qr_trazabilidad, name='generar_qr_trazabilidad'),

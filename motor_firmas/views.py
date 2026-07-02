@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from urllib.parse import quote, urlparse
 from django.conf import settings
 from django.core import signing
-from django.http import JsonResponse, HttpResponse, Http404
+from django.http import JsonResponse, HttpResponse, Http404, FileResponse
 from django.shortcuts import render, redirect
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.utils import timezone
@@ -312,6 +312,32 @@ def _eliminar_archivo_media(path):
         return False
 
 
+def _media_path_exists(path):
+    abs_path = _media_abs_path(path)
+    return bool(abs_path and os.path.exists(abs_path))
+
+
+def _media_url_if_exists(path):
+    return _media_url_for_path(path) if _media_path_exists(path) else ''
+
+
+def _proceso_pdf_url(proceso):
+    token = getattr(proceso, 'token_acceso', '')
+    return f"/documento-pdf/{token}/" if token else ''
+
+
+def _proceso_pdf_puede_servirse(proceso):
+    if _media_path_exists(getattr(proceso, 'pdf_path', '')):
+        return True
+
+    summary_data = getattr(proceso, 'summary_data', {}) or {}
+    for key in ('drive_file_id', 'file_id', 'pdf_file_id', 'source_drive_file_id', 'original_drive_file_id'):
+        if summary_data.get(key):
+            return True
+
+    return bool(_inferir_pdf_libre_origen(proceso))
+
+
 def _media_url_for_path(path):
     raw_path = str(path or '').replace('\\', '/').strip()
     if not raw_path:
@@ -448,6 +474,43 @@ def _asegurar_pdf_usuario_local(doc, owner_email):
     return rel_path, abs_path
 
 
+def _proceso_tiene_firmas_capturadas(proceso):
+    firmantes = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
+    return any(firmante.get('fecha_firma') for firmante in firmantes)
+
+
+def _inferir_pdf_libre_origen(proceso):
+    if str(getattr(proceso, 'exec_mode', '') or '').lower() != 'libre':
+        return {}
+    if _proceso_tiene_firmas_capturadas(proceso):
+        return {}
+
+    owner_email = getattr(proceso, 'owner_email', '') or ''
+    proceso_fecha = _datetime_for_compare(getattr(proceso, 'created_at', None))
+    if not owner_email or not proceso_fecha:
+        return {}
+
+    candidatos = []
+    for doc in _mongo_find(DocumentoPDFUsuario, {'owner_email': owner_email, 'deleted': True, 'converted_to_master': True}):
+        drive_file_id = str(getattr(doc, 'drive_file_id', '') or '').strip()
+        doc_fecha = _datetime_for_compare(getattr(doc, 'created_at', None))
+        if not drive_file_id or not doc_fecha:
+            continue
+        diff_seconds = abs((doc_fecha - proceso_fecha).total_seconds())
+        if diff_seconds <= 120:
+            candidatos.append((diff_seconds, doc))
+
+    if len(candidatos) != 1:
+        return {}
+
+    doc = candidatos[0][1]
+    return {
+        'source_drive_file_id': str(getattr(doc, 'drive_file_id', '') or '').strip(),
+        'source_pdf_filename': getattr(doc, 'nombre', '') or f"{getattr(proceso, 'reference_id', 'documento')}.pdf",
+        'source_document_id': str(getattr(doc, 'id_documento', '') or ''),
+    }
+
+
 def _asegurar_proceso_pdf_local(proceso):
     summary_data = getattr(proceso, 'summary_data', {}) or {}
     if summary_data.get('firmx_id'):
@@ -461,18 +524,44 @@ def _asegurar_proceso_pdf_local(proceso):
         or summary_data.get('file_id')
         or summary_data.get('pdf_file_id')
     )
+    filename = f"{getattr(proceso, 'reference_id', 'documento')}.pdf"
+
+    rehydrating_source = False
+    if not drive_file_id and str(getattr(proceso, 'status', '') or '').upper() != 'COMPLETED':
+        inferred_source = _inferir_pdf_libre_origen(proceso)
+        if inferred_source:
+            summary_data.update({k: v for k, v in inferred_source.items() if v})
+        drive_file_id = summary_data.get('source_drive_file_id') or summary_data.get('original_drive_file_id')
+        if drive_file_id:
+            filename = summary_data.get('source_pdf_filename') or filename
+            rehydrating_source = True
+
     if not drive_file_id:
         return
 
     rel_path, abs_path = _descargar_pdf_drive_a_media(
         drive_file_id,
-        f"{getattr(proceso, 'reference_id', 'documento')}.pdf",
+        filename,
         owner_email=getattr(proceso, 'owner_email', ''),
         folder_id=getattr(proceso, 'dir_drive', ''),
     )
-    _mongo_update_document(ProcesoFirma, proceso, {'pdf_path': abs_path})
-    setattr(proceso, 'pdf_path', abs_path)
-    summary_data['pdf_local_temporal'] = rel_path
+
+    target_path = abs_path
+    if rehydrating_source:
+        original_abs_path = _media_abs_path(pdf_path)
+        if original_abs_path:
+            os.makedirs(os.path.dirname(original_abs_path), exist_ok=True)
+            shutil.move(abs_path, original_abs_path)
+            target_path = original_abs_path
+            summary_data['pdf_local_rehydrated_from_source'] = True
+            summary_data['pdf_local_rehydrated_at'] = _datetime_for_mongo().isoformat()
+        else:
+            summary_data['pdf_local_temporal'] = rel_path
+    else:
+        summary_data['pdf_local_temporal'] = rel_path
+
+    _mongo_update_document(ProcesoFirma, proceso, {'pdf_path': target_path})
+    setattr(proceso, 'pdf_path', target_path)
     _mongo_update_document(ProcesoFirma, proceso, {'summary_data': summary_data})
 
 
@@ -2319,8 +2408,10 @@ def vista_firma_ui(request, token, firmante_token=None):
         except Exception as e:
             return HttpResponse(f"<h1>No se pudo preparar el PDF.</h1><p>{e}</p>", status=500)
 
+    pdf_available = _proceso_pdf_puede_servirse(proceso)
+    pdf_url = _proceso_pdf_url(proceso) if pdf_available else ''
     message_context = {'token': token, 'view_info': proceso.view_info, 'summary_data': summary_data,
-                       'pdf_url': _media_url_for_path(proceso.pdf_path), 'is_message_view': True}
+                       'pdf_url': pdf_url, 'pdf_available': pdf_available, 'is_message_view': True}
 
     if proceso.status == 'CANCELLED':
         message_context.update(
@@ -2430,7 +2521,8 @@ def vista_firma_ui(request, token, firmante_token=None):
                'nombre_firmante': firmante_actual.get('nombre', 'Firmante'),
                'email_firmante': firmante_actual.get('email', ''), 'view_info': proceso.view_info,
                'summary_data': summary_data,
-               'pdf_url': _media_url_for_path(proceso.pdf_path),
+               'pdf_url': pdf_url,
+               'pdf_available': pdf_available,
                'is_registered': bool(colaborador), 'campos_a_llenar': campos_a_llenar, 'is_message_view': False,
                'cant_firmas': cant_firmas}
     return render(request, 'motor_firmas/firma_ui.html', context)
@@ -2784,6 +2876,7 @@ def vista_trazabilidad(request, token):
     # Cancelados siguen sin consultar al proveedor.
     es_firmx = bool(summary_data.get('firmx_id'))
     sync_error = None
+    pdf_error = None
     if es_firmx and str(getattr(proceso, 'status', '') or '').upper() != 'CANCELLED':
         firmx_id = summary_data.get('firmx_id')
         success, error_msg = _firmx_sync_status(
@@ -2850,13 +2943,14 @@ def vista_trazabilidad(request, token):
         try:
             _asegurar_proceso_pdf_local(proceso)
         except Exception as e:
-            sync_error = sync_error or str(e)
+            pdf_error = str(e)
 
-    pdf_url_local = _media_url_for_path(proceso.pdf_path)
+    pdf_url_local = _proceso_pdf_url(proceso) if _proceso_pdf_puede_servirse(proceso) else ''
     # En modo FIRMX, el documento original a mostrar es el devuelto por FIRMX (file_url);
     # el certificado/final es file_url_certificate.
     pdf_url_original = firmx_file_url if es_firmx and firmx_file_url else pdf_url_local
     pdf_url_certificate = firmx_certificate_url if es_firmx and firmx_certificate_url else pdf_url_local
+    pdf_available = bool(pdf_url_original or pdf_url_certificate or pdf_url_local)
 
     return render(request, 'motor_firmas/trazabilidad.html',
                   {
@@ -2864,10 +2958,12 @@ def vista_trazabilidad(request, token):
                       'pdf_url': pdf_url_local,
                       'pdf_url_original': pdf_url_original,
                       'pdf_url_certificate': pdf_url_certificate,
+                      'pdf_available': pdf_available,
                       'firmx_file_url': firmx_file_url,
                       'firmx_certificate_url': firmx_certificate_url,
                       'firmx_download_file_url': firmx_download_file_url,
                       'firmx_download_certificate_url': firmx_download_certificate_url,
+                      'pdf_error': pdf_error,
                       'total_firmas': total_firmas,
                       'firmas_hechas': firmas_hechas,
                       'admin_can_resend': bool(admin_tiene_acceso and proceso.status in ['PROCESSING', 'FIRMX_WAITING']),
@@ -2895,6 +2991,28 @@ def vista_trazabilidad_qr(request, codigo):
     if not token:
         return HttpResponse("El codigo QR de trazabilidad no contiene un proceso valido.", status=403)
     return redirect('vista_trazabilidad', token=token)
+
+
+def ver_pdf_proceso(request, token):
+    proceso = _get_proceso_por_token_or_404(token)
+    summary_data = getattr(proceso, 'summary_data', {}) or {}
+
+    if summary_data.get('firmx_id'):
+        url = _firmx_url_documento_visible(proceso)
+        if url:
+            return redirect(url)
+
+    try:
+        _asegurar_proceso_pdf_local(proceso)
+    except Exception as exc:
+        return HttpResponse(f"No se pudo preparar el PDF: {exc}", status=502)
+
+    abs_path = _media_abs_path(getattr(proceso, 'pdf_path', ''))
+    if not abs_path or not os.path.exists(abs_path):
+        return HttpResponse("El PDF no esta disponible localmente y no hay ID de Drive para recuperarlo.", status=404)
+
+    filename = _safe_pdf_filename(f"{getattr(proceso, 'reference_id', 'documento')}.pdf")
+    return FileResponse(open(abs_path, 'rb'), content_type='application/pdf', filename=filename)
 
 
 def _firmx_url_documento_visible(proceso):
@@ -4482,7 +4600,12 @@ def iniciar_firma_libre(request):
     proceso = _crear_proceso_firma_mongo(
         reference_id=ref_id, pdf_path=final_path, firmantes=firmantes,
         indice_actual=1, view_info="file", owner_email=owner_email,
-        dir_drive=carpeta_dom.drive_folder_id if carpeta_dom else '', exec_mode="libre"
+        dir_drive=carpeta_dom.drive_folder_id if carpeta_dom else '', exec_mode="libre",
+        summary_data={
+            'source_drive_file_id': getattr(doc, 'drive_file_id', ''),
+            'source_pdf_filename': getattr(doc, 'nombre', ''),
+            'source_document_id': str(getattr(doc, 'id_documento', '') or ''),
+        },
     )
 
     primer_firmante = firmantes[0]
