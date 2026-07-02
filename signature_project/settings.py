@@ -45,6 +45,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'motor_firmas.middleware.N8NMonitorContextMiddleware',
     'django.middleware.common.CommonMiddleware',
     'motor_firmas.middleware.MediaCleanupCronMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',

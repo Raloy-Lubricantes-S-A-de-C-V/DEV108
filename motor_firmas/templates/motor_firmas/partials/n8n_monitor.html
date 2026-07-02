@@ -1,0 +1,384 @@
+<style>
+    .n8n-monitor-panel {
+        position: fixed;
+        left: 1rem;
+        top: 5.25rem;
+        z-index: 55;
+        width: min(22rem, calc(100vw - 2rem));
+        max-height: min(34rem, calc(100vh - 6.25rem));
+        display: flex;
+        flex-direction: column;
+        background: #ffffff;
+        border: 1px solid #c4c6cd;
+        border-radius: 0.5rem;
+        box-shadow: 0 1rem 2rem rgba(4, 13, 24, 0.16);
+        color: #202124;
+        overflow: hidden;
+        transform: translateX(0);
+        opacity: 1;
+        transition: transform 0.22s ease, opacity 0.22s ease;
+    }
+    .n8n-monitor-panel.is-hidden {
+        transform: translateX(calc(-100% - 1.25rem));
+        opacity: 0;
+        pointer-events: none;
+    }
+    .n8n-monitor-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.8rem 0.85rem;
+        background: #f8f9fa;
+        border-bottom: 1px solid #e1e3e4;
+    }
+    .n8n-monitor-title {
+        min-width: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.82rem;
+        font-weight: 800;
+        color: #162839;
+        line-height: 1;
+    }
+    .n8n-monitor-title .material-symbols-outlined {
+        font-size: 1.15rem !important;
+    }
+    .n8n-monitor-count {
+        min-width: 1.35rem;
+        height: 1.35rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        background: #162839;
+        color: #ffffff;
+        font-size: 0.68rem;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+    }
+    .n8n-monitor-hide,
+    .n8n-monitor-show {
+        border: 1px solid #c4c6cd;
+        background: #ffffff;
+        color: #162839;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+    }
+    .n8n-monitor-hide {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 0.45rem;
+    }
+    .n8n-monitor-hide:hover,
+    .n8n-monitor-show:hover {
+        background: #162839;
+        border-color: #162839;
+        color: #ffffff;
+    }
+    .n8n-monitor-hide .material-symbols-outlined,
+    .n8n-monitor-show .material-symbols-outlined {
+        font-size: 1.15rem !important;
+    }
+    .n8n-monitor-list {
+        overflow-y: auto;
+        padding: 0.45rem;
+    }
+    .n8n-monitor-empty {
+        padding: 1.35rem 0.85rem;
+        color: #74777d;
+        font-size: 0.78rem;
+        text-align: center;
+    }
+    .n8n-monitor-row {
+        display: grid;
+        grid-template-columns: 1.85rem minmax(0, 1fr);
+        gap: 0.55rem;
+        align-items: start;
+        padding: 0.6rem 0.5rem;
+        border-radius: 0.45rem;
+    }
+    .n8n-monitor-row + .n8n-monitor-row {
+        border-top: 1px solid #edeeef;
+        border-top-left-radius: 0;
+        border-top-right-radius: 0;
+    }
+    .n8n-monitor-status {
+        width: 1.55rem;
+        height: 1.55rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        font-variation-settings: "FILL" 1;
+    }
+    .n8n-monitor-status.is-ok {
+        color: #1f7a44;
+        background: #d3f9d8;
+    }
+    .n8n-monitor-status.is-error {
+        color: #93000a;
+        background: #ffdad6;
+    }
+    .n8n-monitor-status .material-symbols-outlined {
+        font-size: 1.1rem !important;
+    }
+    .n8n-monitor-webhook {
+        min-width: 0;
+        color: #202124;
+        font-size: 0.76rem;
+        font-weight: 800;
+        line-height: 1.25;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .n8n-monitor-time {
+        margin-top: 0.2rem;
+        color: #5f6368;
+        font-size: 0.68rem;
+        line-height: 1.2;
+        font-variant-numeric: tabular-nums;
+    }
+    .n8n-monitor-show {
+        position: fixed;
+        left: 1rem;
+        bottom: 1rem;
+        z-index: 56;
+        min-width: 3rem;
+        min-height: 3rem;
+        gap: 0.25rem;
+        border-radius: 9999px;
+        box-shadow: 0 0.8rem 1.6rem rgba(4, 13, 24, 0.16);
+        display: none;
+        padding: 0 0.85rem;
+    }
+    .n8n-monitor-show.is-visible {
+        display: inline-flex;
+    }
+    .n8n-monitor-show.has-error {
+        border-color: #e74c3c;
+        color: #93000a;
+    }
+    @media (max-width: 640px) {
+        .n8n-monitor-panel {
+            left: 0.75rem;
+            right: 0.75rem;
+            top: 4.75rem;
+            width: auto;
+            max-height: min(28rem, calc(100vh - 5.75rem));
+        }
+        .n8n-monitor-show {
+            left: 0.75rem;
+            bottom: 0.75rem;
+        }
+    }
+</style>
+
+<aside id="n8nMonitorPanel" class="n8n-monitor-panel" data-monitor-api="{% url 'n8n_monitor_events' %}" aria-live="polite">
+    <div class="n8n-monitor-head">
+        <div class="n8n-monitor-title">
+            <span class="material-symbols-outlined" aria-hidden="true">webhook</span>
+            <span>n8n</span>
+            <span id="n8nMonitorCount" class="n8n-monitor-count">0</span>
+        </div>
+        <button type="button" id="n8nMonitorHide" class="n8n-monitor-hide" title="Ocultar n8n" aria-label="Ocultar monitor n8n">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+    </div>
+    <div id="n8nMonitorList" class="n8n-monitor-list">
+        <div class="n8n-monitor-empty">Sin llamadas n8n en esta sesion.</div>
+    </div>
+</aside>
+
+<button type="button" id="n8nMonitorShow" class="n8n-monitor-show" title="Mostrar n8n" aria-label="Mostrar monitor n8n">
+    <span class="material-symbols-outlined" aria-hidden="true">webhook</span>
+    <span id="n8nMonitorShowCount" class="n8n-monitor-count">0</span>
+</button>
+
+<script>
+(function() {
+    const panel = document.getElementById('n8nMonitorPanel');
+    const list = document.getElementById('n8nMonitorList');
+    const hideBtn = document.getElementById('n8nMonitorHide');
+    const showBtn = document.getElementById('n8nMonitorShow');
+    const count = document.getElementById('n8nMonitorCount');
+    const showCount = document.getElementById('n8nMonitorShowCount');
+    const apiUrl = panel ? panel.dataset.monitorApi : '';
+    const nativeFetch = window.fetch ? window.fetch.bind(window) : null;
+    const storageKey = 'n8nMonitorHidden';
+    let events = [];
+    let refreshTimer = null;
+
+    if (!panel || !list || !nativeFetch || !apiUrl) return;
+
+    function escapeHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, function(char) {
+            return {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char];
+        });
+    }
+
+    function toUrl(value) {
+        try {
+            return new URL(value, window.location.href);
+        } catch(error) {
+            return null;
+        }
+    }
+
+    function isN8nUrl(value) {
+        const url = toUrl(value);
+        return !!url && url.protocol.indexOf('http') === 0 && url.hostname === 'n8n.raloy.com.mx';
+    }
+
+    function isSameOriginApi(value) {
+        const url = toUrl(value);
+        return !!url && url.origin === window.location.origin && url.pathname.indexOf('/api/') === 0 && url.pathname !== toUrl(apiUrl).pathname;
+    }
+
+    function requestUrl(input) {
+        if (typeof input === 'string') return input;
+        if (input && input.url) return input.url;
+        return '';
+    }
+
+    function requestMethod(input, init) {
+        return String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+    }
+
+    function setHidden(hidden) {
+        panel.classList.toggle('is-hidden', hidden);
+        showBtn.classList.toggle('is-visible', hidden);
+        panel.setAttribute('aria-hidden', hidden ? 'true' : 'false');
+        sessionStorage.setItem(storageKey, hidden ? '1' : '0');
+    }
+
+    function render() {
+        const newest = events.slice().reverse();
+        count.textContent = String(events.length);
+        showCount.textContent = String(events.length);
+        const last = newest[0];
+        showBtn.classList.toggle('has-error', !!last && !last.ok);
+
+        if (!newest.length) {
+            list.innerHTML = '<div class="n8n-monitor-empty">Sin llamadas n8n en esta sesion.</div>';
+            return;
+        }
+
+        list.innerHTML = newest.map(function(event) {
+            const ok = !!event.ok;
+            const label = event.webhook_label || event.webhook_url || 'webhook';
+            const titleParts = [event.webhook_url || label];
+            if (event.http_status) titleParts.push('HTTP ' + event.http_status);
+            if (event.error) titleParts.push(event.error);
+            const icon = ok ? 'check_circle' : 'cancel';
+            const iconClass = ok ? 'is-ok' : 'is-error';
+            return [
+                '<div class="n8n-monitor-row" title="' + escapeHtml(titleParts.join(' | ')) + '">',
+                    '<span class="n8n-monitor-status ' + iconClass + '">',
+                        '<span class="material-symbols-outlined" aria-hidden="true">' + icon + '</span>',
+                    '</span>',
+                    '<div class="min-w-0">',
+                        '<div class="n8n-monitor-webhook">' + escapeHtml(label) + '</div>',
+                        '<div class="n8n-monitor-time">' + escapeHtml(event.timestamp_label || '') + '</div>',
+                    '</div>',
+                '</div>'
+            ].join('');
+        }).join('');
+    }
+
+    async function refresh() {
+        try {
+            const response = await nativeFetch(apiUrl, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                credentials: 'same-origin'
+            });
+            if (!response.ok) return;
+            const data = await response.json();
+            events = Array.isArray(data.events) ? data.events : [];
+            render();
+        } catch(error) {
+            return;
+        }
+    }
+
+    function scheduleRefresh(delay) {
+        window.clearTimeout(refreshTimer);
+        refreshTimer = window.setTimeout(refresh, delay || 350);
+    }
+
+    async function pushClientEvent(payload) {
+        try {
+            const response = await nativeFetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify(payload),
+                keepalive: true
+            });
+            if (response.ok) {
+                const data = await response.json();
+                events = Array.isArray(data.events) ? data.events : events;
+                render();
+            }
+        } catch(error) {
+            scheduleRefresh(600);
+        }
+    }
+
+    window.fetch = async function(input, init) {
+        const url = requestUrl(input);
+        const method = requestMethod(input, init);
+        const watchN8n = isN8nUrl(url);
+        const watchApi = isSameOriginApi(url);
+
+        try {
+            const response = await nativeFetch(input, init);
+            if (watchN8n) {
+                pushClientEvent({
+                    webhook_url: url,
+                    method: method,
+                    ok: response.ok,
+                    http_status: response.status
+                });
+            } else if (watchApi) {
+                scheduleRefresh(700);
+            }
+            return response;
+        } catch(error) {
+            if (watchN8n) {
+                pushClientEvent({
+                    webhook_url: url,
+                    method: method,
+                    ok: false,
+                    error: error.message || String(error)
+                });
+            } else if (watchApi) {
+                scheduleRefresh(700);
+            }
+            throw error;
+        }
+    };
+
+    hideBtn.addEventListener('click', function() { setHidden(true); });
+    showBtn.addEventListener('click', function() { setHidden(false); });
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) refresh();
+    });
+
+    setHidden(sessionStorage.getItem(storageKey) === '1');
+    refresh();
+    window.setInterval(refresh, 5000);
+})();
+</script>

@@ -27,6 +27,7 @@ urlpatterns = [
     path('api/solicitar-otp/', views.solicitar_otp, name='solicitar_otp'),
     path('portal/dashboard/', views.portal_dashboard, name='portal_dashboard'),
     path('api/portal-dashboard-docs/', views.portal_dashboard_docs_api, name='portal_dashboard_docs_api'),
+    path('api/n8n-monitor/events/', views.n8n_monitor_events, name='n8n_monitor_events'),
     path('api/portal-etiquetas/', views.portal_etiquetas_api, name='portal_etiquetas_api'),
     path('api/portal-documento-etiqueta/', views.portal_documento_etiqueta_api, name='portal_documento_etiqueta_api'),
     path('portal/ver-documento/<uuid:token>/', views.portal_ver_documento, name='portal_ver_documento'),

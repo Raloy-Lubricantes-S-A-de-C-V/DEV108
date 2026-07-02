@@ -19,6 +19,14 @@ from django.utils import timezone
 from django.contrib.auth.hashers import check_password, make_password
 from .models import ProcesoFirma, DirectorioFirmas, OTPLogin, AdministradorPortal, PlantillaFormulario, CarpetaDominio, \
     DocumentoPDFUsuario, AreaFirmex, ConfiguracionFirmex, ConfiguracionDriveResguardo, EtiquetaDocumento
+from .n8n_monitor import (
+    get_current_request,
+    get_session_events,
+    record_client_event,
+    record_exception,
+    record_response,
+    session_can_view_monitor,
+)
 from .utils import estampar_firma_en_pdf, estampar_variables_en_pdf, crear_notificacion_firma, reubicar_firmas_en_pdf
 
 # WEBHOOKS DE N8N
@@ -67,6 +75,18 @@ DRIVE_CONTRATOS_BASE_FOLDER_NAME = getattr(settings, 'DRIVE_CONTRATOS_BASE_FOLDE
 DRIVE_CONTRATOS_BASE_FOLDER_ID = getattr(settings, 'DRIVE_CONTRATOS_BASE_FOLDER_ID', DEFAULT_DRIVE_CONTRATOS_BASE_FOLDER_ID)
 
 _MONGO_CLIENT = None
+
+
+def tracked_post(url, *args, **kwargs):
+    request = get_current_request()
+    try:
+        response = requests.post(url, *args, **kwargs)
+    except Exception as exc:
+        record_exception(request, url, exc, method='POST', source='backend')
+        raise
+
+    record_response(request, url, response, method='POST', source='backend')
+    return response
 
 
 def _default_json_value(default):
@@ -222,7 +242,7 @@ def _preparar_estructura_drive_plantilla(doc_id, root_folder_id=None):
         'move_doc_to': DRIVE_FORMATOS_FOLDER_NAME,
         'pdf_target_folder': DRIVE_PDFS_FOLDER_NAME,
     }
-    response = requests.post(N8N_WEBHOOK_PREPARAR_DIR, json=payload, timeout=20)
+    response = tracked_post(N8N_WEBHOOK_PREPARAR_DIR, json=payload, timeout=20)
     if not 200 <= response.status_code < 300:
         raise ValueError(f"Fallo al preparar Drive. Codigo HTTP: {response.status_code}")
 
@@ -375,7 +395,7 @@ def _descargar_pdf_drive_a_media(file_id, filename, owner_email='', folder_id=''
     if not file_id:
         raise ValueError("No hay ID de archivo Drive para descargar.")
 
-    response = requests.post(
+    response = tracked_post(
         N8N_WEBHOOK_DESCARGAR_PDF_DRIVE,
         json={
             'file_id': file_id,
@@ -1957,7 +1977,7 @@ def _sincronizar_pdf_finalizado(proceso):
 
     try:
         with open(proceso.pdf_path, 'rb') as f:
-            response = requests.post(
+            response = tracked_post(
                 N8N_WEBHOOK_FINALIZAR_PROCESO,
                 data={
                     "reference_id": proceso.reference_id,
@@ -2383,7 +2403,7 @@ def recibir_documento_n8n(request):
             primer_firmante = firmantes[0]
             link_firma = f"https://dsign.raloy.com.mx/firmar/{proceso.token_acceso}/{primer_firmante.get('token_firmante', '')}/"
             try:
-                requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
+                tracked_post(N8N_WEBHOOK_NOTIFICAR_CORREO,
                               json={"email": primer_firmante.get('email'), "nombre": primer_firmante.get('nombre'),
                                     "link": link_firma,
                                     "mensaje": f"Raloy solicita tu firma electrónica para el documento {ref_id}."},
@@ -2395,7 +2415,7 @@ def recibir_documento_n8n(request):
             if owner_email:
                 link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
                 try:
-                    requests.post(N8N_WEBHOOK_NOTIFICAR_OWNER,
+                    tracked_post(N8N_WEBHOOK_NOTIFICAR_OWNER,
                                   json={"email": owner_email, "reference_id": ref_id, "link": link_trazabilidad},
                                   timeout=20)
                 except Exception as e:
@@ -2643,7 +2663,7 @@ def procesar_firma(request, token, firmante_token=None):
             siguiente = firmantes_lista[siguiente_idx]
             link_firma = f"https://dsign.raloy.com.mx/firmar/{proceso.token_acceso}/{siguiente.get('token_firmante', '')}/"
             try:
-                requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
+                tracked_post(N8N_WEBHOOK_NOTIFICAR_CORREO,
                               json={"email": siguiente.get('email'), "nombre": siguiente.get('nombre'), "link": link_firma,
                                     "mensaje": "Es tu turno de firmar."},
                               timeout=20)
@@ -2667,7 +2687,7 @@ def procesar_firma(request, token, firmante_token=None):
             todos_los_correos.append(proceso.owner_email)
 
             try:
-                requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
+                tracked_post(N8N_WEBHOOK_NOTIFICAR_CORREO,
                               json={"email": proceso.owner_email, "nombre": "Propietario", "link": link_trazabilidad,
                                     "mensaje": "El documento que iniciaste ha sido firmado por todos y finalizado."},
                               timeout=20)
@@ -2683,7 +2703,7 @@ def procesar_firma(request, token, firmante_token=None):
 
         with open(proceso.pdf_path, 'rb') as f:
             try:
-                resp_n8n = requests.post(N8N_WEBHOOK_FINALIZAR_PROCESO,
+                resp_n8n = tracked_post(N8N_WEBHOOK_FINALIZAR_PROCESO,
                               data={"reference_id": proceso.reference_id, "status": "COMPLETED",
                                     "correos_destino": correos,
                                     **_n8n_storage_data_for_proceso(proceso),
@@ -3111,7 +3131,7 @@ def enviar_qr_trazabilidad(request):
     }
 
     try:
-        response = requests.post(N8N_WEBHOOK_ENVIAR_QR, json=payload_n8n, timeout=20)
+        response = tracked_post(N8N_WEBHOOK_ENVIAR_QR, json=payload_n8n, timeout=20)
         if not 200 <= response.status_code < 300:
             return JsonResponse({
                 "error": "N8N no pudo enviar el correo del QR.",
@@ -3204,7 +3224,7 @@ def reenviar_firma_trazabilidad(request):
         webhook_url = N8N_WEBHOOK_NOTIFICAR_CORREO
 
     try:
-        response = requests.post(webhook_url, json=payload_n8n, timeout=20)
+        response = tracked_post(webhook_url, json=payload_n8n, timeout=20)
         if not 200 <= response.status_code < 300:
             return JsonResponse({"error": f"N8N no confirmo el envio: {response.status_code}"}, status=502)
     except Exception as e:
@@ -3518,7 +3538,7 @@ def solicitar_recuperacion(request):
             'reset_token_expires': _datetime_for_mongo(timezone.now() + timedelta(hours=1)),
         })
         try:
-            requests.post(N8N_WEBHOOK_RECUPERAR_PIN, json={"email": colaborador.email, "nombre": colaborador.nombre,
+            tracked_post(N8N_WEBHOOK_RECUPERAR_PIN, json={"email": colaborador.email, "nombre": colaborador.nombre,
                                                            "link": f"https://dsign.raloy.com.mx/recuperar-pin/{reset_token}/"},
                           timeout=20)
         except Exception as e:
@@ -3578,7 +3598,7 @@ def solicitar_otp(request):
     if not email: return JsonResponse({"error": "Correo requerido"}, status=400)
     otp_record = _generar_otp_mongo(email)
     try:
-        requests.post(N8N_WEBHOOK_ENVIAR_OTP, json={"email": email, "otp": otp_record.otp_code}, timeout=20)
+        tracked_post(N8N_WEBHOOK_ENVIAR_OTP, json={"email": email, "otp": otp_record.otp_code}, timeout=20)
     except Exception as e:
         print(f"Error en N8N_WEBHOOK_ENVIAR_OTP: {e}")
     return JsonResponse({"status": "success", "msg": "PIN temporal enviado."})
@@ -3976,7 +3996,7 @@ def firmx_registrar_documento(request):
         firmx_debug["firmx_curl"] = _firmx_curl_preview('POST', '/documents/register/', firmx_payload)
 
     try:
-        response = requests.post(
+        response = tracked_post(
             _firmx_url('/documents/register/'),
             headers=_firmx_headers(),
             json=firmx_payload,
@@ -4109,7 +4129,7 @@ def firmx_ejecutar_curl_manual(request):
         if not isinstance(payload, dict):
             return JsonResponse({"error": "El payload debe ser un objeto JSON."}, status=400)
 
-        response = requests.post(
+        response = tracked_post(
             url,
             headers={
                 'X-Api-Key': api_key,
@@ -4410,7 +4430,7 @@ def firmx_enviar_notificaciones(request, document_id):
         }
         
         try:
-            response_n8n = requests.post(N8N_WEBHOOK_NOTIFICAR_FIRMX, json=payload_n8n, timeout=20)
+            response_n8n = tracked_post(N8N_WEBHOOK_NOTIFICAR_FIRMX, json=payload_n8n, timeout=20)
             if 200 <= response_n8n.status_code < 300:
                 notificados_con_exito.append(email)
             else:
@@ -4489,6 +4509,28 @@ def firmx_obtener_status(request, document_id):
 def portal_logout(request):
     request.session.flush()
     return redirect('portal_login')
+
+
+@csrf_exempt
+def n8n_monitor_events(request):
+    if not session_can_view_monitor(request):
+        return JsonResponse({"error": "No autenticado"}, status=403)
+
+    if request.method == 'GET':
+        return JsonResponse({"events": get_session_events(request)})
+
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body or '{}')
+        except ValueError:
+            return JsonResponse({"error": "JSON invalido."}, status=400)
+
+        event = record_client_event(request, data)
+        if event is None:
+            return JsonResponse({"status": "ignored", "events": get_session_events(request)})
+        return JsonResponse({"status": "success", "event": event, "events": get_session_events(request)})
+
+    return JsonResponse({"error": "Metodo no permitido."}, status=405)
 
 
 def portal_plantillas(request):
@@ -4578,7 +4620,7 @@ def solicitar_firma_plantilla(request, plantilla_id):
     }
 
     try:
-        response = requests.post(N8N_WEBHOOK_REQUEST_SIGNATURE, json=payload, timeout=30)
+        response = tracked_post(N8N_WEBHOOK_REQUEST_SIGNATURE, json=payload, timeout=30)
         if not 200 <= response.status_code < 300:
             return JsonResponse({
                 "error": "N8N no pudo generar el documento.",
@@ -4643,7 +4685,7 @@ def subir_pdf_usuario(request):
     try:
         files = {'data': (pdf_file.name, pdf_file.read(), 'application/pdf')}
         pdf_file.seek(0)
-        resp = requests.post(N8N_WEBHOOK_SUBIR_PDF_USUARIO, data={'folder_id': carpeta_dom.drive_folder_id},
+        resp = tracked_post(N8N_WEBHOOK_SUBIR_PDF_USUARIO, data={'folder_id': carpeta_dom.drive_folder_id},
                              files=files, timeout=30).json()
 
         if resp.get('status') == 'success':
@@ -4738,7 +4780,7 @@ def iniciar_firma_libre(request):
     primer_firmante = firmantes[0]
     link_firma = f"https://dsign.raloy.com.mx/firmar/{proceso.token_acceso}/{primer_firmante.get('token_firmante', '')}/"
     try:
-        requests.post(N8N_WEBHOOK_NOTIFICAR_CORREO,
+        tracked_post(N8N_WEBHOOK_NOTIFICAR_CORREO,
                       json={"email": primer_firmante.get('email'), "nombre": primer_firmante.get('nombre'), "link": link_firma,
                             "mensaje": f"Raloy solicita tu firma para el documento libre {ref_id}."},
                       timeout=20)
@@ -4748,7 +4790,7 @@ def iniciar_firma_libre(request):
 
     link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
     try:
-        requests.post(N8N_WEBHOOK_NOTIFICAR_OWNER,
+        tracked_post(N8N_WEBHOOK_NOTIFICAR_OWNER,
                       json={"email": owner_email, "reference_id": ref_id, "link": link_trazabilidad},
                       timeout=20)
     except Exception as e:
@@ -5006,7 +5048,7 @@ def admin_api(request, accion):
 
             link_firma = f"{PUBLIC_BASE_URL}/firmar/{doc.token_acceso}/{firmante.get('token_firmante')}/"
             try:
-                response = requests.post(
+                response = tracked_post(
                     N8N_WEBHOOK_NOTIFICAR_CORREO,
                     json={
                         "email": firmante.get('email'),
@@ -5062,7 +5104,7 @@ def admin_api(request, accion):
             firmante = firmantes[idx]
             
             try:
-                response = requests.post(
+                response = tracked_post(
                     'https://n8n.raloy.com.mx/webhook/dsign-recordatorio-firma',
                     json={"numero": telefono, "url": link_firma},
                     timeout=20,
@@ -5090,7 +5132,7 @@ def admin_api(request, accion):
 
         elif accion == 'invitar_registro':
             try:
-                requests.post(N8N_WEBHOOK_INVITAR_REGISTRO,
+                tracked_post(N8N_WEBHOOK_INVITAR_REGISTRO,
                               json={"email": data.get('email'), "link": "https://dsign.raloy.com.mx/registro-firmas/"},
                               timeout=20)
             except Exception as e:
@@ -5127,7 +5169,7 @@ def admin_api(request, accion):
             })
         elif accion == 'analizar_plantilla':
             try:
-                resp = requests.post(N8N_WEBHOOK_ANALIZAR_PLANTILLA, json=data, timeout=30).json()
+                resp = tracked_post(N8N_WEBHOOK_ANALIZAR_PLANTILLA, json=data, timeout=30).json()
                 return JsonResponse({"status": "success", "data": resp})
             except Exception as e:
                 return JsonResponse({"error": f"Error al analizar plantilla: {e}"}, status=500)
@@ -5435,7 +5477,7 @@ def check_notifications(request):
             return dev036_check_alerts(request)
 
         # Timeout de no más de 5 segundos según protocolo
-        response = requests.post(
+        response = tracked_post(
             dev036_url,
             json={"email": email},
             timeout=5
