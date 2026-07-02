@@ -117,6 +117,67 @@
     }
     .admin-sidebar-close:hover { background: #162839; border-color: #162839; color: #fff; }
     .admin-hero-btn-menu.is-active { background: #162839; border-color: #162839; color: #fff; }
+    .admin-sidebar-tools { display: grid; gap: 0.75rem; }
+    .admin-tool-card {
+        overflow: hidden;
+        background: #ffffff;
+        transition: border-color 0.22s ease, box-shadow 0.22s ease, background-color 0.22s ease;
+    }
+    .admin-tool-card.is-open {
+        border-color: #aeb4bb;
+        box-shadow: 0 0.55rem 1.35rem rgba(4, 13, 24, 0.08);
+    }
+    .admin-tool-header {
+        width: 100%;
+        border: 0;
+        background: transparent;
+        color: #162839;
+        padding: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        text-align: left;
+        cursor: pointer;
+    }
+    .admin-tool-heading {
+        min-width: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.65rem;
+        font-size: 0.92rem;
+        font-weight: 800;
+        line-height: 1.2;
+    }
+    .admin-tool-heading .material-symbols-outlined { flex-shrink: 0; font-size: 1.35rem !important; }
+    .admin-tool-chevron {
+        flex-shrink: 0;
+        color: #43474c;
+        transition: transform 0.24s ease, color 0.2s ease;
+    }
+    .admin-tool-card.is-open .admin-tool-chevron {
+        color: #162839;
+        transform: rotate(180deg);
+    }
+    .admin-tool-panel {
+        max-height: 0;
+        opacity: 0;
+        overflow: hidden;
+        transition: max-height 0.28s ease, opacity 0.2s ease;
+    }
+    .admin-tool-card.is-open .admin-tool-panel { opacity: 1; }
+    .admin-tool-panel-inner {
+        padding: 0 1rem 1rem;
+        transform: translateY(-0.35rem);
+        transition: transform 0.28s ease;
+    }
+    .admin-tool-card.is-open .admin-tool-panel-inner { transform: translateY(0); }
+    .admin-tool-description {
+        margin: 0 0 1rem;
+        color: #74777d;
+        font-size: 0.82rem;
+        line-height: 1.55;
+    }
 </style>
 {% endblock %}
 
@@ -266,118 +327,156 @@
                 <span class="material-symbols-outlined text-[18px]">close</span>
             </button>
         </div>
-        <div class="space-y-6">
-            <section class="admin-side-card bg-white p-5">
-                <div class="flex items-center gap-2 mb-3">
-                    <span class="material-symbols-outlined text-primary">dynamic_form</span>
-                    <h2 class="font-bold text-primary">Gestión de Plantillas</h2>
-                </div>
-                <p class="text-xs text-text-muted mb-5 leading-relaxed">Crea flujos documentales y formularios dinámicos a partir de Google Docs.</p>
-                <a class="admin-action-btn admin-action-btn-gold w-full mb-5" href="{% url 'admin_crear_plantilla' %}">
-                    <span class="material-symbols-outlined">add_circle</span>
-                    Nuevo Formulario
-                </a>
-                <h3 class="text-xs font-bold text-on-surface-variant uppercase mb-3 pb-2 border-b border-outline-variant">Plantillas Creadas</h3>
-                <div class="max-h-[300px] space-y-3 overflow-y-auto pr-1">
-                    {% for p in plantillas %}
-                        <div class="bg-surface-container-low p-4 rounded-lg border border-outline-variant">
-                            <strong class="block text-sm text-primary mb-1">{{ p.nombre }}</strong>
-                            <div class="flex flex-col gap-1 mb-4">
-                                <span class="text-[10px] text-on-surface-variant font-medium">ID: {{ p.doc_id|slice:":12" }}...</span>
-                                <span class="text-[10px] text-on-surface-variant font-medium">Por: {{ p.owner_email }}</span>
-                            </div>
-                            <div class="flex justify-between items-center border-t border-outline-variant pt-3">
-                                <a class="admin-inline-action" href="{% url 'admin_editar_plantilla' p.id %}">
-                                    <span class="material-symbols-outlined text-[14px]">edit</span> Editar
-                                </a>
-                                <a class="admin-inline-action admin-inline-action-danger" href="javascript:void(0);" onclick="eliminarPlantilla('{{ p.id }}')">
-                                    <span class="material-symbols-outlined text-[14px]">delete</span> Eliminar
-                                </a>
-                            </div>
-                        </div>
-                    {% empty %}
-                        <p class="text-xs text-center text-outline py-4">No hay plantillas creadas.</p>
-                    {% endfor %}
-                </div>
-            </section>
-
-            <section class="admin-side-card bg-white p-5">
-                <div class="flex items-center gap-2 mb-3">
-                    <span class="material-symbols-outlined text-primary">folder_shared</span>
-                    <h2 class="font-bold text-primary">Carpetas por Dominio</h2>
-                </div>
-                <div class="space-y-4 mb-5">
-                    <input id="inpCarpetaId" type="hidden">
-                    <div>
-                        <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Dominio</label>
-                        <input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="inpDominio" list="listaDominios" placeholder="Ej. raloy.com.mx" type="text">
-                        <datalist id="listaDominios"></datalist>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">ID Google Drive</label>
-                        <input class="no-uppercase w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="inpDriveDom" placeholder="1bDP1Q..." type="text">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Color principal HEX</label>
-                        <div class="grid grid-cols-[1fr_52px] gap-3 items-center">
-                            <input class="no-uppercase w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="inpBrandColor" maxlength="7" placeholder="#162839" type="text" value="#162839">
-                            <input class="h-12 w-full rounded-lg border border-outline-variant bg-white p-1" id="inpBrandColorPicker" type="color" value="#162839" title="Color principal">
+        <div class="admin-sidebar-tools">
+            <section class="admin-side-card admin-tool-card is-open" data-admin-tool>
+                <button type="button" class="admin-tool-header" aria-expanded="true" aria-controls="adminToolPlantillas">
+                    <span class="admin-tool-heading">
+                        <span class="material-symbols-outlined text-primary">dynamic_form</span>
+                        Gestión de Plantillas
+                    </span>
+                    <span class="material-symbols-outlined admin-tool-chevron">expand_more</span>
+                </button>
+                <div class="admin-tool-panel" id="adminToolPlantillas">
+                    <div class="admin-tool-panel-inner">
+                        <p class="admin-tool-description">Crea flujos documentales y formularios dinámicos a partir de Google Docs.</p>
+                        <a class="admin-action-btn admin-action-btn-gold w-full mb-5" href="{% url 'admin_crear_plantilla' %}">
+                            <span class="material-symbols-outlined">add_circle</span>
+                            Nuevo Formulario
+                        </a>
+                        <h3 class="text-xs font-bold text-on-surface-variant uppercase mb-3 pb-2 border-b border-outline-variant">Plantillas Creadas</h3>
+                        <div class="max-h-[300px] space-y-3 overflow-y-auto pr-1">
+                            {% for p in plantillas %}
+                                <div class="bg-surface-container-low p-4 rounded-lg border border-outline-variant">
+                                    <strong class="block text-sm text-primary mb-1">{{ p.nombre }}</strong>
+                                    <div class="flex flex-col gap-1 mb-4">
+                                        <span class="text-[10px] text-on-surface-variant font-medium">ID: {{ p.doc_id|slice:":12" }}...</span>
+                                        <span class="text-[10px] text-on-surface-variant font-medium">Por: {{ p.owner_email }}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center border-t border-outline-variant pt-3">
+                                        <a class="admin-inline-action" href="{% url 'admin_editar_plantilla' p.id %}">
+                                            <span class="material-symbols-outlined text-[14px]">edit</span> Editar
+                                        </a>
+                                        <a class="admin-inline-action admin-inline-action-danger" href="javascript:void(0);" onclick="eliminarPlantilla('{{ p.id }}')">
+                                            <span class="material-symbols-outlined text-[14px]">delete</span> Eliminar
+                                        </a>
+                                    </div>
+                                </div>
+                            {% empty %}
+                                <p class="text-xs text-center text-outline py-4">No hay plantillas creadas.</p>
+                            {% endfor %}
                         </div>
                     </div>
-                    <div>
-                        <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Logo del aplicativo</label>
-                        <div class="flex items-center gap-3 rounded-lg border border-outline-variant bg-surface-container-low p-3">
-                            <div id="previewLogoWrap" class="portal-brand-logo-box portal-brand-logo-box-admin shrink-0">
-                                <img id="previewLogoDominio" src="/static/motor_firmas/img/raloy-logo.svg" alt="Logo" class="portal-brand-logo">
+                </div>
+            </section>
+
+            <section class="admin-side-card admin-tool-card" data-admin-tool>
+                <button type="button" class="admin-tool-header" aria-expanded="false" aria-controls="adminToolDominios">
+                    <span class="admin-tool-heading">
+                        <span class="material-symbols-outlined text-primary">folder_shared</span>
+                        Carpetas por Dominio
+                    </span>
+                    <span class="material-symbols-outlined admin-tool-chevron">expand_more</span>
+                </button>
+                <div class="admin-tool-panel" id="adminToolDominios">
+                    <div class="admin-tool-panel-inner">
+                        <p class="admin-tool-description">Asigna carpetas de Drive, color y logotipo por dominio empresarial.</p>
+                        <div class="space-y-4 mb-5">
+                            <input id="inpCarpetaId" type="hidden">
+                            <div>
+                                <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Dominio</label>
+                                <input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="inpDominio" list="listaDominios" placeholder="Ej. raloy.com.mx" type="text">
+                                <datalist id="listaDominios"></datalist>
                             </div>
-                            <input class="admin-file-input no-uppercase block w-full text-xs text-on-surface-variant" id="inpLogoDom" accept="image/png,image/jpeg,image/webp" type="file">
+                            <div>
+                                <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">ID Google Drive</label>
+                                <input class="no-uppercase w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="inpDriveDom" placeholder="1bDP1Q..." type="text">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Color principal HEX</label>
+                                <div class="grid grid-cols-[1fr_52px] gap-3 items-center">
+                                    <input class="no-uppercase w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="inpBrandColor" maxlength="7" placeholder="#162839" type="text" value="#162839">
+                                    <input class="h-12 w-full rounded-lg border border-outline-variant bg-white p-1" id="inpBrandColorPicker" type="color" value="#162839" title="Color principal">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Logo del aplicativo</label>
+                                <div class="flex items-center gap-3 rounded-lg border border-outline-variant bg-surface-container-low p-3">
+                                    <div id="previewLogoWrap" class="portal-brand-logo-box portal-brand-logo-box-admin shrink-0">
+                                        <img id="previewLogoDominio" src="/static/motor_firmas/img/raloy-logo.svg" alt="Logo" class="portal-brand-logo">
+                                    </div>
+                                    <input class="admin-file-input no-uppercase block w-full text-xs text-on-surface-variant" id="inpLogoDom" accept="image/png,image/jpeg,image/webp" type="file">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
+                                <button id="btnGuardarCarpeta" class="admin-action-btn admin-action-btn-primary w-full" onclick="guardarCarpetaDominio()">Guardar Configuración</button>
+                                <button id="btnNuevaCarpeta" class="hidden admin-action-btn" onclick="resetCarpetaDominioForm()">Nueva</button>
+                            </div>
+                        </div>
+                        <h3 class="text-xs font-bold text-on-surface-variant uppercase mb-3 pb-2 border-b border-outline-variant">Configuraciones Activas</h3>
+                        <div class="max-h-[200px] overflow-y-auto space-y-3 pr-1" id="listCarpetasDominio"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="admin-side-card admin-tool-card" data-admin-tool>
+                <button type="button" class="admin-tool-header" aria-expanded="false" aria-controls="adminToolFirmex">
+                    <span class="admin-tool-heading">
+                        <span class="material-symbols-outlined text-primary">settings_applications</span>
+                        Configuración FIRMEX
+                    </span>
+                    <span class="material-symbols-outlined admin-tool-chevron">expand_more</span>
+                </button>
+                <div class="admin-tool-panel" id="adminToolFirmex">
+                    <div class="admin-tool-panel-inner">
+                        <p class="admin-tool-description">Gestiona el catálogo de áreas para las etiquetas automáticas en el portal FIRMEX.</p>
+                        <a class="admin-action-btn w-full" href="{% url 'admin_config_firmex' %}">
+                            <span class="material-symbols-outlined">category</span> Catálogo de Áreas
+                        </a>
+                    </div>
+                </div>
+            </section>
+
+            <section class="admin-side-card admin-tool-card" data-admin-tool>
+                <button type="button" class="admin-tool-header" aria-expanded="false" aria-controls="adminToolInvitar">
+                    <span class="admin-tool-heading">
+                        <span class="material-symbols-outlined text-primary">mail</span>
+                        Invitar a Firma
+                    </span>
+                    <span class="material-symbols-outlined admin-tool-chevron">expand_more</span>
+                </button>
+                <div class="admin-tool-panel" id="adminToolInvitar">
+                    <div class="admin-tool-panel-inner">
+                        <p class="admin-tool-description">Envía una invitación por correo para registrar usuarios en el flujo de firmas.</p>
+                        <div class="space-y-4">
+                            <input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="invMail" placeholder="correo@ejemplo.com" type="email">
+                            <button class="admin-action-btn admin-action-btn-primary w-full" onclick="ejecutarAccion('invitar_registro', {email: document.getElementById('invMail').value})">Enviar Invitación</button>
                         </div>
                     </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
-                        <button id="btnGuardarCarpeta" class="admin-action-btn admin-action-btn-primary w-full" onclick="guardarCarpetaDominio()">Guardar Configuración</button>
-                        <button id="btnNuevaCarpeta" class="hidden admin-action-btn" onclick="resetCarpetaDominioForm()">Nueva</button>
+                </div>
+            </section>
+
+            <section class="admin-side-card admin-tool-card" data-admin-tool>
+                <button type="button" class="admin-tool-header" aria-expanded="false" aria-controls="adminToolAccesos">
+                    <span class="admin-tool-heading">
+                        <span class="material-symbols-outlined text-primary">group</span>
+                        Gestión de Accesos
+                    </span>
+                    <span class="material-symbols-outlined admin-tool-chevron">expand_more</span>
+                </button>
+                <div class="admin-tool-panel" id="adminToolAccesos">
+                    <div class="admin-tool-panel-inner">
+                        <p class="admin-tool-description">Administra usuarios enrolados y perfiles con permisos de administración.</p>
+                        <div class="space-y-3">
+                            <a class="admin-action-btn w-full" href="{% url 'admin_usuarios' %}">
+                                <span class="material-symbols-outlined">person</span> Usuarios Enrolados
+                            </a>
+                            {% if es_superadmin %}
+                            <a class="admin-action-btn w-full" href="{% url 'admin_administradores' %}">
+                                <span class="material-symbols-outlined">security</span> Superadministradores
+                            </a>
+                            {% endif %}
+                        </div>
                     </div>
-                </div>
-                <h3 class="text-xs font-bold text-on-surface-variant uppercase mb-3 pb-2 border-b border-outline-variant">Configuraciones Activas</h3>
-                <div class="max-h-[200px] overflow-y-auto space-y-3 pr-1" id="listCarpetasDominio"></div>
-            </section>
-
-            <section class="admin-side-card bg-white p-5">
-                <div class="flex items-center gap-2 mb-3">
-                    <span class="material-symbols-outlined text-primary">settings_applications</span>
-                    <h2 class="font-bold text-primary">Configuración FIRMEX</h2>
-                </div>
-                <p class="text-xs text-text-muted mb-4 leading-relaxed">Gestiona el catálogo de áreas para las etiquetas automáticas en el portal FIRMEX.</p>
-                <a class="admin-action-btn w-full" href="{% url 'admin_config_firmex' %}">
-                    <span class="material-symbols-outlined">category</span> Catálogo de Áreas
-                </a>
-            </section>
-
-            <section class="admin-side-card bg-white p-5">
-                <div class="flex items-center gap-2 mb-4">
-                    <span class="material-symbols-outlined text-primary">mail</span>
-                    <h2 class="font-bold text-primary">Invitar a Firma</h2>
-                </div>
-                <div class="space-y-4">
-                    <input class="w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="invMail" placeholder="correo@ejemplo.com" type="email">
-                    <button class="admin-action-btn admin-action-btn-primary w-full" onclick="ejecutarAccion('invitar_registro', {email: document.getElementById('invMail').value})">Enviar Invitación</button>
-                </div>
-            </section>
-
-            <section class="admin-side-card bg-white p-5">
-                <div class="flex items-center gap-2 mb-4">
-                    <span class="material-symbols-outlined text-primary">group</span>
-                    <h2 class="font-bold text-primary">Gestión de Accesos</h2>
-                </div>
-                <div class="space-y-3">
-                    <a class="admin-action-btn w-full" href="{% url 'admin_usuarios' %}">
-                        <span class="material-symbols-outlined">person</span> Usuarios Enrolados
-                    </a>
-                    {% if es_superadmin %}
-                    <a class="admin-action-btn w-full" href="{% url 'admin_administradores' %}">
-                        <span class="material-symbols-outlined">security</span> Superadministradores
-                    </a>
-                    {% endif %}
                 </div>
             </section>
         </div>
@@ -445,6 +544,7 @@
         const toggleBtn = document.getElementById('btnToggleAdminSidebar');
         const closeBtn = document.getElementById('btnCloseAdminSidebar');
         const toggleIcon = document.getElementById('adminSidebarToggleIcon');
+        const toolCards = Array.from(sidebar.querySelectorAll('[data-admin-tool]'));
 
         function setAdminSidebarOpen(open) {
             sidebar.classList.toggle('is-open', open);
@@ -456,6 +556,40 @@
             toggleIcon.textContent = open ? 'close' : 'menu';
             toggleBtn.title = open ? 'Ocultar herramientas' : 'Mostrar herramientas';
             document.body.classList.toggle('admin-sidebar-open', open);
+        }
+
+        function setToolOpen(card, open) {
+            const header = card.querySelector('.admin-tool-header');
+            const panel = card.querySelector('.admin-tool-panel');
+            if (!header || !panel) return;
+            card.classList.toggle('is-open', open);
+            header.setAttribute('aria-expanded', open ? 'true' : 'false');
+            panel.style.maxHeight = open ? `${panel.scrollHeight}px` : '0px';
+        }
+
+        function openOnlyTool(activeCard) {
+            toolCards.forEach(card => setToolOpen(card, card === activeCard));
+        }
+
+        toolCards.forEach(card => {
+            const header = card.querySelector('.admin-tool-header');
+            if (!header) return;
+            header.addEventListener('click', () => openOnlyTool(card));
+        });
+        openOnlyTool(toolCards.find(card => card.classList.contains('is-open')) || toolCards[0]);
+        window.addEventListener('resize', () => {
+            const openCard = toolCards.find(card => card.classList.contains('is-open'));
+            if (openCard) setToolOpen(openCard, true);
+        });
+        if ('ResizeObserver' in window) {
+            const toolResizeObserver = new ResizeObserver(() => {
+                const openCard = toolCards.find(card => card.classList.contains('is-open'));
+                if (openCard) window.requestAnimationFrame(() => setToolOpen(openCard, true));
+            });
+            toolCards.forEach(card => {
+                const inner = card.querySelector('.admin-tool-panel-inner');
+                if (inner) toolResizeObserver.observe(inner);
+            });
         }
 
         toggleBtn.addEventListener('click', () => setAdminSidebarOpen(!sidebar.classList.contains('is-open')));
