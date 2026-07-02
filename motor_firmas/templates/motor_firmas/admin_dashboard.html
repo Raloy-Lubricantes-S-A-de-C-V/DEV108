@@ -10,31 +10,36 @@
     .admin-table th { background: #f8f9fa; padding: 0.65rem 0.55rem; text-align: left; font-size: 0.66rem; text-transform: uppercase; color: #43474c; border-bottom: 1px solid #c4c6cd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .admin-table td { padding: 0.6rem 0.55rem; border-bottom: 1px solid #edeeef; font-size: 0.72rem; vertical-align: middle; line-height: 1.25; }
     .admin-table tbody tr:hover { background: #f8f9fa; }
+    .admin-table th:nth-child(5),
+    .admin-table td:nth-child(5) { text-align: left; }
     .admin-table th:nth-child(6),
     .admin-table td:nth-child(6) { text-align: center; }
     .admin-table th:nth-child(7),
-    .admin-table td:nth-child(7) { text-align: right; }
-    .admin-col-folio { width: 12%; }
-    .admin-col-creator { width: 21%; }
+    .admin-table td:nth-child(7) { text-align: center; }
+    .admin-col-folio { width: 14%; }
+    .admin-col-creator { width: 22%; }
     .admin-col-domain { width: 11%; }
-    .admin-col-date { width: 13%; }
-    .admin-col-progress { width: 11%; }
-    .admin-col-status { width: 11%; }
-    .admin-col-actions { width: 22%; }
+    .admin-col-date { width: 14%; }
+    .admin-col-progress { width: 17%; }
+    .admin-col-status { width: 13%; }
+    .admin-col-actions { width: 9%; }
     .admin-table-cell-clip { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .admin-table-folio { display: block; min-width: 0; color: #162839; font-size: 0.72rem; font-weight: 800; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .admin-table-date { font-size: 0.68rem; white-space: nowrap; }
-    .admin-table-progress { min-width: 0; }
-    .admin-progress-label { display: flex; align-items: center; justify-content: space-between; gap: 0.25rem; margin-bottom: 0.22rem; font-size: 0.62rem; font-weight: 800; color: #162839; line-height: 1.1; white-space: nowrap; }
-    .admin-progress-track { width: 100%; height: 5px; background: #e1e3e4; border-radius: 9999px; overflow: hidden; }
-    .admin-progress-fill { height: 100%; background: #162839; border-radius: 9999px; transition: width 0.2s ease; }
+    .admin-table-progress { min-width: 0; max-width: 0; overflow: hidden; }
+    .admin-progress-cell { width: 100%; min-width: 0; max-width: 100%; overflow: hidden; }
+    .admin-progress-label { display: block; margin-bottom: 0.2rem; font-size: 0.62rem; font-weight: 800; color: #162839; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .admin-progress-label span { color: inherit; }
+    .admin-progress-label .admin-progress-pct { margin-left: 0.2rem; }
+    .admin-progress-track { display: block; width: 100%; min-width: 0; height: 4px; background: #e1e3e4; border-radius: 9999px; overflow: hidden; }
+    .admin-progress-fill { display: block; height: 100%; max-width: 100%; background: #162839; border-radius: 9999px; transition: width 0.2s ease; }
     .admin-progress-fill.is-complete { background: #27ae60; }
     .admin-progress-fill.is-firmx { background: #2d9be8; }
     .admin-progress-fill.is-cancelled { background: #e74c3c; opacity: 0.45; }
-    .admin-progress-cancelled { font-size: 0.62rem; font-weight: 800; color: #93000a; white-space: nowrap; }
+    .admin-progress-cancelled { display: block; font-size: 0.62rem; font-weight: 800; color: #93000a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .admin-table-status { text-align: center; }
-    .admin-table-actions { text-align: right; white-space: nowrap; }
-    .admin-row-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 0.3rem; flex-wrap: nowrap; }
+    .admin-table-actions { text-align: center; white-space: nowrap; padding-left: 0.35rem; padding-right: 0.35rem; }
+    .admin-row-actions { display: inline-flex; align-items: center; justify-content: center; gap: 0.25rem; flex-wrap: nowrap; }
     .admin-row-actions .admin-inline-action { min-height: 1.65rem; width: 1.65rem; height: 1.65rem; padding: 0; gap: 0; border-radius: 0.4rem; font-size: 0; }
     .admin-row-actions .material-symbols-outlined { font-size: 0.95rem !important; }
     .admin-table .status-badge { padding: 0.16rem 0.42rem; font-size: 0.64rem; white-space: nowrap; }
@@ -627,7 +632,7 @@
 
     function progresoAdminHtml(doc) {
         if (doc.status === 'CANCELLED') {
-            return '<span class="admin-progress-cancelled">Detenido</span>';
+            return '<span class="admin-progress-cancelled" title="Proceso cancelado">Detenido</span>';
         }
 
         const partes = String(doc.progreso || '0/0').split('/');
@@ -648,12 +653,13 @@
         }
 
         return `
-            <div class="admin-progress-label">
-                <span>${hechas}/${total}</span>
-                <span style="color:${color};">${porcentaje}%</span>
-            </div>
-            <div class="admin-progress-track">
-                <div class="admin-progress-fill ${fillClass}" style="width:${porcentaje}%; background-color:${color};"></div>
+            <div class="admin-progress-cell" title="${hechas} de ${total} firmas (${porcentaje}%)">
+                <div class="admin-progress-label">
+                    <span>${hechas}/${total}</span><span class="admin-progress-pct" style="color:${color};">${porcentaje}%</span>
+                </div>
+                <div class="admin-progress-track">
+                    <div class="admin-progress-fill ${fillClass}" style="width:${porcentaje}%; background-color:${color};"></div>
+                </div>
             </div>
         `;
     }
