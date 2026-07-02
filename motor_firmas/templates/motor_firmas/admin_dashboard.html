@@ -17,14 +17,21 @@
     .admin-col-folio { width: 12%; }
     .admin-col-creator { width: 21%; }
     .admin-col-domain { width: 11%; }
-    .admin-col-date { width: 14%; }
-    .admin-col-progress { width: 9%; }
+    .admin-col-date { width: 13%; }
+    .admin-col-progress { width: 11%; }
     .admin-col-status { width: 11%; }
     .admin-col-actions { width: 22%; }
     .admin-table-cell-clip { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .admin-table-folio { display: block; min-width: 0; color: #162839; font-size: 0.72rem; font-weight: 800; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .admin-table-date { font-size: 0.68rem; white-space: nowrap; }
-    .admin-table-progress { color: #162839; font-size: 0.68rem; font-weight: 800; line-height: 1.2; white-space: nowrap; }
+    .admin-table-progress { min-width: 0; }
+    .admin-progress-label { display: flex; align-items: center; justify-content: space-between; gap: 0.25rem; margin-bottom: 0.22rem; font-size: 0.62rem; font-weight: 800; color: #162839; line-height: 1.1; white-space: nowrap; }
+    .admin-progress-track { width: 100%; height: 5px; background: #e1e3e4; border-radius: 9999px; overflow: hidden; }
+    .admin-progress-fill { height: 100%; background: #162839; border-radius: 9999px; transition: width 0.2s ease; }
+    .admin-progress-fill.is-complete { background: #27ae60; }
+    .admin-progress-fill.is-firmx { background: #2d9be8; }
+    .admin-progress-fill.is-cancelled { background: #e74c3c; opacity: 0.45; }
+    .admin-progress-cancelled { font-size: 0.62rem; font-weight: 800; color: #93000a; white-space: nowrap; }
     .admin-table-status { text-align: center; }
     .admin-table-actions { text-align: right; white-space: nowrap; }
     .admin-row-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 0.3rem; flex-wrap: nowrap; }
@@ -618,6 +625,39 @@
         return status || 'Desconocido';
     }
 
+    function progresoAdminHtml(doc) {
+        if (doc.status === 'CANCELLED') {
+            return '<span class="admin-progress-cancelled">Detenido</span>';
+        }
+
+        const partes = String(doc.progreso || '0/0').split('/');
+        const hechas = Number(doc.firmas_hechas ?? partes[0]) || 0;
+        const total = Number(doc.total_firmas ?? partes[1]) || 0;
+        const porcentaje = Number.isFinite(Number(doc.porcentaje))
+            ? Number(doc.porcentaje)
+            : (total > 0 ? Math.round((hechas / total) * 100) : 0);
+        let fillClass = '';
+        let color = '#162839';
+
+        if (doc.status === 'COMPLETED') {
+            fillClass = 'is-complete';
+            color = '#27ae60';
+        } else if (doc.status === 'FIRMX_WAITING' || (doc.firmx_id && doc.status === 'PROCESSING')) {
+            fillClass = 'is-firmx';
+            color = '#2d9be8';
+        }
+
+        return `
+            <div class="admin-progress-label">
+                <span>${hechas}/${total}</span>
+                <span style="color:${color};">${porcentaje}%</span>
+            </div>
+            <div class="admin-progress-track">
+                <div class="admin-progress-fill ${fillClass}" style="width:${porcentaje}%; background-color:${color};"></div>
+            </div>
+        `;
+    }
+
     function toggleAdminGroup(groupId) {
         if (expandedAdminGroups.has(groupId)) {
             expandedAdminGroups.delete(groupId);
@@ -702,7 +742,7 @@
             <td class="admin-table-cell-clip text-on-surface-variant" title="${escapeHtml(doc.owner_email)}">${escapeHtml(doc.owner_email)}</td>
             <td class="admin-table-cell-clip text-on-surface-variant font-medium" title="@${escapeHtml(doc.dominio)}">@${escapeHtml(doc.dominio)}</td>
             <td class="admin-table-date text-on-surface-variant">${escapeHtml(doc.fecha)}</td>
-            <td class="admin-table-progress">${escapeHtml(doc.progreso)} Firmas</td>
+            <td class="admin-table-progress">${progresoAdminHtml(doc)}</td>
             <td class="admin-table-status"><span class="status-badge ${badgeClass}">${statusText}</span></td>
             <td class="admin-table-actions">
                 <div class="admin-row-actions">

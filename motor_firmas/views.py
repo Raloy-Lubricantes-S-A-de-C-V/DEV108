@@ -1356,6 +1356,9 @@ def _admin_dashboard_doc_payload(proceso):
     summary_data = _json_or_default(getattr(proceso, 'summary_data', {}) or {}, {})
     firmx_id = summary_data.get('firmx_id')
     firmantes = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
+    total_firmas = len(firmantes)
+    firmas_hechas = sum(1 for f in firmantes if f.get('fecha_firma'))
+    porcentaje = int((firmas_hechas / total_firmas) * 100) if total_firmas > 0 else 0
     owner_doc = getattr(proceso, 'owner_email', '') or ''
     created_at = getattr(proceso, 'created_at', None)
     status = getattr(proceso, 'status', 'UNKNOWN') or 'UNKNOWN'
@@ -1367,7 +1370,10 @@ def _admin_dashboard_doc_payload(proceso):
         'dominio': owner_doc.split('@')[1] if '@' in owner_doc else 'N/A',
         'status': status,
         'fecha': created_at.strftime("%Y-%m-%d %H:%M:%S") if created_at else '',
-        'progreso': f"{sum(1 for f in firmantes if f.get('fecha_firma'))}/{len(firmantes)}",
+        'progreso': f"{firmas_hechas}/{total_firmas}",
+        'firmas_hechas': firmas_hechas,
+        'total_firmas': total_firmas,
+        'porcentaje': porcentaje,
         'etiqueta': etiqueta,
         'firmx_id': firmx_id or '',
         'can_adjust': status == 'COMPLETED' and not firmx_id,
