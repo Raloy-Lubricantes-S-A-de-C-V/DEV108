@@ -47,6 +47,67 @@
     .admin-table .status-badge { padding: 0.16rem 0.42rem; font-size: 0.64rem; white-space: nowrap; }
     .admin-group-row td { background: #f3f4f5; color: #162839; font-size: 0.76rem; font-weight: 700; border-left: 4px solid #162839; cursor: pointer; }
     .admin-pager-input { width: 5rem; text-align: center; }
+    .admin-sidebar-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 35;
+        background: rgba(4, 13, 24, 0.45);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.22s ease;
+    }
+    .admin-sidebar-backdrop.is-visible {
+        opacity: 1;
+        pointer-events: auto;
+    }
+    .admin-sidebar {
+        position: fixed;
+        top: 0;
+        right: 0;
+        z-index: 40;
+        width: min(24rem, 92vw);
+        height: 100vh;
+        padding: 1rem 1rem 1.5rem;
+        background: #f3f4f5;
+        border-left: 1px solid #c4c6cd;
+        box-shadow: -0.35rem 0 1.5rem rgba(4, 13, 24, 0.12);
+        overflow-y: auto;
+        transform: translateX(100%);
+        transition: transform 0.24s ease;
+    }
+    .admin-sidebar.is-open { transform: translateX(0); }
+    .admin-sidebar-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.85rem;
+        border-bottom: 1px solid #c4c6cd;
+    }
+    .admin-sidebar-title {
+        font-size: 0.88rem;
+        font-weight: 800;
+        color: #162839;
+        line-height: 1.2;
+    }
+    .admin-sidebar-close {
+        min-height: 0;
+        width: 2rem;
+        height: 2rem;
+        padding: 0;
+        border-radius: 0.45rem;
+        border: 1px solid #c4c6cd;
+        background: #fff;
+        color: #162839;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+    .admin-sidebar-close:hover { background: #162839; border-color: #162839; color: #fff; }
+    .admin-hero-btn-menu.is-active { background: #162839; border-color: #162839; color: #fff; }
 </style>
 {% endblock %}
 
@@ -63,6 +124,10 @@
             </div>
         </div>
         <div class="admin-hero-actions">
+            <button type="button" id="btnToggleAdminSidebar" class="admin-hero-btn admin-hero-btn-menu" title="Mostrar herramientas" aria-expanded="false" aria-controls="adminSidebar">
+                <span class="material-symbols-outlined text-[18px]" id="adminSidebarToggleIcon">menu</span>
+                Herramientas
+            </button>
             {% if request.session.owner_email or es_usuario %}
             <a class="admin-hero-btn" href="{% url 'portal_dashboard' %}">
                 <span class="material-symbols-outlined text-[18px]">account_circle</span>
@@ -77,8 +142,7 @@
     </header>
 
     <main class="py-8">
-    <div class="grid grid-cols-1 xl:grid-cols-4 gap-8 min-w-0">
-        <section class="xl:col-span-3 admin-module p-5 md:p-6 min-w-0">
+        <section class="admin-module p-5 md:p-6 min-w-0">
             <div class="admin-module-head">
                 <div class="flex items-center gap-3">
                     <span class="material-symbols-outlined text-primary">description</span>
@@ -181,8 +245,17 @@
                 </table>
             </div>
         </section>
+    </main>
 
-        <aside class="space-y-6">
+    <div id="adminSidebarBackdrop" class="admin-sidebar-backdrop" aria-hidden="true"></div>
+    <aside id="adminSidebar" class="admin-sidebar" aria-hidden="true">
+        <div class="admin-sidebar-head">
+            <p class="admin-sidebar-title">Panel de herramientas</p>
+            <button type="button" id="btnCloseAdminSidebar" class="admin-sidebar-close" title="Ocultar panel">
+                <span class="material-symbols-outlined text-[18px]">close</span>
+            </button>
+        </div>
+        <div class="space-y-6">
             <section class="admin-side-card bg-white p-5">
                 <div class="flex items-center gap-2 mb-3">
                     <span class="material-symbols-outlined text-primary">dynamic_form</span>
@@ -296,9 +369,8 @@
                     {% endif %}
                 </div>
             </section>
-        </aside>
-    </div>
-    </main>
+        </div>
+    </aside>
 
     <footer class="border-t border-outline-variant bg-white py-8 mt-12">
     <div class="max-w-[1600px] mx-auto px-4 md:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
@@ -356,6 +428,35 @@
 	    let docsRequestId = 0;
 	    let expandedAdminGroups = new Set();
 
+    function initAdminSidebar() {
+        const sidebar = document.getElementById('adminSidebar');
+        const backdrop = document.getElementById('adminSidebarBackdrop');
+        const toggleBtn = document.getElementById('btnToggleAdminSidebar');
+        const closeBtn = document.getElementById('btnCloseAdminSidebar');
+        const toggleIcon = document.getElementById('adminSidebarToggleIcon');
+
+        function setAdminSidebarOpen(open) {
+            sidebar.classList.toggle('is-open', open);
+            backdrop.classList.toggle('is-visible', open);
+            toggleBtn.classList.toggle('is-active', open);
+            toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            sidebar.setAttribute('aria-hidden', open ? 'false' : 'true');
+            backdrop.setAttribute('aria-hidden', open ? 'false' : 'true');
+            toggleIcon.textContent = open ? 'close' : 'menu';
+            toggleBtn.title = open ? 'Ocultar herramientas' : 'Mostrar herramientas';
+            document.body.classList.toggle('admin-sidebar-open', open);
+        }
+
+        toggleBtn.addEventListener('click', () => setAdminSidebarOpen(!sidebar.classList.contains('is-open')));
+        closeBtn.addEventListener('click', () => setAdminSidebarOpen(false));
+        backdrop.addEventListener('click', () => setAdminSidebarOpen(false));
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && sidebar.classList.contains('is-open')) {
+                setAdminSidebarOpen(false);
+            }
+        });
+    }
+
     function init() {
 	        const dominios = [...new Set([
 	            ...documentDomains,
@@ -411,6 +512,7 @@
 
 	        renderCarpetasDominio();
 	        actualizarPreviewMarca();
+	        initAdminSidebar();
 	        cargarDocumentos(1);
 	    }
 
