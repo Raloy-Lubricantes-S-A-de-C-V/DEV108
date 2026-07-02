@@ -1406,8 +1406,6 @@ def _admin_dashboard_docs_page(admin_obj, filtros=None, sync_limit=5):
     except (TypeError, ValueError):
         page_size = default_page_size
     page_size = max(1, page_size)
-    if total_filtered:
-        page_size = min(page_size, total_filtered)
     total_pages = max(1, (total_filtered + page_size - 1) // page_size)
     page = min(page, total_pages)
     skip = (page - 1) * page_size
