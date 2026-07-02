@@ -16,27 +16,29 @@
     .admin-table td:nth-child(6) { text-align: center; }
     .admin-table th:nth-child(7),
     .admin-table td:nth-child(7) { text-align: center; }
-    .admin-col-folio { width: 14%; }
-    .admin-col-creator { width: 22%; }
-    .admin-col-domain { width: 11%; }
-    .admin-col-date { width: 14%; }
-    .admin-col-progress { width: 17%; }
+    .admin-col-folio { width: 15%; }
+    .admin-col-creator { width: 24%; }
+    .admin-col-domain { width: 9%; }
+    .admin-col-date { width: 13%; }
+    .admin-col-progress { width: 16%; }
     .admin-col-status { width: 13%; }
-    .admin-col-actions { width: 9%; }
+    .admin-col-actions { width: 10%; }
     .admin-table-cell-clip { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .admin-table-folio { display: block; min-width: 0; color: #162839; font-size: 0.72rem; font-weight: 800; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .admin-table-date { font-size: 0.68rem; white-space: nowrap; }
-    .admin-table-progress { min-width: 0; max-width: 0; overflow: hidden; }
+    .admin-table-date { font-size: 0.68rem; white-space: nowrap; color: #5f6368; }
+    .admin-table-progress { min-width: 0; max-width: 0; overflow: hidden; padding-top: 0.62rem; padding-bottom: 0.62rem; }
     .admin-progress-cell { width: 100%; min-width: 0; max-width: 100%; overflow: hidden; }
-    .admin-progress-label { display: block; margin-bottom: 0.2rem; font-size: 0.62rem; font-weight: 800; color: #162839; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .admin-progress-label span { color: inherit; }
-    .admin-progress-label .admin-progress-pct { margin-left: 0.2rem; }
-    .admin-progress-track { display: block; width: 100%; min-width: 0; height: 4px; background: #e1e3e4; border-radius: 9999px; overflow: hidden; }
+    .admin-progress-meta { display: flex; align-items: center; justify-content: space-between; gap: 0.55rem; margin-bottom: 0.38rem; min-width: 0; }
+    .admin-progress-count { font-size: 0.7rem; font-weight: 800; color: #162839; line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+    .admin-progress-count .admin-progress-sep { margin: 0 0.08rem; color: #9aa0a6; font-weight: 700; }
+    .admin-progress-count .admin-progress-total { color: #5f6368; font-weight: 700; }
+    .admin-progress-pct { flex-shrink: 0; min-width: 2rem; text-align: right; font-size: 0.64rem; font-weight: 800; line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .admin-progress-track { display: block; width: 100%; min-width: 0; height: 6px; background: #dfe1e3; border-radius: 9999px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(22, 40, 57, 0.04); }
     .admin-progress-fill { display: block; height: 100%; max-width: 100%; background: #162839; border-radius: 9999px; transition: width 0.2s ease; }
     .admin-progress-fill.is-complete { background: #27ae60; }
     .admin-progress-fill.is-firmx { background: #2d9be8; }
     .admin-progress-fill.is-cancelled { background: #e74c3c; opacity: 0.45; }
-    .admin-progress-cancelled { display: block; font-size: 0.62rem; font-weight: 800; color: #93000a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .admin-progress-cancelled { display: block; font-size: 0.64rem; font-weight: 800; color: #93000a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .admin-table-status { text-align: center; }
     .admin-table-actions { text-align: center; white-space: nowrap; padding-left: 0.35rem; padding-right: 0.35rem; }
     .admin-row-actions { display: inline-flex; align-items: center; justify-content: center; gap: 0.25rem; flex-wrap: nowrap; }
@@ -653,11 +655,14 @@
         }
 
         return `
-            <div class="admin-progress-cell" title="${hechas} de ${total} firmas (${porcentaje}%)">
-                <div class="admin-progress-label">
-                    <span>${hechas}/${total}</span><span class="admin-progress-pct" style="color:${color};">${porcentaje}%</span>
+            <div class="admin-progress-cell" title="${hechas} de ${total} firmas recolectadas (${porcentaje}%)">
+                <div class="admin-progress-meta">
+                    <span class="admin-progress-count">
+                        <span>${hechas}</span><span class="admin-progress-sep">/</span><span class="admin-progress-total">${total}</span>
+                    </span>
+                    <span class="admin-progress-pct" style="color:${color};">${porcentaje}%</span>
                 </div>
-                <div class="admin-progress-track">
+                <div class="admin-progress-track" aria-hidden="true">
                     <div class="admin-progress-fill ${fillClass}" style="width:${porcentaje}%; background-color:${color};"></div>
                 </div>
             </div>
