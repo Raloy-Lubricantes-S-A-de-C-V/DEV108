@@ -11,11 +11,12 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        0,
-        0
+        -3344,
+        -96
       ],
-      "id": "05311e02-7b76-4742-b652-3c09f4a9d147",
-      "name": "Webhook"
+      "id": "65fdcfe6-fd67-4778-8deb-3ee58503e43a",
+      "name": "Webhook",
+      "webhookId": "bcace2c7-4726-4adf-8819-958417531d55"
     },
     {
       "parameters": {
@@ -24,17 +25,17 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        224,
-        0
+        -3120,
+        -96
       ],
-      "id": "e56c585e-a8e4-4967-9b63-db47e5aa6392",
+      "id": "c3710a35-e9c5-4027-b110-3e68e28e71b9",
       "name": "Normalizar Solicitud"
     },
     {
       "parameters": {
+        "url": "https://www.googleapis.com/drive/v3/files",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleDriveOAuth2Api",
-        "url": "https://www.googleapis.com/drive/v3/files",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -61,10 +62,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        448,
-        0
+        -2896,
+        -96
       ],
-      "id": "68680f6a-44f2-4b96-8e55-52b5fa31f615",
+      "id": "21a79be3-2279-4f11-8ad4-57646ea3dda5",
       "name": "Buscar Formatos Inicial",
       "credentials": {
         "googleDriveOAuth2Api": {
@@ -100,18 +101,18 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        672,
-        0
+        -2672,
+        -96
       ],
-      "id": "5409d7ee-b30a-40c0-a840-e87ef5c67cfb",
+      "id": "26e8a051-b025-4de9-898b-c92d6a77368d",
       "name": "IF Crear Formatos"
     },
     {
       "parameters": {
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "googleDriveOAuth2Api",
         "method": "POST",
         "url": "https://www.googleapis.com/drive/v3/files",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -133,10 +134,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        896,
-        -96
+        -2464,
+        -336
       ],
-      "id": "3d7f7621-80c5-4a0d-9675-110efb6d15d5",
+      "id": "3129d691-95b3-47e1-8029-4e774cf9d50a",
       "name": "Crear Formatos",
       "credentials": {
         "googleDriveOAuth2Api": {
@@ -147,9 +148,9 @@
     },
     {
       "parameters": {
+        "url": "https://www.googleapis.com/drive/v3/files",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleDriveOAuth2Api",
-        "url": "https://www.googleapis.com/drive/v3/files",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -176,10 +177,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1120,
-        0
+        -2240,
+        -80
       ],
-      "id": "4c8db7a4-1c88-44fb-b03b-07b44085fa21",
+      "id": "b306045b-4ce0-4360-93af-8d1b91bf2906",
       "name": "Buscar Formatos Final",
       "credentials": {
         "googleDriveOAuth2Api": {
@@ -195,17 +196,17 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1344,
-        0
+        -2016,
+        -80
       ],
-      "id": "f3f6b7cc-a727-4c7e-8230-c0f699d5ed0f",
+      "id": "4896fb3c-d6f1-48e5-9feb-e5b628fb5b25",
       "name": "Resolver Formatos"
     },
     {
       "parameters": {
+        "url": "https://www.googleapis.com/drive/v3/files",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleDriveOAuth2Api",
-        "url": "https://www.googleapis.com/drive/v3/files",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -232,10 +233,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1568,
-        0
+        -1776,
+        -80
       ],
-      "id": "47d00965-2ec6-4f76-b55a-5217d2e673d1",
+      "id": "45d3ca9e-43d9-411b-ba34-a38339ade5e7",
       "name": "Buscar PDFs Inicial",
       "credentials": {
         "googleDriveOAuth2Api": {
@@ -271,18 +272,18 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1792,
-        0
+        -1552,
+        -80
       ],
-      "id": "861b0139-93c0-4181-8863-0229962b4478",
+      "id": "9d16116e-c3c5-48b6-9ab6-642add45b4e7",
       "name": "IF Crear PDFs"
     },
     {
       "parameters": {
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "googleDriveOAuth2Api",
         "method": "POST",
         "url": "https://www.googleapis.com/drive/v3/files",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -304,10 +305,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2016,
-        -96
+        -1328,
+        -192
       ],
-      "id": "8ce6adfb-a8a3-42a6-b013-d7614e6dac67",
+      "id": "1bd8dddc-aa3f-4bf8-9e99-afdde4568c7c",
       "name": "Crear PDFs",
       "credentials": {
         "googleDriveOAuth2Api": {
@@ -318,9 +319,9 @@
     },
     {
       "parameters": {
+        "url": "https://www.googleapis.com/drive/v3/files",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleDriveOAuth2Api",
-        "url": "https://www.googleapis.com/drive/v3/files",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -347,10 +348,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2240,
-        0
+        -1104,
+        -64
       ],
-      "id": "3c3f2d16-c58e-44a2-b661-ee8e6723658a",
+      "id": "26284983-c7ee-4d00-b06c-d5ff77427b9f",
       "name": "Buscar PDFs Final",
       "credentials": {
         "googleDriveOAuth2Api": {
@@ -366,10 +367,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2464,
-        0
+        -880,
+        -96
       ],
-      "id": "480ebda0-b167-4e68-9b80-8b1d640e3731",
+      "id": "44d974c5-8c12-4d24-bfa1-61dd7d12c4e2",
       "name": "Resolver PDFs"
     },
     {
@@ -399,17 +400,17 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2688,
-        0
+        -656,
+        -96
       ],
-      "id": "8cdfdc1c-40f3-4244-87fb-41da2e18c579",
+      "id": "e422567c-864a-40fa-bbf5-f87a255ebfb9",
       "name": "IF Hay Doc"
     },
     {
       "parameters": {
+        "url": "={{ 'https://www.googleapis.com/drive/v3/files/' + $node[\"Resolver PDFs\"].json.doc_id }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleDriveOAuth2Api",
-        "url": "={{ 'https://www.googleapis.com/drive/v3/files/' + $node[\"Resolver PDFs\"].json.doc_id }}",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -428,10 +429,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2912,
-        -96
+        -432,
+        -192
       ],
-      "id": "5d0bd244-2966-47ad-94aa-67e5bf033dcc",
+      "id": "0e495320-b2ff-46b9-affe-c670328be0be",
       "name": "Obtener Doc",
       "credentials": {
         "googleDriveOAuth2Api": {
@@ -447,10 +448,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3136,
-        -96
+        -208,
+        -192
       ],
-      "id": "baf60a70-83d0-4ab6-925e-42a7e55c4386",
+      "id": "5bea740e-b2e8-4b87-8087-763d9f34490d",
       "name": "Resolver Doc"
     },
     {
@@ -480,18 +481,18 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3360,
-        -96
+        16,
+        -192
       ],
-      "id": "9f85207e-5113-43b5-b0ea-920f3f68cab2",
+      "id": "3261a2e8-945e-4e09-8f12-53d97fcf6cdc",
       "name": "IF Tiene Padres Para Remover"
     },
     {
       "parameters": {
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "googleDriveOAuth2Api",
         "method": "PATCH",
         "url": "={{ 'https://www.googleapis.com/drive/v3/files/' + $json.doc_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -518,10 +519,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3584,
-        -192
+        240,
+        -288
       ],
-      "id": "a21e9dd5-94f2-4e1d-9b90-4a825f03db52",
+      "id": "64604db4-f515-473b-a588-2449966dfb5c",
       "name": "Mover Doc a Formatos",
       "credentials": {
         "googleDriveOAuth2Api": {
@@ -532,10 +533,10 @@
     },
     {
       "parameters": {
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "googleDriveOAuth2Api",
         "method": "PATCH",
         "url": "={{ 'https://www.googleapis.com/drive/v3/files/' + $json.doc_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -558,10 +559,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3584,
-        0
+        240,
+        -96
       ],
-      "id": "d5a8d2a5-4ff6-46ac-bc51-7ab0e7427f7d",
+      "id": "17f12a2e-36b5-4b0c-abf0-90b03a1b6da7",
       "name": "Agregar Doc a Formatos",
       "credentials": {
         "googleDriveOAuth2Api": {
@@ -579,10 +580,10 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        3808,
-        -96
+        464,
+        -192
       ],
-      "id": "3bdc665e-dcb6-4b1d-bbd7-023dc5c5e8fc",
+      "id": "79716851-b86a-432b-98d4-0dbb93c42230",
       "name": "Responder OK"
     },
     {
@@ -594,10 +595,10 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        2912,
-        96
+        -512,
+        416
       ],
-      "id": "d22dfc3b-a21d-4496-8c16-df0db80668dd",
+      "id": "bd157967-2094-4e4b-bd45-f057eaf98089",
       "name": "Responder Sin Doc"
     },
     {
@@ -627,17 +628,17 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2912,
-        96
+        -800,
+        272
       ],
-      "id": "77eb01ea-9d6c-4e60-8fd3-bd67b77e06e0",
+      "id": "602799c7-d5a5-4133-ad30-9449478c7f95",
       "name": "IF Hay PDF"
     },
     {
       "parameters": {
+        "url": "={{ 'https://www.googleapis.com/drive/v3/files/' + $json.pdf_file_id }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleDriveOAuth2Api",
-        "url": "={{ 'https://www.googleapis.com/drive/v3/files/' + $json.pdf_file_id }}",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -656,10 +657,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3136,
-        96
+        -320,
+        224
       ],
-      "id": "61bdc68f-d887-4dc3-8852-650b0432bc82",
+      "id": "46652b10-98ac-4e91-a937-0934bdeb8085",
       "name": "Obtener PDF",
       "credentials": {
         "googleDriveOAuth2Api": {
@@ -675,10 +676,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3360,
-        96
+        0,
+        160
       ],
-      "id": "f10fa62c-5e56-470a-94b3-74a7047e25b3",
+      "id": "aa837c11-02b8-44f7-99c2-b90275ac2ea2",
       "name": "Resolver PDF"
     },
     {
@@ -708,18 +709,18 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3584,
-        96
+        240,
+        144
       ],
-      "id": "a8f9a9b3-e3d5-428d-a94e-e9d8080c424e",
+      "id": "09334c35-0d65-4bde-9537-9f37dcb2d5fd",
       "name": "IF PDF Tiene Padres Para Remover"
     },
     {
       "parameters": {
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "googleDriveOAuth2Api",
         "method": "PATCH",
         "url": "={{ 'https://www.googleapis.com/drive/v3/files/' + $json.pdf_file_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -746,10 +747,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3808,
-        0
+        480,
+        48
       ],
-      "id": "087fd5d0-d718-4951-94df-362f06ee7df1",
+      "id": "48dcaf17-b931-4127-b059-5bb58f1196e7",
       "name": "Mover PDF a PDFs",
       "credentials": {
         "googleDriveOAuth2Api": {
@@ -760,10 +761,10 @@
     },
     {
       "parameters": {
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "googleDriveOAuth2Api",
         "method": "PATCH",
         "url": "={{ 'https://www.googleapis.com/drive/v3/files/' + $json.pdf_file_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -786,10 +787,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3808,
-        192
+        544,
+        208
       ],
-      "id": "c2c6161d-fd8f-40eb-bf9e-96bc0bca9ce0",
+      "id": "d5431f94-abfa-4064-b3b0-1fc52dcc9317",
       "name": "Agregar PDF a PDFs",
       "credentials": {
         "googleDriveOAuth2Api": {
@@ -807,10 +808,10 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        4032,
-        96
+        800,
+        112
       ],
-      "id": "07b72cc1-6a2a-4e7b-97f4-f0254f51e2ed",
+      "id": "c54787e0-255f-4246-8f9b-84ded1d82891",
       "name": "Responder PDF OK"
     }
   ],
@@ -1125,12 +1126,14 @@
   },
   "active": true,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
-  "versionId": "ce7f40d4-e5f2-46e6-b609-7e8902d1cd14",
+  "versionId": "34599149-752f-40c1-a2a1-317f9df66b3e",
   "meta": {
-    "templateCredsSetupCompleted": true
+    "instanceId": "8f60456bf9961bd86877bcafc48ad054f66c033835b5187d280f6686f7dbdba1"
   },
-  "id": "prepararDirectorioPlantillas",
+  "id": "bzPF0BoCy3Lk5cHL",
   "tags": []
 }

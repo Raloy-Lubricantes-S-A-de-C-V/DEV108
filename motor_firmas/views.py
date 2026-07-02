@@ -114,8 +114,12 @@ def _drive_root_folder_id():
     return str(DRIVE_ARCHIVE_ROOT_FOLDER_ID or '').strip() or '1sCj-iPiNtyitSHz5O2Mv3KSDGZiDDgf0'
 
 
+def _drive_configured_pdfs_folder_id():
+    return str(DRIVE_PDFS_FOLDER_ID or '').strip()
+
+
 def _drive_pdfs_folder_id():
-    return str(DRIVE_PDFS_FOLDER_ID or '').strip() or _drive_root_folder_id()
+    return _drive_configured_pdfs_folder_id() or _drive_root_folder_id()
 
 
 def _drive_storage_payload():
@@ -186,8 +190,10 @@ def _n8n_storage_data_for_proceso(proceso):
     exec_mode = str(getattr(proceso, 'exec_mode', '') or '').lower()
     folder_id = str(getattr(proceso, 'dir_drive', '') or '').strip()
     if exec_mode == 'form':
+        pdfs_folder_id = _drive_configured_pdfs_folder_id() or folder_id or _drive_pdfs_folder_id()
         return {
-            'folder_id': folder_id or _drive_pdfs_folder_id(),
+            'folder_id': pdfs_folder_id,
+            'pdfs_folder_id': pdfs_folder_id,
             **_drive_storage_payload(),
         }
     return {'folder_id': folder_id}
@@ -293,15 +299,18 @@ def _registrar_pdf_final_drive_id(proceso, response):
 
     drive_file_id = ''
     filename = ''
+    web_view_link = ''
     for item in candidates:
         drive_file_id = (
             item.get('drive_file_id')
             or item.get('file_id')
             or item.get('pdf_file_id')
             or item.get('id_archivo')
+            or item.get('id')
             or ''
         )
         filename = item.get('filename') or item.get('name') or filename
+        web_view_link = item.get('webViewLink') or item.get('web_view_link') or item.get('url') or web_view_link
         if drive_file_id:
             break
 
@@ -316,6 +325,8 @@ def _registrar_pdf_final_drive_id(proceso, response):
     })
     if filename:
         summary_data['drive_final_filename'] = filename
+    if web_view_link:
+        summary_data['drive_final_webViewLink'] = web_view_link
     _mongo_update_document(ProcesoFirma, proceso, {'summary_data': summary_data})
     setattr(proceso, 'summary_data', summary_data)
 
@@ -4187,7 +4198,8 @@ def solicitar_firma_plantilla(request, plantilla_id):
         return JsonResponse({"error": "Añade al menos un firmante."}, status=400)
 
     pdfs_folder_id = (
-        getattr(plantilla, 'carpeta_firmados_id', '')
+        _drive_configured_pdfs_folder_id()
+        or getattr(plantilla, 'carpeta_firmados_id', '')
         or getattr(plantilla, 'drive_folder_id', '')
         or _drive_pdfs_folder_id()
     )

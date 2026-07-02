@@ -1,0 +1,138 @@
+{
+  "name": "Firma Digital | El Cartero (Notificador de Turno de Firma)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "enviar-correo-firma",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -160,
+        0
+      ],
+      "id": "dc650691-bd76-493a-ab5e-9e3c44140d1f",
+      "name": "Webhook",
+      "webhookId": "3e54131a-8774-4d6a-8e5d-d94373c1ac8a"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.email }}",
+        "subject": "Acción Requerida: Firma de Documento Raloy",
+        "message": "=<h3>Hola {{ $json.body.nombre }},</h3> <p>{{ $json.body.mensaje }}</p> <p>Por favor, haz clic en el siguiente enlace para revisar y firmar el documento desde tu computadora o celular:</p> <a href=\"{{ $json.body.link }}\" style=\"padding: 10px 20px; background-color: #0056b3; color: white; text-decoration: none; border-radius: 5px;\">Firmar Documento</a>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        304,
+        176
+      ],
+      "id": "1f407253-ea7f-4e01-977e-f8f5efbee2a1",
+      "name": "Send a message",
+      "webhookId": "ab325189-acf4-4679-8efc-4f4da9a56c0b",
+      "retryOnFail": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "kZpCrF2WYlMkP0DJ",
+          "name": "Gmail account Aplicaciones Grupo Nova"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.email }}",
+        "subject": "Acción requerida: revisar documento para firma Raloy",
+        "message": "=<!DOCTYPE html>\n<html lang=\"es\"><head><meta charset=\"utf-8\"/><meta content=\"width=device-width, initial-scale=1.0\" name=\"viewport\"/><title>Documento listo para revisión - Firma Digital Raloy</title><style>body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;}table,td{mso-table-lspace:0pt;mso-table-rspace:0pt;border-collapse:collapse!important;}img{border:0;height:auto;line-height:100%;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;}@media screen and (max-width:620px){.email-shell{width:100%!important;}.email-body{padding:32px 24px!important;}.email-footer{padding:28px 24px!important;}.email-title{font-size:24px!important;}.email-button{width:100%!important;}}</style></head>\n<body style=\"margin:0; padding:0; width:100%!important; background-color:#f3f4f5; font-family:Inter, Arial, sans-serif;\"><center>\n<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"background-color:#f3f4f5;\" width=\"100%\"><tbody><tr><td align=\"center\" style=\"padding:40px 12px;\">\n<table class=\"email-shell\" border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px; width:100%; background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);\" width=\"600\"><tbody>\n<tr><td align=\"center\" style=\"background-color:#162839; padding:32px 0;\"><div style=\"color:#ffffff; font-family:Arial, sans-serif; font-size:24px; font-weight:700; letter-spacing:0; margin-top:12px; text-align:center\">Firma Digital Raloy</div></td></tr>\n<tr><td class=\"email-body\" style=\"padding:48px 40px;\"><h1 class=\"email-title\" style=\"margin:0 0 24px 0; color:#162839; font-family:Arial, sans-serif; font-size:28px; font-weight:700; line-height:1.2;\">Documento listo para revisión</h1><p style=\"margin:0 0 16px 0; color:#1a1a1a; font-family:Inter, Arial, sans-serif; font-size:16px; font-weight:700; line-height:1.5;\">Hola <strong>{{ $json.body.nombre }}</strong>,</p><p style=\"margin:0 0 16px 0; color:#43474c; font-family:Inter, Arial, sans-serif; font-size:16px; font-weight:400; line-height:1.6;\">{{ $json.body.mensaje }}</p><p style=\"margin:0 0 32px 0; color:#43474c; font-family:Inter, Arial, sans-serif; font-size:16px; font-weight:400; line-height:1.6;\">Abre el portal seguro para revisar la información del documento y continuar con el proceso de firma cuando corresponda.</p>\n<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"background-color: #f8f9fa; border: 1px solid #c4c6cd; border-radius: 8px;\" width=\"100%\">\n<tbody><tr><td style=\"padding: 24px;\"><table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\"><tbody><tr><td style=\"padding-bottom: 8px; font-family: Inter, Arial, sans-serif; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #74777d; letter-spacing: 0.05em;\" width=\"34%\">Proceso</td><td style=\"padding-bottom: 8px; font-family: Inter, Arial, sans-serif; font-size: 16px; font-weight: 600; color: #162839; line-height: 1.45;\">Firma Digital Raloy</td></tr><tr><td style=\"padding: 12px 0; border-top: 1px solid #e1e3e4; font-family: Inter, Arial, sans-serif; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #74777d; letter-spacing: 0.05em;\" width=\"34%\">Acción</td><td style=\"padding: 12px 0; border-top: 1px solid #e1e3e4; font-family: Inter, Arial, sans-serif; font-size: 16px; font-weight: 600; color: #162839; line-height: 1.45;\">Revisión previa del documento</td></tr><tr><td style=\"padding: 12px 0; border-top: 1px solid #e1e3e4; font-family: Inter, Arial, sans-serif; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #74777d; letter-spacing: 0.05em;\" width=\"34%\">Acceso</td><td style=\"padding: 12px 0; border-top: 1px solid #e1e3e4; font-family: Inter, Arial, sans-serif; font-size: 16px; font-weight: 600; color: #162839; line-height: 1.45;\">Computadora o celular</td></tr></tbody></table></td></tr></tbody>\n</table>\n<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-top: 40px;\" width=\"100%\"><tbody><tr><td align=\"center\">\n<a href=\"{{ $json.body.link }}\" style=\"background-color: #fed023; color: #162839; display: inline-block; padding: 18px 34px; font-family: Inter, Arial, sans-serif; font-size: 14px; font-weight: 800; text-decoration: none; text-transform: uppercase; border-radius: 8px; letter-spacing: 0.05em; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.10);\">Revisar información</a>\n</td></tr></tbody></table><p style=\"margin: 32px 0 0 0; color: #666666; font-family: Inter, Arial, sans-serif; font-size: 12px; line-height: 1.5; text-align: center; font-style: italic;\">Importante: al presionar este botón no se firma el documento automáticamente. Primero se abre el portal para revisar la información y confirmar la firma dentro de la plataforma.</p></td></tr>\n<tr><td class=\"email-footer\" align=\"center\" style=\"background-color:#f3f4f5; padding:32px 40px; border-top:1px solid #c4c6cd;\"><table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\"><tbody><tr><td align=\"center\" style=\"padding-bottom:16px;\"><span style=\"color:#162839; font-family:Inter, Arial, sans-serif; font-size:14px; font-weight:700;\">Raloy Lubricantes</span></td></tr><tr><td align=\"center\" style=\"padding-bottom:24px;\"><a href=\"https://raloylubricantes.mx/\" style=\"color:#162839; font-family:Inter, Arial, sans-serif; font-size:12px; text-decoration:underline; margin:0 8px;\">Aviso de Privacidad</a><a href=\"https://raloylubricantes.mx/\" style=\"color:#162839; font-family:Inter, Arial, sans-serif; font-size:12px; text-decoration:underline; margin:0 8px;\">Términos de Servicio</a></td></tr><tr><td align=\"center\"><p style=\"margin:0; color:#74777d; font-family:Inter, Arial, sans-serif; font-size:12px;\">&copy; 2026 Raloy Lubricantes. Todos los derechos reservados.</p></td></tr></tbody></table></td></tr>\n</tbody></table>\n<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px; width:100%;\" width=\"600\"><tbody><tr><td align=\"center\" style=\"padding-top:24px;\"><p style=\"margin:0; color:#96a9be; font-family:Inter, Arial, sans-serif; font-size:11px; line-height:1.4;\">Usted recibió esta notificación porque participa en un proceso gestionado por Firma Digital Raloy. Por favor no responda a este correo electrónico ya que la dirección no es monitoreada.</p></td></tr></tbody></table>\n</td></tr></tbody></table></center></body></html>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        304,
+        -16
+      ],
+      "id": "260a7502-8a1a-4d9f-ad3e-c9cb34e3110a",
+      "name": "Send a message1",
+      "webhookId": "ab325189-acf4-4679-8efc-4f4da9a56c0b",
+      "retryOnFail": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "kZpCrF2WYlMkP0DJ",
+          "name": "Gmail account Aplicaciones Grupo Nova"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8f7dd03a-a344-41dd-a0fa-2cf50f7035f6",
+              "leftValue": "={{ ($json.body.mensaje || \"\").trim() }}",
+              "rightValue": "El documento que iniciaste ha sido firmado por todos y finalizado.",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        80,
+        0
+      ],
+      "id": "9c8c3494-1139-4dfa-b8c5-ab21d6797665",
+      "name": "Omitir cierre redundante"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Omitir cierre redundante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Omitir cierre redundante": {
+      "main": [
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1fe3496e-5a26-4c2e-a103-2677cec02a82",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8f60456bf9961bd86877bcafc48ad054f66c033835b5187d280f6686f7dbdba1"
+  },
+  "id": "yKu4y9FvcuNUB9cm",
+  "tags": []
+}

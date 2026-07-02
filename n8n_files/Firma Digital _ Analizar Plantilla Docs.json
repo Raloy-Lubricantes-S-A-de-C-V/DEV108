@@ -1,0 +1,160 @@
+{
+  "name": "Firma Digital | Analizar Plantilla Docs",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "analizar-plantilla",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -544,
+        -48
+      ],
+      "id": "2974c93d-d3f0-4596-8763-3666829663f5",
+      "name": "Webhook",
+      "webhookId": "0b66b846-0e3a-4e5b-a29b-0549f0222e5b"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "documentURL": "={{$json.body.doc_id}}",
+        "simple": false
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        -48
+      ],
+      "id": "6950f447-350d-49e5-b06d-a11ebc204b35",
+      "name": "Get a document",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "T7FItxxjd2F6SZwI",
+          "name": "Google Docs Aplicaciones Grupo Nova"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "let extractedText = \"\";\n\n// Función recursiva para buscar cualquier 'textRun' en el laberinto de Google Docs\nfunction extractText(element) {\n    if (!element) return;\n\n    // Si encontramos un pedazo de texto, lo concatenamos\n    if (element.textRun && element.textRun.content) {\n        extractedText += element.textRun.content;\n    }\n\n    // Si es un arreglo (como elements o tableCells), iteramos por cada uno\n    if (Array.isArray(element)) {\n        element.forEach(extractText);\n    }\n    // Si es un objeto, revisamos todas sus propiedades\n    else if (typeof element === 'object') {\n        for (const key in element) {\n            if (Object.prototype.hasOwnProperty.call(element, key)) {\n                extractText(element[key]);\n            }\n        }\n    }\n}\n\n// Tomamos el JSON entero que mandó Google Docs y lo escaneamos\nconst docData = $input.first().json;\nextractText(docData);\n\n// Devolvemos únicamente el texto limpio\nreturn [{\n    json: {\n        text: extractedText\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -128,
+        -48
+      ],
+      "id": "a9e22478-2696-44a4-b2d5-671339883b44",
+      "name": "Extraer Solo Texto"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=\"Actúa como un analizador de texto estricto y devuelve ÚNICAMENTE un JSON válido. REGLA DE ORO: NO inventes ni deduzcas variables o firmas; extrae SOLO las que existan literalmente en el texto encerradas entre llaves dobles. Estructura esperada:\\n1. 'contexto': Breve resumen del documento.\\n2. 'intencion': Propósito del documento.\\n3. 'variables': Array de objetos {key: 'llave_exacta', label: 'Titulo legible', type: 'text|seleecionable'}. Busca estrictamente las palabras entre dobles llaves que NO contengan la palabra FIRMA (ej. si ves este signo { dos veces consecutivas + EMPLEADO + este simbolo } dos veces consecutivas despues, la key es EMPLEADO y su tipo es text pero si ves este signo { dos veces consecutivas + EMPLEADO + este simbolo : + opción mas simbólo _ + SI + simbolo _ NO  + este simbolo } dos veces consecutivas despues, la key es EMPLEADO y su tipo es option y content-option es [SI,NO] ).\\n4. 'firmas': Array de strings con el texto exacto de las firmas que encuentres. Busca SOLO las que comiencen con FIRMA_ y devuélvelas con todo y sus llaves dobles (ejemplo: este simbolo '{' dos veces consecutivas + FIRMA_1 seguido de este simbolo } dos veces consecutivas o este simbolo { dos veces consecutivas + FIRMA_2 + este simbolo } que aparece dos veces consecutivas ).'firmas_label': Array de strings con el texto exacto de las etiquetas firmas que encuentraste.\\n\\nTexto original a escanear: {{ $json.text }}"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        96,
+        -48
+      ],
+      "id": "44e83cb7-9fab-4b44-a37f-05500268181a",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "LVzr5lrf7Sb6m2XQ",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        448,
+        -48
+      ],
+      "id": "002e1437-5b15-4c1e-ad20-7f7cad7992d0",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get a document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a document": {
+      "main": [
+        [
+          {
+            "node": "Extraer Solo Texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer Solo Texto": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "07e9c373-09a5-4e90-a178-3e016719d7b4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8f60456bf9961bd86877bcafc48ad054f66c033835b5187d280f6686f7dbdba1"
+  },
+  "id": "nVS5CUuE3ycxrT6E",
+  "tags": []
+}

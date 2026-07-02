@@ -11,11 +11,12 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        0,
-        0
+        240,
+        -288
       ],
-      "id": "6a7b4d73-c3e1-4e8d-8ef0-e0f0fb7eb2e2",
-      "name": "Webhook"
+      "id": "1150e81c-afc3-4fcc-a87b-300799b965cf",
+      "name": "Webhook",
+      "webhookId": "cff39e6c-4759-41df-b8bd-9f542b6afa71"
     },
     {
       "parameters": {
@@ -30,10 +31,10 @@
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        216,
-        0
+        464,
+        -288
       ],
-      "id": "3bb28d78-8d0d-4f82-9c17-223ea5a13c37",
+      "id": "8faf2c5b-a702-41e8-b96d-230b147cbe8a",
       "name": "Download file",
       "credentials": {
         "googleDriveOAuth2Api": {
@@ -46,7 +47,6 @@
       "parameters": {
         "respondWith": "binary",
         "responseDataSource": "set",
-        "inputFieldName": "data",
         "options": {
           "responseHeaders": {
             "entries": [
@@ -61,10 +61,10 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        432,
-        0
+        672,
+        -288
       ],
-      "id": "4e0de323-2939-4728-9975-c969ce4df2236",
+      "id": "91f8f62d-7bb8-4257-8bdd-60e0dd1d63ba",
       "name": "Responder PDF"
     }
   ],
@@ -97,10 +97,10 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "66ad577b-5599-4bf6-9728-0b12a3fd7767",
+  "versionId": "9a9dc440-d54a-4741-a7f9-be259ad929f3",
   "meta": {
-    "templateCredsSetupCompleted": true
+    "instanceId": "8f60456bf9961bd86877bcafc48ad054f66c033835b5187d280f6686f7dbdba1"
   },
-  "id": "descargarPdfDrive",
+  "id": "j4Mic4bOFFsKJOwe",
   "tags": []
 }

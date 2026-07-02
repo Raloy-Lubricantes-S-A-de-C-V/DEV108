@@ -1,0 +1,155 @@
+{
+  "name": "Firma Digital | Preparar Directorio",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "preparar-directorio",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -208,
+        0
+      ],
+      "name": "Webhook",
+      "id": "5e025cc4-3272-4879-b3fc-cfe4fdee61d5",
+      "webhookId": "27d51f5e-0725-4070-b0db-dad937270cfe"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"success\",\n  \"firmados_folder_id\": \"{{ $json.id }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        448,
+        0
+      ],
+      "name": "Responder a Django",
+      "id": "a183ca03-7aa9-4bea-b648-761a687b657a"
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "name": "Documentos Firmados",
+        "driveId": {
+          "__rl": true,
+          "value": "={{$('Webhook').item.json.body.parent_folder}}",
+          "mode": "id"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "root",
+          "cachedResultName": "/ (Root folder)"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        240,
+        0
+      ],
+      "id": "29ed6270-15c5-4c3e-8725-7de2aac58cd1",
+      "name": "Create folder",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "5U0tNgPLDllo3BTf",
+          "name": "Google Drive Aplicaciones Grupo Nova"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "move",
+        "fileId": {
+          "__rl": true,
+          "value": "={{$json.body.doc_id}}",
+          "mode": "id"
+        },
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{$json.body.parent_folder}}",
+          "mode": "id"
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        16,
+        0
+      ],
+      "id": "c4541ef7-b074-45b5-9074-4afef281ac00",
+      "name": "Move file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "5U0tNgPLDllo3BTf",
+          "name": "Google Drive Aplicaciones Grupo Nova"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Move file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create folder": {
+      "main": [
+        [
+          {
+            "node": "Responder a Django",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder a Django": {
+      "main": [
+        []
+      ]
+    },
+    "Move file": {
+      "main": [
+        [
+          {
+            "node": "Create folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "444e4337-6c19-4c1e-b223-7a37784722d5",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8f60456bf9961bd86877bcafc48ad054f66c033835b5187d280f6686f7dbdba1"
+  },
+  "id": "CUtnOxAFrX9kvKe3",
+  "tags": []
+}

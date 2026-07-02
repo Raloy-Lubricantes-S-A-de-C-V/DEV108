@@ -132,7 +132,7 @@ DRIVE_ARCHIVE_ROOT_FOLDER_ID = os.environ.get(
 )
 DRIVE_FORMATOS_FOLDER_NAME = os.environ.get('DRIVE_FORMATOS_FOLDER_NAME', 'Formatos')
 DRIVE_PDFS_FOLDER_NAME = os.environ.get('DRIVE_PDFS_FOLDER_NAME', 'PDFs')
-DRIVE_PDFS_FOLDER_ID = os.environ.get('DRIVE_PDFS_FOLDER_ID', '')
+DRIVE_PDFS_FOLDER_ID = os.environ.get('DRIVE_PDFS_FOLDER_ID') or '1uiTpBfXLjfOedTfdf7xdlQKEsv91YhyA'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field

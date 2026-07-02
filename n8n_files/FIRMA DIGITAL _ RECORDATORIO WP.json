@@ -1,0 +1,98 @@
+{
+  "name": "FIRMA DIGITAL | RECORDATORIO WP",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dsign-recordatorio-firma",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "41360795-90a6-4be5-a469-eacd6efbe7ca",
+      "name": "Webhook",
+      "webhookId": "37cbcdfa-814f-47e0-b8e2-cfca194490c6"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://chat.googleapis.com/v1/spaces/AAQAy2U3hvM/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=Vf1SPjER9HNR4GQlik9ZHhquDCzK6vJ2Dgl25xQtFTQ",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "=https://wa.me/5217221498549?text=[DSIGN]%20LIGA:%20*{{ $json.body.url }}*%20Numero:%20521{{ $json.body.numero }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        176,
+        0
+      ],
+      "id": "6253b63f-ccb1-40d1-8120-6afde979461c",
+      "name": "HTTP Request11",
+      "executeOnce": true
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "connection": "upgrade",
+            "host": "n8n.raloy.com.mx",
+            "x-real-ip": "10.150.4.250",
+            "x-forwarded-for": "10.150.4.250",
+            "x-forwarded-proto": "https",
+            "content-length": "143",
+            "user-agent": "python-requests/2.31.0",
+            "accept-encoding": "gzip, deflate",
+            "accept": "*/*",
+            "content-type": "application/json"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "numero": "7228872008",
+            "url": "https://dsign.raloy.com.mx/firmar/6ef3b2e0-efdc-40d4-a4ff-67284d656c18/b8dbf397-512f-4226-b98d-f50ef3ff995a/"
+          },
+          "webhookUrl": "https://n8n.raloy.com.mx/webhook/dsign-recordatorio-firma",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request11",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b647ec9b-f7d1-4918-93fc-c92e1422c17b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8f60456bf9961bd86877bcafc48ad054f66c033835b5187d280f6686f7dbdba1"
+  },
+  "id": "qlXG6z2TeI50f9Ko",
+  "tags": []
+}
