@@ -5,6 +5,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "subir-pdf-final",
+        "responseMode": "responseNode",
         "options": {}
       },
       "type": "n8n-nodes-base.webhook",
@@ -30,7 +31,7 @@
         },
         "folderId": {
           "__rl": true,
-          "value": "={{ $node[\"Webhook\"].json.body.folder_id }}",
+          "value": "={{ $node[\"Webhook\"].json.body.pdfs_folder_id || $node[\"Webhook\"].json.body.folder_id || $node[\"Webhook\"].json.body.dir || $node[\"Webhook\"].json.body.root_folder_id || '1sCj-iPiNtyitSHz5O2Mv3KSDGZiDDgf0' }}",
           "mode": "id"
         },
         "options": {}
@@ -72,6 +73,21 @@
           "name": "Gmail account Aplicaciones Grupo Nova"
         }
       }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: 'success', file_id: $node[\"Upload file\"].json.id, drive_file_id: $node[\"Upload file\"].json.id, pdf_file_id: $node[\"Upload file\"].json.id, name: $node[\"Upload file\"].json.name, webViewLink: $node[\"Upload file\"].json.webViewLink } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        368,
+        184
+      ],
+      "id": "a6b5bfb9-0a89-4a4c-a297-7cb04a8d39c6",
+      "name": "Responder a Django"
     }
   ],
   "pinData": {},
@@ -90,6 +106,11 @@
     "Upload file": {
       "main": [
         [
+          {
+            "node": "Responder a Django",
+            "type": "main",
+            "index": 0
+          },
           {
             "node": "Send a message",
             "type": "main",

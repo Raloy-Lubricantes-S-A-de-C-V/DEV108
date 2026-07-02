@@ -41,6 +41,7 @@ urlpatterns = [
     # RUTAS DE PLANTILLAS
     path('portal/plantillas/', views.portal_plantillas, name='portal_plantillas'),
     path('portal/usar-plantilla/<str:plantilla_id>/', views.portal_usar_plantilla, name='portal_usar_plantilla'),
+    path('api/solicitar-firma-plantilla/<str:plantilla_id>/', views.solicitar_firma_plantilla, name='solicitar_firma_plantilla'),
 
     # === RUTAS DE PDFS LIBRES (DRAG & DROP) ===
     path('portal/mis-pdfs/', views.portal_pdfs_usuario, name='portal_pdfs_usuario'),

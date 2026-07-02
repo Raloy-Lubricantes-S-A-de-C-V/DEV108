@@ -1830,7 +1830,10 @@
 
         let payload = {
             "reference_id": "PRUEBA-API-" + Math.floor(Math.random() * 10000),
-            "dir": template.drive_folder_id || "1GlACvY3TOOq6k3nZ7YNdRG2AqGvlUOvP",
+            "dir": template.carpeta_firmados_id || "{{ drive_archive_root_folder_id|escapejs }}",
+            "storage_policy": "formatos_pdfs_v1",
+            "root_folder_id": "{{ drive_archive_root_folder_id|escapejs }}",
+            "pdf_target_folder": "{{ drive_pdfs_folder_name|escapejs }}",
             "template_id": template.doc_id || template.id,
             "view_info": viewInfo,
             "exec": execMode,

@@ -124,6 +124,16 @@ STATIC_URL = '/static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# Carpeta raíz de resguardo documental normal en Google Drive.
+# Bajo esta raíz N8N debe mantener dos subcarpetas: "Formatos" y "PDFs".
+DRIVE_ARCHIVE_ROOT_FOLDER_ID = os.environ.get(
+    'DRIVE_ARCHIVE_ROOT_FOLDER_ID',
+    '1sCj-iPiNtyitSHz5O2Mv3KSDGZiDDgf0',
+)
+DRIVE_FORMATOS_FOLDER_NAME = os.environ.get('DRIVE_FORMATOS_FOLDER_NAME', 'Formatos')
+DRIVE_PDFS_FOLDER_NAME = os.environ.get('DRIVE_PDFS_FOLDER_NAME', 'PDFs')
+DRIVE_PDFS_FOLDER_ID = os.environ.get('DRIVE_PDFS_FOLDER_ID', '')
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

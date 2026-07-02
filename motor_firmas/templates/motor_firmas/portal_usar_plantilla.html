@@ -130,24 +130,24 @@
 
         const payload = {
             reference_id: folio,
-            dir: "{{ plantilla.carpeta_firmados_id|default:plantilla.drive_folder_id }}",
-            template_id: "{{ plantilla.doc_id }}",
-            view_info: "{{ plantilla.view_info }}",
-            exec: "form",
-            owner: "{{ owner_email }}",
             variables_asignadas: docVars,
             firmantes: firmantesArr
         };
 
-        fetch('https://n8n.raloy.com.mx/webhook/request-signature', {
+        fetch("{% url 'solicitar_firma_plantilla' plantilla.id %}", {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         }).then(r => {
-            alert("¡Documento generado y enviado a n8n con éxito!");
+            return r.json().then(res => ({ ok: r.ok, res }));
+        }).then(({ ok, res }) => {
+            if (!ok || res.status !== 'success') {
+                throw new Error(res.error || 'No se pudo generar el documento.');
+            }
+            alert("¡Documento generado y enviado con éxito!");
             window.location.href = '/portal/dashboard/';
         }).catch(err => {
-            alert("Error al enviar.");
+            alert("Error al enviar: " + (err.message || err));
             btn.disabled = false;
             btn.innerHTML = '<span class="material-symbols-outlined">send</span> Enviar Solicitud a Firma';
         });

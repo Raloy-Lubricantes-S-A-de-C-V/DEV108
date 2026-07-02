@@ -31,6 +31,8 @@ N8N_WEBHOOK_INVITAR_REGISTRO = "https://n8n.raloy.com.mx/webhook/invitar-registr
 N8N_WEBHOOK_ANALIZAR_PLANTILLA = "https://n8n.raloy.com.mx/webhook/analizar-plantilla"
 N8N_WEBHOOK_PREPARAR_DIR = "https://n8n.raloy.com.mx/webhook/preparar-directorio"
 N8N_WEBHOOK_SUBIR_PDF_USUARIO = "https://n8n.raloy.com.mx/webhook/subir-pdf-usuario"
+N8N_WEBHOOK_REQUEST_SIGNATURE = "https://n8n.raloy.com.mx/webhook/request-signature"
+N8N_WEBHOOK_DESCARGAR_PDF_DRIVE = "https://n8n.raloy.com.mx/webhook/descargar-pdf-drive"
 N8N_WEBHOOK_ENVIAR_QR = "https://n8n.raloy.com.mx/webhook/enviar-qr-trazabilidad"
 N8N_WEBHOOK_NOTIFICAR_FIRMX = "https://n8n.raloy.com.mx/webhook/notificar-firmx"
 
@@ -48,6 +50,11 @@ PORTAL_LABEL_ALL_VALUE = 'all'
 PORTAL_LABEL_UNTAGGED_VALUE = 'sin_etiqueta'
 PORTAL_LABEL_RESERVED_NAMES = {'all', 'todo', 'sin etiqueta', 'sin_etiqueta'}
 PORTAL_LABEL_PATH_SEPARATOR = ' / '
+DRIVE_STORAGE_POLICY = 'formatos_pdfs_v1'
+DRIVE_ARCHIVE_ROOT_FOLDER_ID = getattr(settings, 'DRIVE_ARCHIVE_ROOT_FOLDER_ID', '1sCj-iPiNtyitSHz5O2Mv3KSDGZiDDgf0')
+DRIVE_FORMATOS_FOLDER_NAME = getattr(settings, 'DRIVE_FORMATOS_FOLDER_NAME', 'Formatos')
+DRIVE_PDFS_FOLDER_NAME = getattr(settings, 'DRIVE_PDFS_FOLDER_NAME', 'PDFs')
+DRIVE_PDFS_FOLDER_ID = getattr(settings, 'DRIVE_PDFS_FOLDER_ID', '')
 
 _MONGO_CLIENT = None
 
@@ -101,6 +108,261 @@ def _normalizar_email(email):
 def _normalizar_dominio(dominio):
     dominio = str(dominio or '').strip().lower()
     return dominio[1:] if dominio.startswith('@') else dominio
+
+
+def _drive_root_folder_id():
+    return str(DRIVE_ARCHIVE_ROOT_FOLDER_ID or '').strip() or '1sCj-iPiNtyitSHz5O2Mv3KSDGZiDDgf0'
+
+
+def _drive_pdfs_folder_id():
+    return str(DRIVE_PDFS_FOLDER_ID or '').strip() or _drive_root_folder_id()
+
+
+def _drive_storage_payload():
+    return {
+        'storage_policy': DRIVE_STORAGE_POLICY,
+        'root_folder_id': _drive_root_folder_id(),
+        'formatos_folder_name': DRIVE_FORMATOS_FOLDER_NAME,
+        'pdfs_folder_name': DRIVE_PDFS_FOLDER_NAME,
+    }
+
+
+def _primer_dict_json(value):
+    if isinstance(value, list):
+        return _primer_dict_json(value[0]) if value else {}
+    return value if isinstance(value, dict) else {}
+
+
+def _preparar_estructura_drive_plantilla(doc_id, root_folder_id=None):
+    root_folder_id = str(root_folder_id or _drive_root_folder_id()).strip()
+    if not doc_id:
+        raise ValueError("Falta el ID del documento de Google Docs.")
+    if not root_folder_id:
+        raise ValueError("Falta la carpeta raiz de resguardo.")
+
+    payload = {
+        **_drive_storage_payload(),
+        'root_folder_id': root_folder_id,
+        'parent_folder': root_folder_id,
+        'doc_id': str(doc_id).strip(),
+        'move_doc_to': DRIVE_FORMATOS_FOLDER_NAME,
+        'pdf_target_folder': DRIVE_PDFS_FOLDER_NAME,
+    }
+    response = requests.post(N8N_WEBHOOK_PREPARAR_DIR, json=payload, timeout=20)
+    if not 200 <= response.status_code < 300:
+        raise ValueError(f"Fallo al preparar Drive. Codigo HTTP: {response.status_code}")
+
+    try:
+        response_data = _primer_dict_json(response.json())
+    except ValueError:
+        response_data = {}
+
+    if response_data.get('status') and response_data.get('status') != 'success':
+        raise ValueError(response_data.get('error') or 'N8N no pudo preparar la estructura de Drive.')
+
+    formatos_folder_id = (
+        response_data.get('formatos_folder_id')
+        or response_data.get('formatos_id')
+        or response_data.get('templates_folder_id')
+        or response_data.get('drive_folder_id')
+        or root_folder_id
+    )
+    pdfs_folder_id = (
+        response_data.get('pdfs_folder_id')
+        or response_data.get('pdf_folder_id')
+        or response_data.get('firmados_folder_id')
+        or response_data.get('carpeta_firmados_id')
+        or _drive_pdfs_folder_id()
+    )
+    return {
+        'root_folder_id': root_folder_id,
+        'formatos_folder_id': str(formatos_folder_id or root_folder_id).strip(),
+        'pdfs_folder_id': str(pdfs_folder_id or root_folder_id).strip(),
+        'n8n_response': response_data,
+    }
+
+
+def _n8n_storage_data_for_proceso(proceso):
+    exec_mode = str(getattr(proceso, 'exec_mode', '') or '').lower()
+    folder_id = str(getattr(proceso, 'dir_drive', '') or '').strip()
+    if exec_mode == 'form':
+        return {
+            'folder_id': folder_id or _drive_pdfs_folder_id(),
+            **_drive_storage_payload(),
+        }
+    return {'folder_id': folder_id}
+
+
+def _safe_pdf_filename(filename, fallback='documento.pdf'):
+    name = os.path.basename(str(filename or fallback)).strip() or fallback
+    name = re.sub(r'[^A-Za-z0-9_.-]+', '_', name)
+    if not name.lower().endswith('.pdf'):
+        name = f"{name}.pdf"
+    return name
+
+
+def _guardar_pdf_temporal_media(pdf_bytes, filename):
+    rel_dir = 'descargas'
+    abs_dir = os.path.join(settings.MEDIA_ROOT, rel_dir)
+    os.makedirs(abs_dir, exist_ok=True)
+    safe_name = _safe_pdf_filename(filename)
+    rel_path = os.path.join(rel_dir, f"{uuid.uuid4().hex}_{safe_name}").replace(os.sep, '/')
+    abs_path = os.path.join(settings.MEDIA_ROOT, rel_path)
+    with open(abs_path, 'wb') as destination:
+        destination.write(pdf_bytes)
+    return rel_path, abs_path
+
+
+def _media_url_for_path(path):
+    raw_path = str(path or '').replace('\\', '/').strip()
+    if not raw_path:
+        return ''
+
+    media_root = os.path.abspath(settings.MEDIA_ROOT)
+    if os.path.isabs(raw_path):
+        abs_path = os.path.abspath(raw_path)
+        try:
+            rel_path = os.path.relpath(abs_path, media_root)
+            if not rel_path.startswith('..') and not os.path.isabs(rel_path):
+                return f"{settings.MEDIA_URL}{rel_path.replace(os.sep, '/')}"
+        except ValueError:
+            pass
+        return f"{settings.MEDIA_URL}{os.path.basename(abs_path)}"
+
+    return f"{settings.MEDIA_URL}{raw_path.lstrip('/')}"
+
+
+def _descargar_pdf_drive_a_media(file_id, filename, owner_email='', folder_id=''):
+    file_id = str(file_id or '').strip()
+    if not file_id:
+        raise ValueError("No hay ID de archivo Drive para descargar.")
+
+    response = requests.post(
+        N8N_WEBHOOK_DESCARGAR_PDF_DRIVE,
+        json={
+            'file_id': file_id,
+            'filename': _safe_pdf_filename(filename),
+            'owner_email': owner_email,
+            'folder_id': folder_id,
+        },
+        timeout=30,
+    )
+    if not 200 <= response.status_code < 300:
+        raise ValueError(f"N8N no pudo descargar el PDF de Drive ({response.status_code}).")
+
+    content_type = response.headers.get('content-type', '').lower()
+    if 'application/pdf' in content_type:
+        return _guardar_pdf_temporal_media(response.content, filename)
+
+    try:
+        data = _primer_dict_json(response.json())
+    except ValueError:
+        data = {}
+
+    pdf_base64 = ''
+    for key in ('pdf_base64', 'file_base64', 'document_base64', 'base64'):
+        if data.get(key):
+            pdf_base64 = str(data.get(key))
+            break
+    if pdf_base64:
+        if ',' in pdf_base64:
+            pdf_base64 = pdf_base64.split(',', 1)[1]
+        return _guardar_pdf_temporal_media(base64.b64decode(pdf_base64), data.get('filename') or filename)
+
+    download_url = data.get('download_url') or data.get('pdf_url') or data.get('url')
+    if download_url:
+        download = requests.get(download_url, timeout=30)
+        if not 200 <= download.status_code < 300:
+            raise ValueError(f"No se pudo bajar el PDF devuelto por N8N ({download.status_code}).")
+        return _guardar_pdf_temporal_media(download.content, data.get('filename') or filename)
+
+    raise ValueError("N8N no devolvio PDF, base64 ni URL de descarga.")
+
+
+def _registrar_pdf_final_drive_id(proceso, response):
+    try:
+        data = _primer_dict_json(response.json())
+    except ValueError:
+        return
+
+    candidates = [data]
+    for key in ('data', 'file', 'pdf'):
+        nested = _primer_dict_json(data.get(key))
+        if nested:
+            candidates.append(nested)
+
+    drive_file_id = ''
+    filename = ''
+    for item in candidates:
+        drive_file_id = (
+            item.get('drive_file_id')
+            or item.get('file_id')
+            or item.get('pdf_file_id')
+            or item.get('id_archivo')
+            or ''
+        )
+        filename = item.get('filename') or item.get('name') or filename
+        if drive_file_id:
+            break
+
+    if not drive_file_id:
+        return
+
+    summary_data = getattr(proceso, 'summary_data', {}) or {}
+    summary_data.update({
+        'drive_file_id': drive_file_id,
+        'pdf_file_id': drive_file_id,
+        'drive_final_file_id': drive_file_id,
+    })
+    if filename:
+        summary_data['drive_final_filename'] = filename
+    _mongo_update_document(ProcesoFirma, proceso, {'summary_data': summary_data})
+    setattr(proceso, 'summary_data', summary_data)
+
+
+def _asegurar_pdf_usuario_local(doc, owner_email):
+    rel_path = str(getattr(doc, 'archivo_local', '') or '').replace('\\', '/')
+    if rel_path:
+        abs_path = os.path.join(settings.MEDIA_ROOT, rel_path)
+        if os.path.exists(abs_path):
+            return rel_path, abs_path
+
+    rel_path, abs_path = _descargar_pdf_drive_a_media(
+        getattr(doc, 'drive_file_id', ''),
+        getattr(doc, 'nombre', 'documento.pdf'),
+        owner_email=owner_email,
+    )
+    _mongo_update_document(DocumentoPDFUsuario, doc, {'archivo_local': rel_path})
+    setattr(doc, 'archivo_local', rel_path)
+    return rel_path, abs_path
+
+
+def _asegurar_proceso_pdf_local(proceso):
+    summary_data = getattr(proceso, 'summary_data', {}) or {}
+    if summary_data.get('firmx_id'):
+        return
+    pdf_path = str(getattr(proceso, 'pdf_path', '') or '')
+    if pdf_path and os.path.exists(pdf_path):
+        return
+
+    drive_file_id = (
+        summary_data.get('drive_file_id')
+        or summary_data.get('file_id')
+        or summary_data.get('pdf_file_id')
+    )
+    if not drive_file_id:
+        return
+
+    rel_path, abs_path = _descargar_pdf_drive_a_media(
+        drive_file_id,
+        f"{getattr(proceso, 'reference_id', 'documento')}.pdf",
+        owner_email=getattr(proceso, 'owner_email', ''),
+        folder_id=getattr(proceso, 'dir_drive', ''),
+    )
+    _mongo_update_document(ProcesoFirma, proceso, {'pdf_path': abs_path})
+    setattr(proceso, 'pdf_path', abs_path)
+    summary_data['pdf_local_temporal'] = rel_path
+    _mongo_update_document(ProcesoFirma, proceso, {'summary_data': summary_data})
 
 
 def _normalizar_componente_etiqueta_documento(etiqueta):
@@ -1475,7 +1737,7 @@ def _sincronizar_pdf_finalizado(proceso):
                     "reference_id": proceso.reference_id,
                     "status": "COMPLETED",
                     "correos_destino": ",".join(correos_internos),
-                    "folder_id": proceso.dir_drive,
+                    **_n8n_storage_data_for_proceso(proceso),
                     "link": link_trazabilidad,
                     "ajuste_firmas": "true",
                 },
@@ -1484,6 +1746,7 @@ def _sincronizar_pdf_finalizado(proceso):
             )
         if not 200 <= response.status_code < 300:
             return f"N8N respondió {response.status_code}: {response.text}"
+        _registrar_pdf_final_drive_id(proceso, response)
     except Exception as e:
         return str(e)
     return ''
@@ -1850,7 +2113,9 @@ def recibir_documento_n8n(request):
             summary_data = _json_or_default(data.get('summary_data', {}), {})
             owner_email = data.get('owner', '')
             dir_drive = data.get('dir', '')
-            exec_mode = data.get('exec', 'normal')
+            exec_mode = str(data.get('exec', 'normal') or 'normal').lower()
+            if exec_mode == 'form' and not dir_drive:
+                dir_drive = _drive_pdfs_folder_id()
 
             document_variables = _json_or_default(data.get('variables_asignadas', data.get('document_variables', {})), {})
 
@@ -1917,9 +2182,15 @@ def vista_firma_ui(request, token, firmante_token=None):
     summary_data = _json_or_default(proceso.summary_data, {})
     valores_capturados = _json_or_default(proceso.valores_capturados, {})
     indice_turno = _indice_pendiente_actual(proceso, firmantes)
+    if not summary_data.get('firmx_id'):
+        try:
+            _asegurar_proceso_pdf_local(proceso)
+            summary_data = _json_or_default(proceso.summary_data, {})
+        except Exception as e:
+            return HttpResponse(f"<h1>No se pudo preparar el PDF.</h1><p>{e}</p>", status=500)
 
     message_context = {'token': token, 'view_info': proceso.view_info, 'summary_data': summary_data,
-                       'pdf_url': f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}", 'is_message_view': True}
+                       'pdf_url': _media_url_for_path(proceso.pdf_path), 'is_message_view': True}
 
     if proceso.status == 'CANCELLED':
         message_context.update(
@@ -2029,7 +2300,7 @@ def vista_firma_ui(request, token, firmante_token=None):
                'nombre_firmante': firmante_actual.get('nombre', 'Firmante'),
                'email_firmante': firmante_actual.get('email', ''), 'view_info': proceso.view_info,
                'summary_data': summary_data,
-               'pdf_url': f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}",
+               'pdf_url': _media_url_for_path(proceso.pdf_path),
                'is_registered': bool(colaborador), 'campos_a_llenar': campos_a_llenar, 'is_message_view': False,
                'cant_firmas': cant_firmas}
     return render(request, 'motor_firmas/firma_ui.html', context)
@@ -2179,12 +2450,15 @@ def procesar_firma(request, token, firmante_token=None):
             try:
                 resp_n8n = requests.post(N8N_WEBHOOK_FINALIZAR_PROCESO,
                               data={"reference_id": proceso.reference_id, "status": "COMPLETED",
-                                    "correos_destino": correos, "folder_id": proceso.dir_drive,
+                                    "correos_destino": correos,
+                                    **_n8n_storage_data_for_proceso(proceso),
                                     "link": link_trazabilidad}, files={
                         "pdf_final": (f"{proceso.reference_id}_CERTIFICADO.pdf", f, "application/pdf")}, timeout=30)
 
                 if resp_n8n.status_code != 200:
                     print(f"Fallo en la comunicación con el webhook de finalización (N8N): {resp_n8n.text}")
+                else:
+                    _registrar_pdf_final_drive_id(proceso, resp_n8n)
             except Exception as e:
                 print(f"Error en N8N_WEBHOOK_FINALIZAR_PROCESO: {e}")
 
@@ -2442,7 +2716,13 @@ def vista_trazabilidad(request, token):
     firmx_download_file_url = summary_data.get('firmx_download_file_url') or ''
     firmx_download_certificate_url = summary_data.get('firmx_download_certificate_url') or ''
 
-    pdf_url_local = f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}"
+    if not es_firmx:
+        try:
+            _asegurar_proceso_pdf_local(proceso)
+        except Exception as e:
+            sync_error = sync_error or str(e)
+
+    pdf_url_local = _media_url_for_path(proceso.pdf_path)
     # En modo FIRMX, el documento original a mostrar es el devuelto por FIRMX (file_url);
     # el certificado/final es file_url_certificate.
     pdf_url_original = firmx_file_url if es_firmx and firmx_file_url else pdf_url_local
@@ -2499,7 +2779,7 @@ def _firmx_url_documento_visible(proceso):
         url = summary_data.get(key)
         if isinstance(url, str) and url.strip():
             return url.strip()
-    return f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}"
+    return _media_url_for_path(proceso.pdf_path)
 
 
 def portal_ver_documento(request, token):
@@ -2608,6 +2888,11 @@ def _vista_ajustar_firmas(request, token, rol_requerido):
     if (getattr(proceso, 'summary_data', {}) or {}).get('firmx_id'):
         return HttpResponse("<h1>Los documentos FIRMX finalizados se visualizan directamente desde FIRMX y no permiten ajuste de firmas.</h1>", status=403)
 
+    try:
+        _asegurar_proceso_pdf_local(proceso)
+    except Exception as e:
+        return HttpResponse(f"<h1>No se pudo preparar el PDF.</h1><p>{e}</p>", status=500)
+
     firmantes = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
     return_url = '/admin-portal/dashboard/' if rol_requerido == 'admin' else '/portal/dashboard/'
     context = {
@@ -2615,7 +2900,7 @@ def _vista_ajustar_firmas(request, token, rol_requerido):
         'rol': rol_requerido,
         'actor_email': acceso['email'],
         'return_url': return_url,
-        'pdf_url': f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}?v={int(timezone.now().timestamp())}",
+        'pdf_url': f"{_media_url_for_path(proceso.pdf_path)}?v={int(timezone.now().timestamp())}",
         'firmantes_json': json.dumps(_datos_ajuste_firmantes(firmantes), ensure_ascii=False),
     }
     if rol_requerido == 'owner':
@@ -2796,7 +3081,7 @@ def guardar_ajuste_firmas(request, token):
         return JsonResponse({
             "status": "success",
             "msg": "Firmas ajustadas correctamente.",
-            "pdf_url": f"{settings.MEDIA_URL}{os.path.basename(proceso.pdf_path)}?v={int(timezone.now().timestamp())}",
+            "pdf_url": f"{_media_url_for_path(proceso.pdf_path)}?v={int(timezone.now().timestamp())}",
             "warning": advertencia,
         })
     except Exception as e:
@@ -2952,6 +3237,7 @@ def portal_dashboard(request):
                     'nombre': p.nombre,
                     'doc_id': getattr(p, 'doc_id', ''),
                     'drive_folder_id': getattr(p, 'drive_folder_id', ''),
+                    'carpeta_firmados_id': getattr(p, 'carpeta_firmados_id', ''),
                     'variables': _json_or_default(getattr(p, 'variables', []), []),
                     'firmantes_config': _json_or_default(getattr(p, 'firmantes_config', []), [])
                 })
@@ -2962,6 +3248,8 @@ def portal_dashboard(request):
         permisos=permisos,
         es_admin=es_admin,
         plantillas_api=plantillas_api,
+        drive_archive_root_folder_id=_drive_root_folder_id(),
+        drive_pdfs_folder_name=DRIVE_PDFS_FOLDER_NAME,
         api_keys=_json_or_default(getattr(colaborador, 'api_keys', []), []) if colaborador else []
     ))
 
@@ -3860,6 +4148,72 @@ def portal_usar_plantilla(request, plantilla_id):
     )
 
 
+@csrf_exempt
+def solicitar_firma_plantilla(request, plantilla_id):
+    owner_email = request.session.get('owner_email')
+    if not owner_email:
+        return JsonResponse({"error": "No autenticado"}, status=403)
+    if request.method != 'POST':
+        return JsonResponse({"error": "Método no permitido."}, status=405)
+
+    plantilla = _mongo_find_one_by_id(PlantillaFormulario, plantilla_id)
+    if not plantilla:
+        return JsonResponse({"error": "Plantilla no encontrada."}, status=404)
+
+    permitidos = _json_or_default(getattr(plantilla, 'usuarios_permitidos', []), [])
+    admin_obj = _mongo_find_one(AdministradorPortal, {'email': owner_email})
+    if (
+        not _admin_es_global(admin_obj)
+        and owner_email not in permitidos
+        and getattr(plantilla, 'owner_email', '') != owner_email
+    ):
+        return JsonResponse({"error": "No tienes permiso para usar esta plantilla."}, status=403)
+
+    try:
+        data = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({"error": "JSON inválido."}, status=400)
+
+    reference_id = str(data.get('reference_id') or '').strip()
+    if not reference_id:
+        reference_id = f"DOC-{int(timezone.now().timestamp())}"
+
+    firmantes = _normalizar_firmantes(data.get('firmantes', []))
+    if not firmantes:
+        return JsonResponse({"error": "Añade al menos un firmante."}, status=400)
+
+    pdfs_folder_id = (
+        getattr(plantilla, 'carpeta_firmados_id', '')
+        or getattr(plantilla, 'drive_folder_id', '')
+        or _drive_pdfs_folder_id()
+    )
+    payload = {
+        **_drive_storage_payload(),
+        "reference_id": reference_id,
+        "dir": pdfs_folder_id,
+        "pdfs_folder_id": pdfs_folder_id,
+        "formatos_folder_id": getattr(plantilla, 'drive_folder_id', ''),
+        "template_id": getattr(plantilla, 'doc_id', ''),
+        "view_info": getattr(plantilla, 'view_info', 'file') or 'file',
+        "exec": "form",
+        "owner": owner_email,
+        "variables_asignadas": data.get('variables_asignadas') or data.get('document_variables') or {},
+        "firmantes": firmantes,
+    }
+
+    try:
+        response = requests.post(N8N_WEBHOOK_REQUEST_SIGNATURE, json=payload, timeout=30)
+        if not 200 <= response.status_code < 300:
+            return JsonResponse({
+                "error": "N8N no pudo generar el documento.",
+                "detail": response.text,
+            }, status=502)
+    except Exception as e:
+        return JsonResponse({"error": f"Error contactando N8N: {e}"}, status=502)
+
+    return JsonResponse({"status": "success", "msg": "Documento enviado a generación.", "reference_id": reference_id})
+
+
 # ================= VISTAS DE PDFS LIBRES (DRAG & DROP) =================
 def portal_pdfs_usuario(request):
     owner_email = request.session.get('owner_email')
@@ -3946,7 +4300,11 @@ def portal_configurar_pdf(request, pdf_id):
     doc = _mongo_find_one_by_uuid_field(DocumentoPDFUsuario, 'id_documento', pdf_id, {'owner_email': owner_email})
     if not doc:
         raise Http404("Documento PDF no encontrado")
-    pdf_url = f"{settings.MEDIA_URL}{getattr(doc, 'archivo_local', '')}"
+    try:
+        rel_path, _ = _asegurar_pdf_usuario_local(doc, owner_email)
+    except Exception as e:
+        raise Http404(f"No se pudo preparar el PDF: {e}")
+    pdf_url = f"{settings.MEDIA_URL}{rel_path}"
     return render(
         request,
         'motor_firmas/portal_configurar_pdf.html',
@@ -3974,9 +4332,10 @@ def iniciar_firma_libre(request):
         return JsonResponse({"error": "Añade al menos un firmante."}, status=400)
     for f in firmantes: f['token_firmante'] = str(uuid.uuid4())
 
-    original_path = os.path.join(settings.MEDIA_ROOT, getattr(doc, 'archivo_local', ''))
-    if not os.path.exists(original_path):
-        return JsonResponse({"error": "El PDF original no existe en el servidor."}, status=400)
+    try:
+        _, original_path = _asegurar_pdf_usuario_local(doc, owner_email)
+    except Exception as e:
+        return JsonResponse({"error": f"No se pudo preparar el PDF original: {e}"}, status=400)
 
     ref_id = f"LIBRE-{int(timezone.now().timestamp())}"
     counter = 1
@@ -4091,7 +4450,12 @@ def admin_logout(request):
 def admin_crear_plantilla(request):
     if not request.session.get('admin_email'): return redirect('admin_login')
     return render(request, 'motor_firmas/admin_crear_plantilla.html',
-                  {'admin_email': request.session.get('admin_email')})
+                  {
+                      'admin_email': request.session.get('admin_email'),
+                      'drive_archive_root_folder_id': _drive_root_folder_id(),
+                      'drive_formatos_folder_name': DRIVE_FORMATOS_FOLDER_NAME,
+                      'drive_pdfs_folder_name': DRIVE_PDFS_FOLDER_NAME,
+                  })
 
 
 def admin_editar_plantilla(request, plantilla_id):
@@ -4103,7 +4467,13 @@ def admin_editar_plantilla(request, plantilla_id):
     plantilla.firmantes_config = _json_or_default(plantilla.firmantes_config, [])
     plantilla.usuarios_permitidos = _json_or_default(plantilla.usuarios_permitidos, [])
     return render(request, 'motor_firmas/admin_editar_plantilla.html',
-                  {'admin_email': request.session.get('admin_email'), 'plantilla': plantilla})
+                  {
+                      'admin_email': request.session.get('admin_email'),
+                      'plantilla': plantilla,
+                      'drive_archive_root_folder_id': _drive_root_folder_id(),
+                      'drive_formatos_folder_name': DRIVE_FORMATOS_FOLDER_NAME,
+                      'drive_pdfs_folder_name': DRIVE_PDFS_FOLDER_NAME,
+                  })
 
 
 @csrf_exempt
@@ -4351,20 +4721,8 @@ def admin_api(request, accion):
             except Exception as e:
                 return JsonResponse({"error": f"Error al analizar plantilla: {e}"}, status=500)
         elif accion == 'guardar_plantilla':
-            carpeta_firmados = data['drive_folder_id']
             try:
-                resp_dir = requests.post(N8N_WEBHOOK_PREPARAR_DIR,
-                                         json={"doc_id": data['doc_id'], "parent_folder": data['drive_folder_id']},
-                                         timeout=20)
-                if resp_dir.status_code != 200:
-                    return JsonResponse({"error": f"Fallo al preparar directorio en Drive. Código HTTP: {resp_dir.status_code}"}, status=500)
-
-                try:
-                    resp_json = resp_dir.json()
-                    if isinstance(resp_json, dict) and resp_json.get('status') == 'success':
-                        carpeta_firmados = resp_json.get('firmados_folder_id', data['drive_folder_id'])
-                except ValueError:
-                    print(f"Advertencia: Respuesta de N8N_WEBHOOK_PREPARAR_DIR no es JSON válido. Body: {resp_dir.text}")
+                drive_storage = _preparar_estructura_drive_plantilla(data['doc_id'], _drive_root_folder_id())
             except Exception as e:
                 return JsonResponse({"error": f"Excepción crítica al preparar la estructura de Drive: {str(e)}"}, status=500)
             
@@ -4372,8 +4730,10 @@ def admin_api(request, accion):
                 'nombre': data['nombre'],
                 'doc_id': data['doc_id'],
                 'owner_email': _normalizar_email(data['owner_email']),
-                'drive_folder_id': data['drive_folder_id'],
-                'carpeta_firmados_id': carpeta_firmados,
+                'drive_folder_id': drive_storage['formatos_folder_id'],
+                'carpeta_firmados_id': drive_storage['pdfs_folder_id'],
+                'drive_root_folder_id': drive_storage['root_folder_id'],
+                'drive_storage_policy': DRIVE_STORAGE_POLICY,
                 'view_info': data['view_info'],
                 'formato_folio': data.get('formato_folio', ''),
                 'contexto': data.get('contexto', ''),
@@ -4387,10 +4747,17 @@ def admin_api(request, accion):
         elif accion == 'actualizar_plantilla':
             p = _mongo_find_one_by_id(PlantillaFormulario, data.get('id'))
             if p:
+                try:
+                    drive_storage = _preparar_estructura_drive_plantilla(getattr(p, 'doc_id', ''), _drive_root_folder_id())
+                except Exception as e:
+                    return JsonResponse({"error": f"No se pudo preparar Drive: {str(e)}"}, status=500)
                 _mongo_update_document(PlantillaFormulario, p, {
                     'nombre': data.get('nombre'),
                     'formato_folio': data.get('formato_folio', ''),
-                    'drive_folder_id': data.get('drive_folder_id'),
+                    'drive_folder_id': drive_storage['formatos_folder_id'],
+                    'carpeta_firmados_id': drive_storage['pdfs_folder_id'],
+                    'drive_root_folder_id': drive_storage['root_folder_id'],
+                    'drive_storage_policy': DRIVE_STORAGE_POLICY,
                     'view_info': data.get('view_info'),
                     'usuarios_permitidos': data.get('usuarios_permitidos', []),
                     'variables': data.get('variables', []),

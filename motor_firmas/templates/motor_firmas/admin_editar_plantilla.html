@@ -36,8 +36,9 @@
             </div>
 
             <div class="space-y-2">
-                <label class="block text-sm font-semibold text-on-surface-variant">ID de Carpeta Drive (Resguardo)</label>
-                <input class="no-uppercase w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="text" id="p_drive" value="{{ plantilla.drive_folder_id }}">
+                <label class="block text-sm font-semibold text-on-surface-variant">Carpeta raíz Drive de resguardo</label>
+                <input class="no-uppercase w-full px-4 py-3 border border-outline-variant rounded-lg bg-surface-container-low text-on-surface-variant outline-none cursor-not-allowed" type="text" id="p_drive" value="{{ drive_archive_root_folder_id }}" readonly aria-readonly="true">
+                <p class="text-xs text-text-muted">La plantilla se mueve a {{ drive_formatos_folder_name }} y los PDFs generados se guardan en {{ drive_pdfs_folder_name }}.</p>
             </div>
 
             <div class="space-y-2">
