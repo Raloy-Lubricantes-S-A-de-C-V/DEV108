@@ -15,6 +15,7 @@ urlpatterns = [
     path('trazabilidad/qr/<path:codigo>/', views.vista_trazabilidad_qr, name='vista_trazabilidad_qr'),
     path('api/trazabilidad-qr/<uuid:token>/', views.generar_qr_trazabilidad, name='generar_qr_trazabilidad'),
     path('api/enviar-qr-trazabilidad/', views.enviar_qr_trazabilidad, name='enviar_qr_trazabilidad'),
+    path('api/reenviar-firma-trazabilidad/', views.reenviar_firma_trazabilidad, name='reenviar_firma_trazabilidad'),
 
     # RUTAS DE BANCO DE FIRMAS
     path('registro-firmas/', views.registro_firmas, name='registro_firmas'),

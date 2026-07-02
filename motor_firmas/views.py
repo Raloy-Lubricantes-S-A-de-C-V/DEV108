@@ -2904,6 +2904,10 @@ def vista_trazabilidad(request, token):
 
     owner_email = request.session.get('owner_email')
     owner_tiene_acceso = _validar_acceso_owner(proceso, owner_email) if owner_email else False
+    can_send_reminders = bool(
+        (admin_obj is not None or owner_tiene_acceso)
+        and proceso.status in ['PROCESSING', 'FIRMX_WAITING']
+    )
 
     es_firmx = bool(summary_data.get('firmx_id'))
     qr_firmx_url = ""
@@ -2920,18 +2924,6 @@ def vista_trazabilidad(request, token):
                     'url': f"{settings.MEDIA_URL}{q['qr_local_path']}" if q.get('qr_local_path') else "",
                     'link': q.get('url_qr_code', '')
                 })
-
-    for f in firmantes:
-        if es_firmx:
-            link = ""
-            for q in qrs_raw:
-                if q.get('email') == f.get('email'):
-                    link = q.get('url_qr_code', '')
-                    break
-            f['whatsapp_link'] = link
-        else:
-            token_firmante = f.get('token_firmante', '')
-            f['whatsapp_link'] = f"{PUBLIC_BASE_URL}/firmar/{proceso.token_acceso}/{token_firmante}/"
 
     # URLs FIRMX para visualizar documento original y certificado
     firmx_file_url = summary_data.get('firmx_file_url') or ''
@@ -2966,7 +2958,7 @@ def vista_trazabilidad(request, token):
                       'pdf_error': pdf_error,
                       'total_firmas': total_firmas,
                       'firmas_hechas': firmas_hechas,
-                      'admin_can_resend': bool(admin_tiene_acceso and proceso.status in ['PROCESSING', 'FIRMX_WAITING']),
+                      'can_send_reminders': can_send_reminders,
                       'admin_can_adjust': bool(admin_tiene_acceso and proceso.status == 'COMPLETED' and not es_firmx),
                       'es_firmx': es_firmx,
                       'qr_firmx_url': qr_firmx_url,
@@ -3116,6 +3108,128 @@ def enviar_qr_trazabilidad(request):
         return JsonResponse({"error": f"Error contactando N8N: {e}"}, status=502)
 
     return JsonResponse({"status": "success", "sent_to": correos, "n8n_status": response.status_code})
+
+
+@csrf_exempt
+def reenviar_firma_trazabilidad(request):
+    if request.method != 'POST':
+        return JsonResponse({"error": "Metodo no permitido."}, status=405)
+
+    try:
+        data = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({"error": "JSON invalido."}, status=400)
+
+    doc = _mongo_find_proceso_by_token(data.get('token'))
+    if not doc:
+        return JsonResponse({"error": "Documento no encontrado."}, status=404)
+
+    admin_email = _normalizar_email(request.session.get('admin_email'))
+    admin_actual = _mongo_find_one(AdministradorPortal, {'email': admin_email}) if admin_email else None
+    owner_email = _normalizar_email(request.session.get('owner_email'))
+    owner_tiene_acceso = _validar_acceso_owner(doc, owner_email) if owner_email else False
+    if admin_actual is None and not owner_tiene_acceso:
+        return JsonResponse({"error": "No tienes permiso sobre este documento."}, status=403)
+
+    summary_data = getattr(doc, 'summary_data', {}) or {}
+    es_firmx = bool(summary_data.get('firmx_id'))
+    estado = str(getattr(doc, 'status', '') or '').upper()
+    if es_firmx:
+        if estado not in ('PROCESSING', 'FIRMX_WAITING'):
+            return JsonResponse({"error": "Solo se puede reenviar en documentos FIRMX pendientes."}, status=400)
+    elif estado != 'PROCESSING':
+        return JsonResponse({"error": "Solo se puede reenviar en documentos en proceso."}, status=400)
+
+    firmantes = _normalizar_firmantes(getattr(doc, 'firmantes', []))
+    firmante_token = str(data.get('firmante_token') or '').strip()
+    email = _normalizar_email(data.get('email'))
+    idx = _indice_por_token(firmantes, firmante_token) if firmante_token else None
+    if idx is None and email:
+        for i, firmante_item in enumerate(firmantes):
+            if _normalizar_email(firmante_item.get('email')) == email and not firmante_item.get('fecha_firma'):
+                idx = i
+                break
+    if idx is None or idx < 0 or idx >= len(firmantes):
+        return JsonResponse({"error": "Firmante pendiente no encontrado."}, status=404)
+
+    firmante = firmantes[idx]
+    if firmante.get('fecha_firma'):
+        return JsonResponse({"error": "Ese firmante ya completo su firma."}, status=400)
+
+    actor_email = admin_email if admin_actual is not None else owner_email
+    if es_firmx:
+        qrs_map = {
+            _normalizar_email(q.get('email')): q.get('url_qr_code')
+            for q in summary_data.get('qrs', [])
+            if q.get('email')
+        }
+        url_firma = qrs_map.get(_normalizar_email(firmante.get('email'))) or summary_data.get('url_qr_code') or ''
+        if not url_firma:
+            return JsonResponse({"error": "No hay enlace de firma FIRMX disponible para este firmante."}, status=400)
+
+        payload_n8n = {
+            "correos_destino": firmante.get('email'),
+            "reference_id": getattr(doc, 'reference_id', 'N/A'),
+            "url_firma": url_firma,
+            "subject": "Firma Digital Raloy - FIRMX",
+            "titulo": "Firma Digital Raloy - FIRMX",
+            "texto_boton": "IR A FIRMA",
+            "mensaje": "Se requiere su firma para el documento: " + summary_data.get('document_name', 'Documento FIRMX'),
+        }
+        webhook_url = N8N_WEBHOOK_NOTIFICAR_FIRMX
+    else:
+        if not firmante.get('token_firmante'):
+            firmante['token_firmante'] = str(uuid.uuid4())
+        link_firma = f"{PUBLIC_BASE_URL}/firmar/{doc.token_acceso}/{firmante.get('token_firmante')}/"
+        payload_n8n = {
+            "email": firmante.get('email'),
+            "nombre": firmante.get('nombre'),
+            "link": link_firma,
+            "mensaje": f"Reenvio de solicitud de firma para el documento {doc.reference_id}.",
+            "reenviado": True,
+        }
+        webhook_url = N8N_WEBHOOK_NOTIFICAR_CORREO
+
+    try:
+        response = requests.post(webhook_url, json=payload_n8n, timeout=20)
+        if not 200 <= response.status_code < 300:
+            return JsonResponse({"error": f"N8N no confirmo el envio: {response.status_code}"}, status=502)
+    except Exception as e:
+        return JsonResponse({"error": f"No se pudo reenviar el correo: {e}"}, status=502)
+
+    fecha_reenvio = timezone.now().strftime("%d/%m/%Y %H:%M:%S")
+    reenvios = _json_or_default(firmante.get('reenvios_correo', []), [])
+    reenvios.append({
+        'fecha': fecha_reenvio,
+        'por': actor_email,
+        'email': firmante.get('email'),
+        'origen': 'trazabilidad',
+        'tipo_documento': 'firmx' if es_firmx else 'normal',
+    })
+    firmante['reenvios_correo'] = reenvios
+    firmante['ultimo_reenvio_correo'] = fecha_reenvio
+    firmante['ultimo_reenvio_por'] = actor_email
+    firmante['ultimo_reenvio_tipo'] = 'correo'
+
+    if es_firmx:
+        api_steps = _json_or_default(summary_data.get('api_steps', []), [])
+        api_steps.append({
+            "step": "Reenvio de correo desde trazabilidad",
+            "timestamp": _datetime_for_mongo().isoformat(),
+            "status": "success",
+            "details": f"Correo reenviado a {firmante.get('email')} por {actor_email}",
+        })
+        summary_data['api_steps'] = api_steps
+        _actualizar_proceso_firma_mongo(doc, firmantes=firmantes, summary_data=summary_data)
+    else:
+        _actualizar_proceso_firma_mongo(doc, firmantes=firmantes)
+
+    crear_notificacion_firma(
+        firmante.get('email'),
+        doc.reference_id,
+        f"Reenvio de solicitud de firma para {doc.reference_id}."
+    )
+    return JsonResponse({"status": "success", "msg": "Solicitud de firma reenviada.", "fecha": fecha_reenvio})
 
 
 def _vista_ajustar_firmas(request, token, rol_requerido):
