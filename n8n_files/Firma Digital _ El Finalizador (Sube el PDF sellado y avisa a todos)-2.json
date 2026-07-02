@@ -14,7 +14,7 @@
         },
         "folderId": {
           "__rl": true,
-          "value": "={{ $node[\"Webhook1\"].json.body.folder_id }}",
+          "value": "={{ $node[\"Webhook1\"].json.body.pdfs_folder_id || $node[\"Webhook1\"].json.body.folder_id || $node[\"Webhook1\"].json.body.dir || $node[\"Webhook1\"].json.body.api_pdfs_folder_id || \"1uiTpBfXLjfOedTfdf7xdlQKEsv91YhyA\" }}",
           "mode": "id"
         },
         "options": {}
@@ -108,7 +108,7 @@
         },
         "folderId": {
           "__rl": true,
-          "value": "={{ $node[\"Webhook1\"].json.body.pdfs_folder_id || $node[\"Webhook1\"].json.body.folder_id || $node[\"Webhook1\"].json.body.dir || $node[\"Webhook1\"].json.body.root_folder_id || '1sCj-iPiNtyitSHz5O2Mv3KSDGZiDDgf0' }}",
+          "value": "={{ $node[\"Webhook1\"].json.body.pdfs_folder_id || $node[\"Webhook1\"].json.body.folder_id || $node[\"Webhook1\"].json.body.dir || $node[\"Webhook1\"].json.body.api_pdfs_folder_id || \"1uiTpBfXLjfOedTfdf7xdlQKEsv91YhyA\" }}",
           "mode": "id"
         },
         "options": {}

@@ -18,7 +18,7 @@ from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.utils import timezone
 from django.contrib.auth.hashers import check_password, make_password
 from .models import ProcesoFirma, DirectorioFirmas, OTPLogin, AdministradorPortal, PlantillaFormulario, CarpetaDominio, \
-    DocumentoPDFUsuario, AreaFirmex, ConfiguracionFirmex, EtiquetaDocumento
+    DocumentoPDFUsuario, AreaFirmex, ConfiguracionFirmex, ConfiguracionDriveResguardo, EtiquetaDocumento
 from .utils import estampar_firma_en_pdf, estampar_variables_en_pdf, crear_notificacion_firma, reubicar_firmas_en_pdf
 
 # WEBHOOKS DE N8N
@@ -51,10 +51,16 @@ PORTAL_LABEL_UNTAGGED_VALUE = 'sin_etiqueta'
 PORTAL_LABEL_RESERVED_NAMES = {'all', 'todo', 'sin etiqueta', 'sin_etiqueta'}
 PORTAL_LABEL_PATH_SEPARATOR = ' / '
 DRIVE_STORAGE_POLICY = 'formatos_pdfs_v1'
-DRIVE_ARCHIVE_ROOT_FOLDER_ID = getattr(settings, 'DRIVE_ARCHIVE_ROOT_FOLDER_ID', '1sCj-iPiNtyitSHz5O2Mv3KSDGZiDDgf0')
+DEFAULT_DRIVE_ARCHIVE_ROOT_FOLDER_ID = '1sCj-iPiNtyitSHz5O2Mv3KSDGZiDDgf0'
+DEFAULT_DRIVE_FORMATOS_FOLDER_ID = '1QAFVrdUC76S_xmwjgqxIyzk0tUMoLmk9'
+DEFAULT_DRIVE_PDFS_FOLDER_ID = '1uiTpBfXLjfOedTfdf7xdlQKEsv91YhyA'
+DEFAULT_DRIVE_API_PDFS_FOLDER_ID = '1GlACvY3TOOq6k3nZ7YNdRG2AqGvlUOvP'
+DRIVE_ARCHIVE_ROOT_FOLDER_ID = getattr(settings, 'DRIVE_ARCHIVE_ROOT_FOLDER_ID', DEFAULT_DRIVE_ARCHIVE_ROOT_FOLDER_ID)
+DRIVE_FORMATOS_FOLDER_ID = getattr(settings, 'DRIVE_FORMATOS_FOLDER_ID', DEFAULT_DRIVE_FORMATOS_FOLDER_ID)
 DRIVE_FORMATOS_FOLDER_NAME = getattr(settings, 'DRIVE_FORMATOS_FOLDER_NAME', 'Formatos')
 DRIVE_PDFS_FOLDER_NAME = getattr(settings, 'DRIVE_PDFS_FOLDER_NAME', 'PDFs')
-DRIVE_PDFS_FOLDER_ID = getattr(settings, 'DRIVE_PDFS_FOLDER_ID', '')
+DRIVE_PDFS_FOLDER_ID = getattr(settings, 'DRIVE_PDFS_FOLDER_ID', DEFAULT_DRIVE_PDFS_FOLDER_ID)
+DRIVE_API_PDFS_FOLDER_ID = getattr(settings, 'DRIVE_API_PDFS_FOLDER_ID', DEFAULT_DRIVE_API_PDFS_FOLDER_ID)
 
 _MONGO_CLIENT = None
 
@@ -110,22 +116,69 @@ def _normalizar_dominio(dominio):
     return dominio[1:] if dominio.startswith('@') else dominio
 
 
+def _drive_default_config():
+    return {
+        'root_folder_id': str(DRIVE_ARCHIVE_ROOT_FOLDER_ID or '').strip() or DEFAULT_DRIVE_ARCHIVE_ROOT_FOLDER_ID,
+        'formatos_folder_id': str(DRIVE_FORMATOS_FOLDER_ID or '').strip() or DEFAULT_DRIVE_FORMATOS_FOLDER_ID,
+        'pdfs_folder_id': str(DRIVE_PDFS_FOLDER_ID or '').strip() or DEFAULT_DRIVE_PDFS_FOLDER_ID,
+        'api_pdfs_folder_id': str(DRIVE_API_PDFS_FOLDER_ID or '').strip() or DEFAULT_DRIVE_API_PDFS_FOLDER_ID,
+    }
+
+
+def _drive_configuracion():
+    defaults = _drive_default_config()
+    try:
+        config = _mongo_find_one(ConfiguracionDriveResguardo)
+    except Exception as exc:
+        print(f"No se pudo cargar ConfiguracionDriveResguardo; usando defaults: {exc}")
+        config = None
+    if not config:
+        return defaults
+
+    return {
+        key: str(getattr(config, key, '') or defaults[key]).strip() or defaults[key]
+        for key in defaults
+    }
+
+
+def _drive_config_payload():
+    config = _drive_configuracion()
+    return {
+        **config,
+        'storage_policy': DRIVE_STORAGE_POLICY,
+        'formatos_folder_name': DRIVE_FORMATOS_FOLDER_NAME,
+        'pdfs_folder_name': DRIVE_PDFS_FOLDER_NAME,
+    }
+
+
 def _drive_root_folder_id():
-    return str(DRIVE_ARCHIVE_ROOT_FOLDER_ID or '').strip() or '1sCj-iPiNtyitSHz5O2Mv3KSDGZiDDgf0'
+    return _drive_configuracion()['root_folder_id']
+
+
+def _drive_formatos_folder_id():
+    return _drive_configuracion()['formatos_folder_id']
 
 
 def _drive_configured_pdfs_folder_id():
-    return str(DRIVE_PDFS_FOLDER_ID or '').strip()
+    return _drive_configuracion()['pdfs_folder_id']
 
 
 def _drive_pdfs_folder_id():
     return _drive_configured_pdfs_folder_id() or _drive_root_folder_id()
 
 
+def _drive_api_pdfs_folder_id():
+    return _drive_configuracion()['api_pdfs_folder_id']
+
+
 def _drive_storage_payload():
+    config = _drive_configuracion()
     return {
         'storage_policy': DRIVE_STORAGE_POLICY,
-        'root_folder_id': _drive_root_folder_id(),
+        'root_folder_id': config['root_folder_id'],
+        'formatos_folder_id': config['formatos_folder_id'],
+        'pdfs_folder_id': config['pdfs_folder_id'],
+        'api_pdfs_folder_id': config['api_pdfs_folder_id'],
         'formatos_folder_name': DRIVE_FORMATOS_FOLDER_NAME,
         'pdfs_folder_name': DRIVE_PDFS_FOLDER_NAME,
     }
@@ -139,6 +192,8 @@ def _primer_dict_json(value):
 
 def _preparar_estructura_drive_plantilla(doc_id, root_folder_id=None):
     root_folder_id = str(root_folder_id or _drive_root_folder_id()).strip()
+    formatos_folder_id = _drive_formatos_folder_id()
+    pdfs_folder_id = _drive_pdfs_folder_id()
     if not doc_id:
         raise ValueError("Falta el ID del documento de Google Docs.")
     if not root_folder_id:
@@ -149,6 +204,8 @@ def _preparar_estructura_drive_plantilla(doc_id, root_folder_id=None):
         'root_folder_id': root_folder_id,
         'parent_folder': root_folder_id,
         'doc_id': str(doc_id).strip(),
+        'formatos_folder_id': formatos_folder_id,
+        'pdfs_folder_id': pdfs_folder_id,
         'move_doc_to': DRIVE_FORMATOS_FOLDER_NAME,
         'pdf_target_folder': DRIVE_PDFS_FOLDER_NAME,
     }
@@ -165,14 +222,16 @@ def _preparar_estructura_drive_plantilla(doc_id, root_folder_id=None):
         raise ValueError(response_data.get('error') or 'N8N no pudo preparar la estructura de Drive.')
 
     formatos_folder_id = (
-        response_data.get('formatos_folder_id')
+        _drive_formatos_folder_id()
+        or response_data.get('formatos_folder_id')
         or response_data.get('formatos_id')
         or response_data.get('templates_folder_id')
         or response_data.get('drive_folder_id')
         or root_folder_id
     )
     pdfs_folder_id = (
-        response_data.get('pdfs_folder_id')
+        _drive_pdfs_folder_id()
+        or response_data.get('pdfs_folder_id')
         or response_data.get('pdf_folder_id')
         or response_data.get('firmados_folder_id')
         or response_data.get('carpeta_firmados_id')
@@ -192,9 +251,16 @@ def _n8n_storage_data_for_proceso(proceso):
     if exec_mode == 'form':
         pdfs_folder_id = _drive_configured_pdfs_folder_id() or folder_id or _drive_pdfs_folder_id()
         return {
+            **_drive_storage_payload(),
             'folder_id': pdfs_folder_id,
             'pdfs_folder_id': pdfs_folder_id,
+        }
+    if exec_mode in ('normal', 'api'):
+        api_folder_id = folder_id or _drive_api_pdfs_folder_id()
+        return {
             **_drive_storage_payload(),
+            'folder_id': api_folder_id,
+            'pdfs_folder_id': api_folder_id,
         }
     return {'folder_id': folder_id}
 
@@ -217,6 +283,33 @@ def _guardar_pdf_temporal_media(pdf_bytes, filename):
     with open(abs_path, 'wb') as destination:
         destination.write(pdf_bytes)
     return rel_path, abs_path
+
+
+def _media_abs_path(path):
+    raw_path = str(path or '').strip()
+    if not raw_path:
+        return ''
+
+    media_root = os.path.abspath(settings.MEDIA_ROOT)
+    abs_path = os.path.abspath(raw_path if os.path.isabs(raw_path) else os.path.join(media_root, raw_path))
+    try:
+        if os.path.commonpath([media_root, abs_path]) != media_root:
+            return ''
+    except ValueError:
+        return ''
+    return abs_path
+
+
+def _eliminar_archivo_media(path):
+    abs_path = _media_abs_path(path)
+    if not abs_path or not os.path.exists(abs_path):
+        return False
+    try:
+        os.remove(abs_path)
+        return True
+    except OSError as exc:
+        print(f"No se pudo eliminar archivo temporal {abs_path}: {exc}")
+        return False
 
 
 def _media_url_for_path(path):
@@ -327,8 +420,15 @@ def _registrar_pdf_final_drive_id(proceso, response):
         summary_data['drive_final_filename'] = filename
     if web_view_link:
         summary_data['drive_final_webViewLink'] = web_view_link
-    _mongo_update_document(ProcesoFirma, proceso, {'summary_data': summary_data})
-    setattr(proceso, 'summary_data', summary_data)
+
+    updates = {'summary_data': summary_data}
+    pdf_path = str(getattr(proceso, 'pdf_path', '') or '')
+    if _eliminar_archivo_media(pdf_path):
+        summary_data['pdf_local_removed_after_drive_upload'] = True
+        summary_data['pdf_local_removed_at'] = _datetime_for_mongo().isoformat()
+        updates['pdf_path'] = ''
+
+    _mongo_update_document(ProcesoFirma, proceso, updates)
 
 
 def _asegurar_pdf_usuario_local(doc, owner_email):
@@ -840,6 +940,15 @@ def _normalizar_hex_color(color, default=BRAND_DEFAULT_COLOR):
     if not re.fullmatch(r'#[0-9A-F]{6}', color):
         raise ValueError("El color debe tener formato HEX, por ejemplo #162839.")
     return color
+
+
+def _normalizar_drive_folder_id(value, label):
+    folder_id = str(value or '').strip()
+    if not folder_id:
+        raise ValueError(f"Falta el ID de {label}.")
+    if not re.fullmatch(r'[A-Za-z0-9_-]{8,200}', folder_id):
+        raise ValueError(f"El ID de {label} no parece ser un ID valido de Google Drive.")
+    return folder_id
 
 
 def _rgb_from_hex(hex_color):
@@ -2127,10 +2236,16 @@ def recibir_documento_n8n(request):
             view_info = data.get('view_info', 'file')
             summary_data = _json_or_default(data.get('summary_data', {}), {})
             owner_email = data.get('owner', '')
-            dir_drive = data.get('dir', '')
             exec_mode = str(data.get('exec', 'normal') or 'normal').lower()
-            if exec_mode == 'form' and not dir_drive:
-                dir_drive = _drive_pdfs_folder_id()
+            dir_drive = str(data.get('dir') or data.get('folder_id') or '').strip()
+            if exec_mode == 'form':
+                dir_drive = str(data.get('pdfs_folder_id') or dir_drive or _drive_pdfs_folder_id()).strip()
+                summary_data.setdefault('formatos_folder_id', data.get('formatos_folder_id') or _drive_formatos_folder_id())
+                summary_data.setdefault('pdfs_folder_id', dir_drive)
+            elif not dir_drive:
+                dir_drive = str(data.get('api_pdfs_folder_id') or _drive_api_pdfs_folder_id()).strip()
+                summary_data.setdefault('api_pdfs_folder_id', dir_drive)
+            summary_data.setdefault('drive_storage_policy', data.get('storage_policy') or DRIVE_STORAGE_POLICY)
 
             document_variables = _json_or_default(data.get('variables_asignadas', data.get('document_variables', {})), {})
 
@@ -3264,6 +3379,9 @@ def portal_dashboard(request):
         es_admin=es_admin,
         plantillas_api=plantillas_api,
         drive_archive_root_folder_id=_drive_root_folder_id(),
+        drive_formatos_folder_id=_drive_formatos_folder_id(),
+        drive_pdfs_folder_id=_drive_pdfs_folder_id(),
+        drive_api_pdfs_folder_id=_drive_api_pdfs_folder_id(),
         drive_pdfs_folder_name=DRIVE_PDFS_FOLDER_NAME,
         api_keys=_json_or_default(getattr(colaborador, 'api_keys', []), []) if colaborador else []
     ))
@@ -4197,18 +4315,15 @@ def solicitar_firma_plantilla(request, plantilla_id):
     if not firmantes:
         return JsonResponse({"error": "Añade al menos un firmante."}, status=400)
 
-    pdfs_folder_id = (
-        _drive_configured_pdfs_folder_id()
-        or getattr(plantilla, 'carpeta_firmados_id', '')
-        or getattr(plantilla, 'drive_folder_id', '')
-        or _drive_pdfs_folder_id()
-    )
+    formatos_folder_id = _drive_formatos_folder_id() or getattr(plantilla, 'drive_folder_id', '')
+    pdfs_folder_id = _drive_configured_pdfs_folder_id() or getattr(plantilla, 'carpeta_firmados_id', '') or _drive_pdfs_folder_id()
     payload = {
         **_drive_storage_payload(),
         "reference_id": reference_id,
         "dir": pdfs_folder_id,
+        "folder_id": pdfs_folder_id,
         "pdfs_folder_id": pdfs_folder_id,
-        "formatos_folder_id": getattr(plantilla, 'drive_folder_id', ''),
+        "formatos_folder_id": formatos_folder_id,
         "template_id": getattr(plantilla, 'doc_id', ''),
         "view_info": getattr(plantilla, 'view_info', 'file') or 'file',
         "exec": "form",
@@ -4390,7 +4505,10 @@ def iniciar_firma_libre(request):
         print(f"Error en N8N_WEBHOOK_NOTIFICAR_OWNER: {e}")
     crear_notificacion_firma(owner_email, ref_id, f"Has iniciado el proceso de firma libre para {ref_id}.")
 
-    _mongo_update_document(DocumentoPDFUsuario, doc, {'deleted': True, 'converted_to_master': True})
+    doc_updates = {'deleted': True, 'converted_to_master': True}
+    if _eliminar_archivo_media(original_path):
+        doc_updates['archivo_local'] = ''
+    _mongo_update_document(DocumentoPDFUsuario, doc, doc_updates)
 
     return JsonResponse({"status": "success"})
 
@@ -4451,6 +4569,7 @@ def admin_dashboard(request):
     return render(request, 'motor_firmas/admin_dashboard.html',
                   {'admin_email': admin_email,
                    'saved_config': json.dumps(_json_or_default(getattr(admin_obj, 'configuracion_dashboard', {}), {})),
+                   'drive_config': json.dumps(_drive_config_payload()),
                    'plantillas': plantillas,
                    'carpetas_dominio': json.dumps(carpetas_dominio),
                    'document_domains': json.dumps(document_domains),
@@ -4469,6 +4588,8 @@ def admin_crear_plantilla(request):
                   {
                       'admin_email': request.session.get('admin_email'),
                       'drive_archive_root_folder_id': _drive_root_folder_id(),
+                      'drive_formatos_folder_id': _drive_formatos_folder_id(),
+                      'drive_pdfs_folder_id': _drive_pdfs_folder_id(),
                       'drive_formatos_folder_name': DRIVE_FORMATOS_FOLDER_NAME,
                       'drive_pdfs_folder_name': DRIVE_PDFS_FOLDER_NAME,
                   })
@@ -4487,6 +4608,8 @@ def admin_editar_plantilla(request, plantilla_id):
                       'admin_email': request.session.get('admin_email'),
                       'plantilla': plantilla,
                       'drive_archive_root_folder_id': _drive_root_folder_id(),
+                      'drive_formatos_folder_id': _drive_formatos_folder_id(),
+                      'drive_pdfs_folder_id': _drive_pdfs_folder_id(),
                       'drive_formatos_folder_name': DRIVE_FORMATOS_FOLDER_NAME,
                       'drive_pdfs_folder_name': DRIVE_PDFS_FOLDER_NAME,
                   })
@@ -4730,6 +4853,27 @@ def admin_api(request, accion):
                 {'configuracion_dashboard': data.get('configuracion') or {}},
             )
             return JsonResponse({"status": "success"})
+        elif accion == 'guardar_config_drive_resguardo':
+            if not _admin_es_global(admin_actual):
+                return JsonResponse({"error": "Solo superadmin."}, status=403)
+
+            try:
+                updates = {
+                    'root_folder_id': _normalizar_drive_folder_id(data.get('root_folder_id'), 'carpeta raiz de formatos'),
+                    'formatos_folder_id': _normalizar_drive_folder_id(data.get('formatos_folder_id'), 'carpeta de formatos'),
+                    'pdfs_folder_id': _normalizar_drive_folder_id(data.get('pdfs_folder_id'), 'carpeta de PDFs firmados de formatos'),
+                    'api_pdfs_folder_id': _normalizar_drive_folder_id(data.get('api_pdfs_folder_id'), 'carpeta de PDFs API'),
+                    'updated_at': _datetime_for_mongo(),
+                }
+            except ValueError as exc:
+                return JsonResponse({"error": str(exc)}, status=400)
+
+            _mongo_update_or_insert_by_query(ConfiguracionDriveResguardo, {}, updates)
+            return JsonResponse({
+                "status": "success",
+                "msg": "Configuración Drive guardada.",
+                "drive_config": _drive_config_payload(),
+            })
         elif accion == 'analizar_plantilla':
             try:
                 resp = requests.post(N8N_WEBHOOK_ANALIZAR_PLANTILLA, json=data, timeout=30).json()

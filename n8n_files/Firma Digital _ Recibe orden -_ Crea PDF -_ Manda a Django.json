@@ -134,7 +134,7 @@
             {
               "id": "fb52d63a-e9f1-4a9c-acd0-82a909c86ab4",
               "name": "final_data",
-              "value": "={{ $node[\"Webhook\"].json.body }}",
+              "value": "={{ (() => {\n  const body = $node[\"Webhook\"].json.body || {};\n  const execMode = String(body.exec || 'normal').toLowerCase();\n  const targetFolder = String(body.pdfs_folder_id || body.folder_id || body.dir || (execMode === 'form' ? '1uiTpBfXLjfOedTfdf7xdlQKEsv91YhyA' : '1GlACvY3TOOq6k3nZ7YNdRG2AqGvlUOvP')).trim();\n  return Object.assign({}, body, {\n    dir: targetFolder,\n    folder_id: targetFolder,\n    pdfs_folder_id: targetFolder,\n    root_folder_id: body.root_folder_id || '1sCj-iPiNtyitSHz5O2Mv3KSDGZiDDgf0',\n    formatos_folder_id: body.formatos_folder_id || '1QAFVrdUC76S_xmwjgqxIyzk0tUMoLmk9',\n    api_pdfs_folder_id: body.api_pdfs_folder_id || '1GlACvY3TOOq6k3nZ7YNdRG2AqGvlUOvP',\n    storage_policy: body.storage_policy || 'formatos_pdfs_v1'\n  });\n})() }}",
               "type": "object"
             }
           ]
@@ -203,7 +203,7 @@
             {
               "id": "1ed55af1-91f5-4c3b-802c-fd602bd2a917",
               "name": "final_data",
-              "value": "={{ Object.assign({}, $node[\"Webhook\"].json.body, { summary_data: JSON.parse($json.content.parts[0].text.replace(/```json/gi, '').replace(/```/g, '').trim()) }) }}",
+              "value": "={{ (() => {\n  const body = $node[\"Webhook\"].json.body || {};\n  const execMode = String(body.exec || 'normal').toLowerCase();\n  const targetFolder = String(body.pdfs_folder_id || body.folder_id || body.dir || (execMode === 'form' ? '1uiTpBfXLjfOedTfdf7xdlQKEsv91YhyA' : '1GlACvY3TOOq6k3nZ7YNdRG2AqGvlUOvP')).trim();\n  const summary = JSON.parse($json.content.parts[0].text.replace(/```json/gi, '').replace(/```/g, '').trim());\n  return Object.assign({}, body, {\n    dir: targetFolder,\n    folder_id: targetFolder,\n    pdfs_folder_id: targetFolder,\n    root_folder_id: body.root_folder_id || '1sCj-iPiNtyitSHz5O2Mv3KSDGZiDDgf0',\n    formatos_folder_id: body.formatos_folder_id || '1QAFVrdUC76S_xmwjgqxIyzk0tUMoLmk9',\n    api_pdfs_folder_id: body.api_pdfs_folder_id || '1GlACvY3TOOq6k3nZ7YNdRG2AqGvlUOvP',\n    storage_policy: body.storage_policy || 'formatos_pdfs_v1',\n    summary_data: summary\n  });\n})() }}",
               "type": "object"
             }
           ]

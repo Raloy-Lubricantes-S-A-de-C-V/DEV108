@@ -46,6 +46,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'motor_firmas.middleware.MediaCleanupCronMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -131,8 +132,14 @@ DRIVE_ARCHIVE_ROOT_FOLDER_ID = os.environ.get(
     '1sCj-iPiNtyitSHz5O2Mv3KSDGZiDDgf0',
 )
 DRIVE_FORMATOS_FOLDER_NAME = os.environ.get('DRIVE_FORMATOS_FOLDER_NAME', 'Formatos')
+DRIVE_FORMATOS_FOLDER_ID = os.environ.get('DRIVE_FORMATOS_FOLDER_ID') or '1QAFVrdUC76S_xmwjgqxIyzk0tUMoLmk9'
 DRIVE_PDFS_FOLDER_NAME = os.environ.get('DRIVE_PDFS_FOLDER_NAME', 'PDFs')
 DRIVE_PDFS_FOLDER_ID = os.environ.get('DRIVE_PDFS_FOLDER_ID') or '1uiTpBfXLjfOedTfdf7xdlQKEsv91YhyA'
+DRIVE_API_PDFS_FOLDER_ID = os.environ.get('DRIVE_API_PDFS_FOLDER_ID') or '1GlACvY3TOOq6k3nZ7YNdRG2AqGvlUOvP'
+
+# Limpieza interna oportunista de archivos temporales de descarga.
+MEDIA_TEMP_MAX_AGE_DAYS = float(os.environ.get('MEDIA_TEMP_MAX_AGE_DAYS', '1'))
+MEDIA_CLEANUP_INTERVAL_SECONDS = int(os.environ.get('MEDIA_CLEANUP_INTERVAL_SECONDS', str(6 * 60 * 60)))
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field

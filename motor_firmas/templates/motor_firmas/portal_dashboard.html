@@ -1827,12 +1827,23 @@
 
         const template = plantillasApiData.find(p => p.id === templateId);
         if (!template) return;
+        const driveRootFolderId = "{{ drive_archive_root_folder_id|escapejs }}";
+        const driveFormatosFolderId = "{{ drive_formatos_folder_id|escapejs }}";
+        const drivePdfsFolderId = "{{ drive_pdfs_folder_id|escapejs }}";
+        const driveApiPdfsFolderId = "{{ drive_api_pdfs_folder_id|escapejs }}";
+        const targetFolderId = execMode === 'form'
+            ? (drivePdfsFolderId || template.carpeta_firmados_id || driveRootFolderId)
+            : (driveApiPdfsFolderId || template.carpeta_firmados_id || driveRootFolderId);
 
         let payload = {
             "reference_id": "PRUEBA-API-" + Math.floor(Math.random() * 10000),
-            "dir": template.carpeta_firmados_id || "{{ drive_archive_root_folder_id|escapejs }}",
+            "dir": targetFolderId,
+            "folder_id": targetFolderId,
+            "pdfs_folder_id": targetFolderId,
             "storage_policy": "formatos_pdfs_v1",
-            "root_folder_id": "{{ drive_archive_root_folder_id|escapejs }}",
+            "root_folder_id": driveRootFolderId,
+            "formatos_folder_id": driveFormatosFolderId || template.drive_folder_id || "",
+            "api_pdfs_folder_id": driveApiPdfsFolderId,
             "pdf_target_folder": "{{ drive_pdfs_folder_name|escapejs }}",
             "template_id": template.doc_id || template.id,
             "view_info": viewInfo,

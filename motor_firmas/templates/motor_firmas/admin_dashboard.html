@@ -370,6 +370,43 @@
             </section>
 
             <section class="admin-side-card admin-tool-card" data-admin-tool>
+                <button type="button" class="admin-tool-header" aria-expanded="false" aria-controls="adminToolDriveResguardo">
+                    <span class="admin-tool-heading">
+                        <span class="material-symbols-outlined text-primary">cloud_sync</span>
+                        Resguardo Drive
+                    </span>
+                    <span class="material-symbols-outlined admin-tool-chevron">expand_more</span>
+                </button>
+                <div class="admin-tool-panel" id="adminToolDriveResguardo">
+                    <div class="admin-tool-panel-inner">
+                        <p class="admin-tool-description">Define las carpetas finales de Drive para formatos, PDFs firmados de formatos y PDFs generados por API.</p>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Carpeta raíz formatos</label>
+                                <input class="no-uppercase w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="inpDriveRootFormatos" type="text">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">Carpeta formatos</label>
+                                <input class="no-uppercase w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="inpDriveFormatos" type="text">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">PDFs firmados de formatos</label>
+                                <input class="no-uppercase w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="inpDrivePdfsFormatos" type="text">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-on-surface-variant uppercase mb-2">PDFs generados por API</label>
+                                <input class="no-uppercase w-full text-sm rounded-lg border-outline-variant focus:ring-primary py-3" id="inpDriveApiPdfs" type="text">
+                            </div>
+                            <button class="admin-action-btn admin-action-btn-primary w-full" onclick="guardarConfigDriveResguardo()">
+                                <span class="material-symbols-outlined">save</span>
+                                Guardar Drive
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="admin-side-card admin-tool-card" data-admin-tool>
                 <button type="button" class="admin-tool-header" aria-expanded="false" aria-controls="adminToolDominios">
                     <span class="admin-tool-heading">
                         <span class="material-symbols-outlined text-primary">folder_shared</span>
@@ -498,6 +535,7 @@
 {% block scripts %}
 <script>
     const savedConfig = {{ saved_config|safe }};
+    const driveResguardoConfig = {{ drive_config|safe }};
     const carpetasDominio = {{ carpetas_dominio|safe }};
     const documentDomains = {{ document_domains|safe }};
     const DEFAULT_PAGE_SIZE = 25;
@@ -522,6 +560,10 @@
 	    const defaultBrandColor = '#162839';
 	    const defaultLogoUrl = '/static/motor_firmas/img/raloy-logo.svg';
 	    const inpCarpetaId = document.getElementById('inpCarpetaId');
+	    const inpDriveRootFormatos = document.getElementById('inpDriveRootFormatos');
+	    const inpDriveFormatos = document.getElementById('inpDriveFormatos');
+	    const inpDrivePdfsFormatos = document.getElementById('inpDrivePdfsFormatos');
+	    const inpDriveApiPdfs = document.getElementById('inpDriveApiPdfs');
 	    const inpDominio = document.getElementById('inpDominio');
 	    const inpDriveDom = document.getElementById('inpDriveDom');
 	    const inpBrandColor = document.getElementById('inpBrandColor');
@@ -629,6 +671,10 @@
         if(savedConfig.filFechaIni) filFechaIni.value = savedConfig.filFechaIni;
         if(savedConfig.filFechaFin) filFechaFin.value = savedConfig.filFechaFin;
         if(savedConfig.filEstado) filEstado.value = savedConfig.filEstado;
+        inpDriveRootFormatos.value = driveResguardoConfig.root_folder_id || '';
+        inpDriveFormatos.value = driveResguardoConfig.formatos_folder_id || '';
+        inpDrivePdfsFormatos.value = driveResguardoConfig.pdfs_folder_id || '';
+        inpDriveApiPdfs.value = driveResguardoConfig.api_pdfs_folder_id || '';
         inpPageSize.value = DEFAULT_PAGE_SIZE;
 
 	        selGroup.addEventListener('change', () => {
@@ -768,6 +814,37 @@
 	        previewLogoDominio.src = defaultLogoUrl;
 	        btnNuevaCarpeta.classList.add('hidden');
 	        actualizarPreviewMarca();
+	    }
+
+	    function guardarConfigDriveResguardo() {
+	        const payload = {
+	            root_folder_id: inpDriveRootFormatos.value.trim(),
+	            formatos_folder_id: inpDriveFormatos.value.trim(),
+	            pdfs_folder_id: inpDrivePdfsFormatos.value.trim(),
+	            api_pdfs_folder_id: inpDriveApiPdfs.value.trim()
+	        };
+
+	        if (!payload.root_folder_id || !payload.formatos_folder_id || !payload.pdfs_folder_id || !payload.api_pdfs_folder_id) {
+	            alert('Completa todos los IDs de Drive.');
+	            return;
+	        }
+
+	        fetch('/api/admin-action/guardar_config_drive_resguardo/', {
+	            method: 'POST',
+	            headers: { 'Content-Type': 'application/json' },
+	            body: JSON.stringify(payload)
+	        })
+	        .then(r => r.json())
+	        .then(data => {
+	            if (data.status !== 'success') {
+	                alert("Error: " + (data.error || 'No se pudo guardar Drive'));
+	                throw new Error(data.error || 'No se pudo guardar Drive');
+	            }
+	            if (data.drive_config) {
+	                Object.assign(driveResguardoConfig, data.drive_config);
+	            }
+	            alert(data.msg || 'Configuración Drive guardada.');
+	        });
 	    }
 
 	    function guardarCarpetaDominio() {

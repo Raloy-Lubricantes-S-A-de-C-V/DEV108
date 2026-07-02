@@ -156,6 +156,17 @@ class ConfiguracionFirmex(models.Model):
         return f"Configuración FIRMX - {self.updated_at}"
 
 
+class ConfiguracionDriveResguardo(models.Model):
+    root_folder_id = models.CharField(max_length=200)
+    formatos_folder_id = models.CharField(max_length=200)
+    pdfs_folder_id = models.CharField(max_length=200)
+    api_pdfs_folder_id = models.CharField(max_length=200)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Configuración Drive - {self.updated_at}"
+
+
 class EtiquetaDocumento(models.Model):
     owner_email = models.CharField(max_length=200)
     nombre = models.CharField(max_length=80)
