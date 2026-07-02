@@ -10,15 +10,16 @@
     .admin-table th { text-align:center !important;background: #f8f9fa; padding: 0.65rem 0.55rem; text-align: left; font-size: 0.66rem; text-transform: uppercase; color: #43474c; border-bottom: 1px solid #c4c6cd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .admin-table td { padding: 0.6rem 0.55rem; border-bottom: 1px solid #edeeef; font-size: 0.72rem; vertical-align: middle; line-height: 1.25; }
     .admin-table tbody tr:hover { background: #f8f9fa; }
-    .admin-table th:nth-child(5),
-    .admin-table td:nth-child(5) { text-align: left; }
     .admin-table th:nth-child(6),
-    .admin-table td:nth-child(6) { text-align: center; }
+    .admin-table td:nth-child(6) { text-align: left; }
     .admin-table th:nth-child(7),
     .admin-table td:nth-child(7) { text-align: center; }
-    .admin-col-folio { width: 12%; }
-    .admin-col-creator { width: 28%; }
-    .admin-col-domain { width: 15%; }
+    .admin-table th:nth-child(8),
+    .admin-table td:nth-child(8) { text-align: center; }
+    .admin-col-folio { width: 10%; }
+    .admin-col-creator { width: 22%; }
+    .admin-col-domain { width: 11%; }
+    .admin-col-label { width: 12%; }
     .admin-col-date { width: 11%; }
     .admin-col-progress { width: 14%; }
     .admin-col-status { width: 11%; }
@@ -27,6 +28,11 @@
     .admin-table-creator { min-width: 0; max-width: 0; font-size: 0.71rem; color: #43474c; }
     .admin-table-domain { min-width: 0; max-width: 0; font-size: 0.69rem; color: #5f6368; font-weight: 600; }
     .admin-table-folio { display: block; min-width: 0; color: #162839; font-size: 0.72rem; font-weight: 800; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .admin-table-label { min-width: 0; max-width: 0; }
+    .admin-label-chip { width: 100%; min-width: 0; display: inline-flex; align-items: center; justify-content: flex-start; gap: 0.25rem; color: #162839; background: #f8f9fa; border: 1px solid #d9dadb; border-radius: 9999px; padding: 0.2rem 0.42rem; font-size: 0.64rem; font-weight: 800; line-height: 1.2; }
+    .admin-label-chip .material-symbols-outlined { flex-shrink: 0; font-size: 0.85rem !important; }
+    .admin-label-chip-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .admin-label-chip.is-empty { color: #74777d; background: #fff; font-weight: 700; }
     .admin-table-date { font-size: 0.68rem; white-space: nowrap; color: #5f6368; }
     .admin-table-progress { min-width: 0; max-width: 0; overflow: hidden; padding: 0.62rem 5px; }
     .admin-progress-cell { padding-left:15px;padding-right:15px;width: 100%; min-width: 0; max-width: 100%; overflow: hidden; }
@@ -227,6 +233,7 @@
                         <col class="admin-col-folio">
                         <col class="admin-col-creator">
                         <col class="admin-col-domain">
+                        <col class="admin-col-label">
                         <col class="admin-col-date">
                         <col class="admin-col-progress">
                         <col class="admin-col-status">
@@ -237,6 +244,7 @@
                         <th>Folio</th>
                         <th>Creador</th>
                         <th>Dominio</th>
+                        <th>Etiqueta</th>
                         <th>Fecha</th>
                         <th>Progreso</th>
                         <th>Estado</th>
@@ -721,7 +729,7 @@
             renderTable();
         })
         .catch(err => {
-            tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-status-danger py-10">${escapeHtml(err.message || 'Error al cargar documentos')}</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-status-danger py-10">${escapeHtml(err.message || 'Error al cargar documentos')}</td></tr>`;
         })
         .finally(() => {
             if (requestId === docsRequestId) setLoadingDocs(false);
@@ -788,7 +796,7 @@
         const groupProp = selGroup.value;
 
         if (docs.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-outline py-10">No hay documentos para mostrar.</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="8" class="text-center text-outline py-10">No hay documentos para mostrar.</td></tr>';
             return;
         }
 
@@ -809,7 +817,7 @@
                 trGroup.className = 'admin-group-row';
                 const label = groupProp === 'status' ? estadoLabel(groupName) : groupName;
                 trGroup.innerHTML = `
-                    <td colspan="7">
+                    <td colspan="8">
                         <div class="flex items-center justify-between gap-3">
                             <span class="inline-flex items-center gap-2">
                                 <span class="material-symbols-outlined text-[18px]">${expanded ? 'expand_less' : 'chevron_right'}</span>
@@ -827,6 +835,18 @@
                 }
             }
         }
+    }
+
+    function adminEtiquetaHtml(doc) {
+        const etiqueta = String(doc.etiqueta || '').trim();
+        const text = etiqueta || 'Sin etiqueta';
+        const icon = etiqueta ? 'folder' : 'folder_off';
+        return `
+            <span class="admin-label-chip ${etiqueta ? '' : 'is-empty'}" title="${escapeHtml(text)}">
+                <span class="material-symbols-outlined" aria-hidden="true">${icon}</span>
+                <span class="admin-label-chip-text">${escapeHtml(text)}</span>
+            </span>
+        `;
     }
 
     function crearFila(doc) {
@@ -856,6 +876,7 @@
             <td class="admin-table-cell-clip"><span class="admin-table-folio" title="${escapeHtml(doc.reference_id)}">${escapeHtml(doc.reference_id)}</span></td>
             <td class="admin-table-creator admin-table-cell-clip" title="${escapeHtml(doc.owner_email)}">${escapeHtml(doc.owner_email)}</td>
             <td class="admin-table-domain admin-table-cell-clip" title="@${escapeHtml(doc.dominio)}">@${escapeHtml(doc.dominio)}</td>
+            <td class="admin-table-label">${adminEtiquetaHtml(doc)}</td>
             <td class="admin-table-date text-on-surface-variant">${escapeHtml(doc.fecha)}</td>
             <td class="admin-table-progress">${progresoAdminHtml(doc)}</td>
             <td class="admin-table-status"><span class="status-badge ${badgeClass}">${statusText}</span></td>
