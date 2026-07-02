@@ -4,7 +4,7 @@
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "preparar-directorio",
+        "path": "preparar-directorio2",
         "responseMode": "responseNode",
         "options": {}
       },
