@@ -9,6 +9,42 @@ from django.utils import timezone
 N8N_MONITOR_SESSION_KEY = 'n8n_monitor_events'
 N8N_MONITOR_MAX_EVENTS = int(getattr(settings, 'N8N_MONITOR_MAX_EVENTS', 80))
 N8N_MONITOR_HOST = 'n8n.raloy.com.mx'
+N8N_FAILURE_STATUSES = {
+    'error',
+    'failed',
+    'failure',
+    'fail',
+    'n8n_error',
+    'partial',
+    'rejected',
+    'cancelled',
+}
+N8N_ERROR_TEXT_MARKERS = (
+    'problem in node',
+    'forbidden',
+    'not found',
+    'could not be found',
+    'cannotaddparent',
+    'cannot add parent',
+    'increasing the number of parents',
+    'bad request',
+    'unauthorized',
+    'permission denied',
+    'quota exceeded',
+    'timed out',
+    'timeout',
+    'network error',
+    'nodeapierror',
+    'http error',
+)
+N8N_BLOCKING_WEBHOOK_PATHS = {
+    '/webhook/preparar-directorio2',
+    '/webhook/subir-pdf-final',
+    '/webhook/request-signature',
+    '/webhook/descargar-pdf-drive',
+    '/webhook/subir-pdf-usuario',
+    '/webhook/analizar-plantilla',
+}
 
 _current_request = contextvars.ContextVar('n8n_monitor_current_request', default=None)
 
@@ -41,6 +77,21 @@ def webhook_label(url):
     return parsed.path or str(url or '')
 
 
+def _webhook_path(url):
+    try:
+        return urlparse(str(url or '')).path
+    except ValueError:
+        return ''
+
+
+def event_decision(webhook_url, ok):
+    if ok:
+        return 'continue', 'OK'
+    if _webhook_path(webhook_url) in N8N_BLOCKING_WEBHOOK_PATHS:
+        return 'stop', 'FALLA - PARAR'
+    return 'continue_with_warning', 'FALLA - CONTINUAR'
+
+
 def session_can_view_monitor(request):
     try:
         return bool(request.session.get('owner_email') or request.session.get('admin_email'))
@@ -56,20 +107,97 @@ def get_session_events(request):
     return events if isinstance(events, list) else []
 
 
-def _response_detail(response):
+def _truthy_error_value(value):
+    if value in (None, False, '', [], {}):
+        return False
+    if isinstance(value, str):
+        return value.strip().lower() not in ('false', 'none', 'null', 'ok', 'success')
+    return True
+
+
+def _looks_like_error_text(value):
+    text = str(value or '').strip().lower()
+    if not text:
+        return False
+    return any(marker in text for marker in N8N_ERROR_TEXT_MARKERS)
+
+
+def _status_code_is_error(value):
     try:
-        data = response.json()
+        return int(value) >= 400
+    except (TypeError, ValueError):
+        return False
+
+
+def _iter_nested(value):
+    if isinstance(value, dict):
+        for child in value.values():
+            yield child
+    elif isinstance(value, list):
+        for child in value:
+            yield child
+
+
+def _find_n8n_error(value, depth=0):
+    if depth > 8:
+        return ''
+
+    if isinstance(value, dict):
+        for key, item in value.items():
+            key_lower = str(key).lower()
+            if key_lower in ('error', 'errors', 'error_message', 'errormessage') and _truthy_error_value(item):
+                return _compact_detail(item)
+            if key_lower in ('status', 'state', 'result'):
+                status = str(item or '').strip().lower()
+                if status in N8N_FAILURE_STATUSES:
+                    return _compact_detail(value.get('message') or value.get('detail') or item)
+            if key_lower in ('ok', 'success') and item is False:
+                return _compact_detail(value.get('message') or value.get('detail') or key)
+            if key_lower in ('code', 'statuscode', 'status_code', 'http_status') and _status_code_is_error(item):
+                return _compact_detail(value.get('message') or value.get('detail') or f'HTTP {item}')
+            if key_lower in ('message', 'detail', 'fullmessage', 'full_message', 'description') and _looks_like_error_text(item):
+                return _compact_detail(item)
+
+        for child in _iter_nested(value):
+            found = _find_n8n_error(child, depth + 1)
+            if found:
+                return found
+
+    elif isinstance(value, list):
+        for child in value:
+            found = _find_n8n_error(child, depth + 1)
+            if found:
+                return found
+
+    elif isinstance(value, str) and _looks_like_error_text(value):
+        return _compact_detail(value)
+
+    return ''
+
+
+def _compact_detail(value):
+    if isinstance(value, dict):
+        for key in ('message', 'error', 'detail', 'description', 'reason'):
+            item = value.get(key)
+            if item:
+                return _compact_detail(item)
+    if isinstance(value, list):
+        return _compact_detail(value[0]) if value else ''
+    return str(value or '')[:240]
+
+
+def _response_payload(response):
+    try:
+        return response.json()
     except Exception:
-        data = None
+        return None
 
-    if isinstance(data, list) and data:
-        data = data[0]
 
-    if isinstance(data, dict):
-        for key in ('error', 'message', 'detail', 'msg'):
-            value = data.get(key)
-            if value:
-                return str(value)[:240]
+def _response_detail(response):
+    data = _response_payload(response)
+    found = _find_n8n_error(data)
+    if found:
+        return found
 
     if not (200 <= getattr(response, 'status_code', 0) < 300):
         try:
@@ -77,6 +205,10 @@ def _response_detail(response):
         except Exception:
             return ''
     return ''
+
+
+def response_error_detail(response):
+    return _response_detail(response)
 
 
 def response_was_successful(response):
@@ -88,21 +220,8 @@ def response_was_successful(response):
     if content_type and 'application/json' not in content_type and 'text/json' not in content_type:
         return True
 
-    try:
-        data = response.json()
-    except Exception:
-        return True
-
-    if isinstance(data, list) and data:
-        data = data[0]
-
-    if not isinstance(data, dict):
-        return True
-
-    status = str(data.get('status') or '').strip().lower()
-    if status in ('error', 'failed', 'failure', 'n8n_error'):
-        return False
-    return not bool(data.get('error'))
+    data = _response_payload(response)
+    return not bool(_find_n8n_error(data))
 
 
 def record_n8n_event(request, webhook_url, ok, method='POST', http_status=None, error='', source='backend'):
@@ -110,12 +229,15 @@ def record_n8n_event(request, webhook_url, ok, method='POST', http_status=None, 
         return None
 
     now = timezone.localtime(timezone.now())
+    decision, decision_label = event_decision(webhook_url, bool(ok))
     event = {
         'id': uuid.uuid4().hex,
         'webhook_url': str(webhook_url or ''),
         'webhook_label': webhook_label(webhook_url),
         'method': str(method or 'POST').upper(),
         'ok': bool(ok),
+        'decision': decision,
+        'decision_label': decision_label,
         'http_status': http_status,
         'error': str(error or '')[:240],
         'source': str(source or 'backend')[:40],
@@ -165,12 +287,14 @@ def record_client_event(request, data):
     webhook_url = str(data.get('webhook_url') or data.get('url') or '').strip()
     if not is_n8n_url(webhook_url):
         return None
+    error = _find_n8n_error(data.get('response_body'))
+    ok = bool(data.get('ok')) and not error
     return record_n8n_event(
         request,
         webhook_url,
-        bool(data.get('ok')),
+        ok,
         method=str(data.get('method') or 'POST').upper(),
         http_status=data.get('http_status') or data.get('status'),
-        error=data.get('error') or '',
+        error=error or data.get('error') or '',
         source='frontend',
     )

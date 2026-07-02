@@ -25,6 +25,8 @@ from .n8n_monitor import (
     record_client_event,
     record_exception,
     record_response,
+    response_error_detail,
+    response_was_successful,
     session_can_view_monitor,
 )
 from .utils import estampar_firma_en_pdf, estampar_variables_en_pdf, crear_notificacion_firma, reubicar_firmas_en_pdf
@@ -86,7 +88,15 @@ def tracked_post(url, *args, **kwargs):
         raise
 
     record_response(request, url, response, method='POST', source='backend')
+    response.n8n_monitor_ok = response_was_successful(response)
+    response.n8n_monitor_error = '' if response.n8n_monitor_ok else response_error_detail(response)
     return response
+
+
+def _n8n_response_error(response):
+    if response_was_successful(response):
+        return ''
+    return response_error_detail(response) or f"HTTP {getattr(response, 'status_code', '')}".strip()
 
 
 def _default_json_value(default):
@@ -243,8 +253,9 @@ def _preparar_estructura_drive_plantilla(doc_id, root_folder_id=None):
         'pdf_target_folder': DRIVE_PDFS_FOLDER_NAME,
     }
     response = tracked_post(N8N_WEBHOOK_PREPARAR_DIR, json=payload, timeout=20)
-    if not 200 <= response.status_code < 300:
-        raise ValueError(f"Fallo al preparar Drive. Codigo HTTP: {response.status_code}")
+    n8n_error = _n8n_response_error(response)
+    if n8n_error:
+        raise ValueError(f"Fallo al preparar Drive: {n8n_error}")
 
     try:
         response_data = _primer_dict_json(response.json())
@@ -405,8 +416,9 @@ def _descargar_pdf_drive_a_media(file_id, filename, owner_email='', folder_id=''
         },
         timeout=30,
     )
-    if not 200 <= response.status_code < 300:
-        raise ValueError(f"N8N no pudo descargar el PDF de Drive ({response.status_code}).")
+    n8n_error = _n8n_response_error(response)
+    if n8n_error:
+        raise ValueError(f"N8N no pudo descargar el PDF de Drive: {n8n_error}")
 
     content_type = response.headers.get('content-type', '').lower()
     if 'application/pdf' in content_type:
@@ -1990,8 +2002,9 @@ def _sincronizar_pdf_finalizado(proceso):
                 files={"pdf_final": (f"{proceso.reference_id}_CERTIFICADO.pdf", f, "application/pdf")},
                 timeout=30,
             )
-        if not 200 <= response.status_code < 300:
-            return f"N8N respondió {response.status_code}: {response.text}"
+        n8n_error = _n8n_response_error(response)
+        if n8n_error:
+            return f"N8N respondió con error: {n8n_error}"
         _registrar_pdf_final_drive_id(proceso, response)
     except Exception as e:
         return str(e)
@@ -2710,12 +2723,12 @@ def procesar_firma(request, token, firmante_token=None):
                                     "link": link_trazabilidad}, files={
                         "pdf_final": (f"{proceso.reference_id}_CERTIFICADO.pdf", f, "application/pdf")}, timeout=30)
 
-                if resp_n8n.status_code != 200:
-                    print(f"Fallo en la comunicación con el webhook de finalización (N8N): {resp_n8n.text}")
-                else:
-                    _registrar_pdf_final_drive_id(proceso, resp_n8n)
+                n8n_error = _n8n_response_error(resp_n8n)
+                if n8n_error:
+                    return JsonResponse({"error": f"N8N no pudo finalizar el PDF: {n8n_error}"}, status=502)
+                _registrar_pdf_final_drive_id(proceso, resp_n8n)
             except Exception as e:
-                print(f"Error en N8N_WEBHOOK_FINALIZAR_PROCESO: {e}")
+                return JsonResponse({"error": f"Error en N8N_WEBHOOK_FINALIZAR_PROCESO: {e}"}, status=502)
 
         return JsonResponse({"status": "success"})
     except Exception as e:
@@ -3132,10 +3145,11 @@ def enviar_qr_trazabilidad(request):
 
     try:
         response = tracked_post(N8N_WEBHOOK_ENVIAR_QR, json=payload_n8n, timeout=20)
-        if not 200 <= response.status_code < 300:
+        n8n_error = _n8n_response_error(response)
+        if n8n_error:
             return JsonResponse({
                 "error": "N8N no pudo enviar el correo del QR.",
-                "detail": response.text,
+                "detail": n8n_error,
             }, status=502)
     except Exception as e:
         return JsonResponse({"error": f"Error contactando N8N: {e}"}, status=502)
@@ -3225,8 +3239,9 @@ def reenviar_firma_trazabilidad(request):
 
     try:
         response = tracked_post(webhook_url, json=payload_n8n, timeout=20)
-        if not 200 <= response.status_code < 300:
-            return JsonResponse({"error": f"N8N no confirmo el envio: {response.status_code}"}, status=502)
+        n8n_error = _n8n_response_error(response)
+        if n8n_error:
+            return JsonResponse({"error": f"N8N no confirmo el envio: {n8n_error}"}, status=502)
     except Exception as e:
         return JsonResponse({"error": f"No se pudo reenviar el correo: {e}"}, status=502)
 
@@ -4431,10 +4446,11 @@ def firmx_enviar_notificaciones(request, document_id):
         
         try:
             response_n8n = tracked_post(N8N_WEBHOOK_NOTIFICAR_FIRMX, json=payload_n8n, timeout=20)
-            if 200 <= response_n8n.status_code < 300:
+            n8n_error = _n8n_response_error(response_n8n)
+            if not n8n_error:
                 notificados_con_exito.append(email)
             else:
-                errores.append(f"{email} (Status {response_n8n.status_code})")
+                errores.append(f"{email} ({n8n_error})")
         except Exception as e:
             errores.append(f"{email} (Error: {str(e)})")
 
@@ -4621,10 +4637,11 @@ def solicitar_firma_plantilla(request, plantilla_id):
 
     try:
         response = tracked_post(N8N_WEBHOOK_REQUEST_SIGNATURE, json=payload, timeout=30)
-        if not 200 <= response.status_code < 300:
+        n8n_error = _n8n_response_error(response)
+        if n8n_error:
             return JsonResponse({
                 "error": "N8N no pudo generar el documento.",
-                "detail": response.text,
+                "detail": n8n_error,
             }, status=502)
     except Exception as e:
         return JsonResponse({"error": f"Error contactando N8N: {e}"}, status=502)
@@ -4685,8 +4702,12 @@ def subir_pdf_usuario(request):
     try:
         files = {'data': (pdf_file.name, pdf_file.read(), 'application/pdf')}
         pdf_file.seek(0)
-        resp = tracked_post(N8N_WEBHOOK_SUBIR_PDF_USUARIO, data={'folder_id': carpeta_dom.drive_folder_id},
-                             files=files, timeout=30).json()
+        response = tracked_post(N8N_WEBHOOK_SUBIR_PDF_USUARIO, data={'folder_id': carpeta_dom.drive_folder_id},
+                                files=files, timeout=30)
+        n8n_error = _n8n_response_error(response)
+        if n8n_error:
+            return JsonResponse({"error": f"N8n falló al subir a Drive: {n8n_error}"}, status=502)
+        resp = response.json()
 
         if resp.get('status') == 'success':
             id_documento = str(uuid.uuid4())
@@ -5059,8 +5080,9 @@ def admin_api(request, accion):
                     },
                     timeout=20,
                 )
-                if not 200 <= response.status_code < 300:
-                    return JsonResponse({"error": f"N8N no confirmó el envío: {response.status_code}"}, status=502)
+                n8n_error = _n8n_response_error(response)
+                if n8n_error:
+                    return JsonResponse({"error": f"N8N no confirmó el envío: {n8n_error}"}, status=502)
             except Exception as e:
                 return JsonResponse({"error": f"No se pudo reenviar el correo: {e}"}, status=502)
 
@@ -5109,8 +5131,9 @@ def admin_api(request, accion):
                     json={"numero": telefono, "url": link_firma},
                     timeout=20,
                 )
-                if not 200 <= response.status_code < 300:
-                    return JsonResponse({"error": f"N8N no confirmó el envío: {response.status_code}"}, status=502)
+                n8n_error = _n8n_response_error(response)
+                if n8n_error:
+                    return JsonResponse({"error": f"N8N no confirmó el envío: {n8n_error}"}, status=502)
             except Exception as e:
                 return JsonResponse({"error": f"No se pudo notificar por WhatsApp: {e}"}, status=502)
 
@@ -5169,7 +5192,11 @@ def admin_api(request, accion):
             })
         elif accion == 'analizar_plantilla':
             try:
-                resp = tracked_post(N8N_WEBHOOK_ANALIZAR_PLANTILLA, json=data, timeout=30).json()
+                response = tracked_post(N8N_WEBHOOK_ANALIZAR_PLANTILLA, json=data, timeout=30)
+                n8n_error = _n8n_response_error(response)
+                if n8n_error:
+                    return JsonResponse({"error": f"N8N no pudo analizar plantilla: {n8n_error}"}, status=502)
+                resp = response.json()
                 return JsonResponse({"status": "success", "data": resp})
             except Exception as e:
                 return JsonResponse({"error": f"Error al analizar plantilla: {e}"}, status=500)

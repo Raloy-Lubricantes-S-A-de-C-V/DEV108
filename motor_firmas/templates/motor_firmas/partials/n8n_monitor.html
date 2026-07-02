@@ -144,6 +144,31 @@
         line-height: 1.2;
         font-variant-numeric: tabular-nums;
     }
+    .n8n-monitor-decision {
+        margin-top: 0.22rem;
+        display: inline-flex;
+        align-items: center;
+        max-width: 100%;
+        border-radius: 9999px;
+        border: 1px solid #c4c6cd;
+        padding: 0.12rem 0.42rem;
+        color: #5f6368;
+        background: #ffffff;
+        font-size: 0.62rem;
+        font-weight: 800;
+        line-height: 1;
+        white-space: nowrap;
+    }
+    .n8n-monitor-decision.is-ok {
+        color: #1f7a44;
+        border-color: #27ae60;
+        background: #d3f9d8;
+    }
+    .n8n-monitor-decision.is-stop {
+        color: #93000a;
+        border-color: #e74c3c;
+        background: #ffdad6;
+    }
     .n8n-monitor-show {
         position: fixed;
         left: 1rem;
@@ -256,6 +281,88 @@
         return String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
     }
 
+    function compactMonitorDetail(value) {
+        if (!value) return '';
+        if (Array.isArray(value)) return compactMonitorDetail(value[0]);
+        if (typeof value === 'object') {
+            return compactMonitorDetail(value.message || value.error || value.detail || value.description || value.reason || JSON.stringify(value));
+        }
+        return String(value).slice(0, 240);
+    }
+
+    function looksLikeN8nErrorText(value) {
+        const text = String(value || '').toLowerCase();
+        return [
+            'problem in node',
+            'forbidden',
+            'not found',
+            'could not be found',
+            'cannotaddparent',
+            'cannot add parent',
+            'increasing the number of parents',
+            'bad request',
+            'unauthorized',
+            'permission denied',
+            'quota exceeded',
+            'timed out',
+            'timeout',
+            'network error',
+            'nodeapierror',
+            'http error'
+        ].some(function(marker) { return text.indexOf(marker) !== -1; });
+    }
+
+    function findN8nError(value, depth) {
+        if (depth > 8 || value == null) return '';
+        if (Array.isArray(value)) {
+            for (const item of value) {
+                const found = findN8nError(item, depth + 1);
+                if (found) return found;
+            }
+            return '';
+        }
+        if (typeof value === 'object') {
+            for (const key of Object.keys(value)) {
+                const keyLower = key.toLowerCase();
+                const item = value[key];
+                if (['error', 'errors', 'error_message', 'errormessage'].includes(keyLower) && item) return compactMonitorDetail(item);
+                if (['status', 'state', 'result'].includes(keyLower) && ['error', 'failed', 'failure', 'fail', 'n8n_error', 'partial', 'rejected', 'cancelled'].includes(String(item || '').toLowerCase())) return compactMonitorDetail(value.message || value.detail || item);
+                if (['ok', 'success'].includes(keyLower) && item === false) return compactMonitorDetail(value.message || value.detail || key);
+                if (['code', 'statuscode', 'status_code', 'http_status'].includes(keyLower) && Number(item) >= 400) return compactMonitorDetail(value.message || value.detail || ('HTTP ' + item));
+                if (['message', 'detail', 'fullmessage', 'full_message', 'description'].includes(keyLower) && looksLikeN8nErrorText(item)) return compactMonitorDetail(item);
+            }
+            for (const key of Object.keys(value)) {
+                const found = findN8nError(value[key], depth + 1);
+                if (found) return found;
+            }
+            return '';
+        }
+        return looksLikeN8nErrorText(value) ? compactMonitorDetail(value) : '';
+    }
+
+    async function inspectN8nResponse(response) {
+        let body = null;
+        let rawText = '';
+        try {
+            rawText = await response.clone().text();
+            if (rawText) {
+                try {
+                    body = JSON.parse(rawText);
+                } catch(error) {
+                    body = rawText;
+                }
+            }
+        } catch(error) {
+            body = null;
+        }
+        const semanticError = findN8nError(body, 0);
+        return {
+            ok: response.ok && !semanticError,
+            error: semanticError || (!response.ok ? ('HTTP ' + response.status) : ''),
+            response_body: body
+        };
+    }
+
     function setHidden(hidden) {
         panel.classList.toggle('is-hidden', hidden);
         showBtn.classList.toggle('is-visible', hidden);
@@ -283,6 +390,7 @@
             if (event.error) titleParts.push(event.error);
             const icon = ok ? 'check_circle' : 'cancel';
             const iconClass = ok ? 'is-ok' : 'is-error';
+            const decisionClass = event.decision === 'stop' ? 'is-stop' : (ok ? 'is-ok' : '');
             return [
                 '<div class="n8n-monitor-row" title="' + escapeHtml(titleParts.join(' | ')) + '">',
                     '<span class="n8n-monitor-status ' + iconClass + '">',
@@ -291,6 +399,7 @@
                     '<div class="min-w-0">',
                         '<div class="n8n-monitor-webhook">' + escapeHtml(label) + '</div>',
                         '<div class="n8n-monitor-time">' + escapeHtml(event.timestamp_label || '') + '</div>',
+                        '<span class="n8n-monitor-decision ' + decisionClass + '">' + escapeHtml(event.decision_label || (ok ? 'OK' : 'FALLA')) + '</span>',
                     '</div>',
                 '</div>'
             ].join('');
@@ -346,11 +455,14 @@
         try {
             const response = await nativeFetch(input, init);
             if (watchN8n) {
+                const inspected = await inspectN8nResponse(response);
                 pushClientEvent({
                     webhook_url: url,
                     method: method,
-                    ok: response.ok,
-                    http_status: response.status
+                    ok: inspected.ok,
+                    http_status: response.status,
+                    error: inspected.error,
+                    response_body: inspected.response_body
                 });
             } else if (watchApi) {
                 scheduleRefresh(700);
