@@ -34,6 +34,13 @@
     <main class="max-w-4xl mx-auto admin-module overflow-hidden">
         <div class="p-6 md:p-8">
         <section id="step1" class="step active space-y-5">
+            <div class="mb-4 p-3 rounded border border-blue-200 bg-blue-50 text-sm text-blue-900 flex items-start gap-3" role="status" aria-live="polite">
+                <span class="material-symbols-outlined text-blue-700">info</span>
+                <div>
+                    <strong class="block text-sm">Importante:</strong>
+                    <span class="text-sm">Antes de continuar, asegúrate de que el archivo de Google Docs esté compartido con la cuenta <strong>apps@raloy.com.mx</strong> con permisos de <strong>EDICIÓN</strong>. Si no, N8N/Django no podrá mover o copiar el archivo correctamente.</span>
+                </div>
+            </div>
             <div class="space-y-2">
                 <label class="block text-sm font-semibold text-on-surface-variant">1. ID del Documento de Google Docs</label>
                 <input class="no-uppercase w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="text" id="doc_id" placeholder="19U1b55WEqvPtQ6jAtn5...">
