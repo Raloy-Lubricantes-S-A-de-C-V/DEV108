@@ -723,7 +723,7 @@
 </head>
 <body class="{% block body_class %}bg-background-pure text-text-main min-h-screen{% endblock %}">
 {% block content %}{% endblock %}
-{% if request.session.owner_email or request.session.admin_email %}
+{% if request.session.admin_email == 'pjimenezb@raloy.com.mx' %}
     {% include "motor_firmas/partials/n8n_monitor.html" %}
 {% endif %}
 {% block scripts %}{% endblock %}

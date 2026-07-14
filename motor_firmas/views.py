@@ -572,10 +572,13 @@ def _asegurar_proceso_pdf_local(proceso):
     filename = f"{getattr(proceso, 'reference_id', 'documento')}.pdf"
 
     rehydrating_source = False
-    if not drive_file_id and str(getattr(proceso, 'status', '') or '').upper() != 'COMPLETED':
-        inferred_source = _inferir_pdf_libre_origen(proceso)
-        if inferred_source:
-            summary_data.update({k: v for k, v in inferred_source.items() if v})
+    if not drive_file_id:
+        # Solo se intenta inferir el origen (emparejamiento por fecha) cuando el proceso
+        # aún no está completado; el id de origen guardado en creación sirve en cualquier estado.
+        if str(getattr(proceso, 'status', '') or '').upper() != 'COMPLETED':
+            inferred_source = _inferir_pdf_libre_origen(proceso)
+            if inferred_source:
+                summary_data.update({k: v for k, v in inferred_source.items() if v})
         drive_file_id = summary_data.get('source_drive_file_id') or summary_data.get('original_drive_file_id')
         if drive_file_id:
             filename = summary_data.get('source_pdf_filename') or filename
@@ -2381,6 +2384,23 @@ def recibir_documento_n8n(request):
                 dir_drive = str(data.get('api_pdfs_folder_id') or _drive_api_pdfs_folder_id()).strip()
                 summary_data.setdefault('api_pdfs_folder_id', dir_drive)
             summary_data.setdefault('drive_storage_policy', data.get('storage_policy') or DRIVE_STORAGE_POLICY)
+
+            # Persistir el id de Drive del PDF de origen que ya subió n8n, para poder
+            # rehidratar el archivo siempre aunque se pierda el temporal local.
+            source_drive_file_id = str(
+                data.get('source_drive_file_id')
+                or data.get('drive_file_id')
+                or data.get('file_id')
+                or data.get('pdf_file_id')
+                or summary_data.get('source_drive_file_id')
+                or ''
+            ).strip()
+            if source_drive_file_id:
+                summary_data.setdefault('source_drive_file_id', source_drive_file_id)
+                summary_data.setdefault(
+                    'source_pdf_filename',
+                    data.get('source_pdf_filename') or data.get('filename') or f"{ref_id}.pdf",
+                )
 
             document_variables = _json_or_default(data.get('variables_asignadas', data.get('document_variables', {})), {})
 

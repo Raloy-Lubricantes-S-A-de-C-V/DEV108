@@ -490,7 +490,8 @@
     });
 
     setHidden(sessionStorage.getItem(storageKey) === '1');
+    // Refresco dirigido por eventos: carga inicial + hook de fetch (n8n/API) + visibilitychange.
+    // Sin sondeo periódico para no inundar /api/n8n-monitor/events/.
     refresh();
-    window.setInterval(refresh, 5000);
 })();
 </script>

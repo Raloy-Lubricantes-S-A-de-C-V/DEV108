@@ -9,6 +9,8 @@ from django.utils import timezone
 N8N_MONITOR_SESSION_KEY = 'n8n_monitor_events'
 N8N_MONITOR_MAX_EVENTS = int(getattr(settings, 'N8N_MONITOR_MAX_EVENTS', 80))
 N8N_MONITOR_HOST = 'n8n.raloy.com.mx'
+# Solo el admin maestro puede ver el monitor flotante de n8n.
+N8N_MONITOR_ADMIN_EMAIL = 'pjimenezb@raloy.com.mx'
 N8N_FAILURE_STATUSES = {
     'error',
     'failed',
@@ -94,7 +96,8 @@ def event_decision(webhook_url, ok):
 
 def session_can_view_monitor(request):
     try:
-        return bool(request.session.get('owner_email') or request.session.get('admin_email'))
+        admin_email = str(request.session.get('admin_email') or '').strip().lower()
+        return admin_email == N8N_MONITOR_ADMIN_EMAIL
     except Exception:
         return False
 
