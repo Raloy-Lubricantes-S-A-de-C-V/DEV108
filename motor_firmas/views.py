@@ -361,6 +361,18 @@ def _media_path_exists(path):
     return bool(abs_path and os.path.exists(abs_path))
 
 
+def _pdf_path_existente_para_firma(path):
+    abs_path = _media_abs_path(path)
+    if abs_path and os.path.exists(abs_path):
+        return abs_path
+
+    raw_path = str(path or '').strip()
+    if raw_path and os.path.isabs(raw_path) and os.path.exists(raw_path):
+        return os.path.abspath(raw_path)
+
+    return ''
+
+
 def _media_url_if_exists(path):
     return _media_url_for_path(path) if _media_path_exists(path) else ''
 
@@ -2644,8 +2656,20 @@ def procesar_firma(request, token, firmante_token=None):
             if not firma_b64:
                 return JsonResponse({"error": "Firma o PIN requerido."}, status=400)
 
-        if not os.path.exists(proceso.pdf_path):
-            return JsonResponse({"error": "El PDF del proceso no existe en el servidor."}, status=400)
+        pdf_abs_path = _pdf_path_existente_para_firma(getattr(proceso, 'pdf_path', ''))
+        if not pdf_abs_path:
+            try:
+                _asegurar_proceso_pdf_local(proceso)
+            except Exception as e:
+                return JsonResponse({"error": f"No se pudo preparar el PDF para certificar: {e}"}, status=400)
+
+        pdf_abs_path = _pdf_path_existente_para_firma(getattr(proceso, 'pdf_path', ''))
+        if not pdf_abs_path:
+            return JsonResponse({
+                "error": "No se pudo preparar el PDF para certificar. La firma no fue aplicada porque el documento de origen no está disponible."
+            }, status=400)
+        proceso.pdf_path = pdf_abs_path
+
         backup_path = f"{proceso.pdf_path}.{uuid.uuid4().hex}.bak"
         shutil.copyfile(proceso.pdf_path, backup_path)
 

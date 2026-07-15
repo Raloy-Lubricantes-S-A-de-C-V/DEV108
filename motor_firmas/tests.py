@@ -26,6 +26,7 @@ from .views import (
     _indices_firmas_en_turno,
     _json_or_default,
     _obtener_hash_para_reestampado,
+    procesar_firma,
 )
 
 
@@ -224,6 +225,154 @@ class SignatureTurnHelpersTest(SimpleTestCase):
         proceso = SimpleNamespace(indice_actual=1)
 
         self.assertEqual(_indice_pendiente_actual(proceso, firmantes), 1)
+
+
+class FirmaUiTemplateTest(SimpleTestCase):
+    def _render_signature_ui(self, is_registered):
+        return render_to_string('motor_firmas/firma_ui.html', {
+            'token': 'token-prueba',
+            'firmante_token': 'firmante-prueba',
+            'nombre_firmante': 'Firmante',
+            'email_firmante': 'firmante@example.com',
+            'view_info': 'file',
+            'summary_data': {},
+            'pdf_url': '',
+            'pdf_available': False,
+            'is_registered': is_registered,
+            'campos_a_llenar': [],
+            'is_message_view': False,
+            'cant_firmas': 1,
+        })
+
+    def _opening_tag_after_id(self, html, element_id):
+        return html.split(f'id="{element_id}"', 1)[1].split('>', 1)[0]
+
+    def test_pin_signature_button_stays_enabled_when_preview_is_unavailable(self):
+        html = self._render_signature_ui(is_registered=True)
+
+        self.assertIn('No se pudo cargar la vista previa del PDF', html)
+        self.assertNotIn('disabled', self._opening_tag_after_id(html, 'btnFirmarPin'))
+
+    def test_canvas_signature_button_stays_enabled_when_preview_is_unavailable(self):
+        html = self._render_signature_ui(is_registered=False)
+
+        self.assertIn('No se pudo cargar la vista previa del PDF', html)
+        self.assertNotIn('disabled', self._opening_tag_after_id(html, 'btnFirmarCanvas'))
+
+
+class ProcesarFirmaPdfRecoveryTest(SimpleTestCase):
+    class N8NResponse:
+        status_code = 200
+        headers = {}
+        text = ''
+
+        def json(self):
+            return {}
+
+    def test_missing_local_pdf_is_rehydrated_before_signing(self):
+        factory = RequestFactory()
+        request = factory.post(
+            '/api/procesar/token-prueba/firmante-prueba/',
+            data=json.dumps({'firma_base64': 'data:image/png;base64,ZmlybWE=', 'variables': {}}),
+            content_type='application/json',
+        )
+        proceso = SimpleNamespace(
+            _id='proceso-1',
+            reference_id='DOC-1',
+            token_acceso='token-prueba',
+            pdf_path='',
+            firmantes=[{
+                'nombre': 'Firmante',
+                'email': 'firmante@example.com',
+                'token_firmante': 'firmante-prueba',
+            }],
+            indice_actual=1,
+            status='PROCESSING',
+            summary_data={},
+            valores_capturados={},
+            owner_email='',
+            dir_drive='',
+            exec_mode='normal',
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            proceso.pdf_path = os.path.join(tmpdir, 'no-existe-doc-1.pdf')
+            recovered_pdf = os.path.join(tmpdir, 'DOC-1.pdf')
+
+            def rehydrate(proceso_arg):
+                with open(recovered_pdf, 'wb') as f:
+                    f.write(b'%PDF-1.4\n%%EOF\n')
+                proceso_arg.pdf_path = recovered_pdf
+
+            def copy_evidence(firmante, *_args, **_kwargs):
+                firmante['fecha_firma'] = '14/07/2026 12:00:00'
+
+            with self.settings(MEDIA_ROOT=tmpdir):
+                with patch('motor_firmas.views._get_proceso_por_token_or_404', return_value=proceso), \
+                        patch('motor_firmas.views._asegurar_proceso_pdf_local', side_effect=rehydrate) as ensure_pdf, \
+                        patch('motor_firmas.views.estampar_firma_en_pdf', return_value={'hash': 'a' * 64}) as stamp, \
+                        patch('motor_firmas.views._copiar_evidencia_firma', side_effect=copy_evidence), \
+                        patch('motor_firmas.views._marcar_notificaciones_firma'), \
+                        patch('motor_firmas.views._actualizar_proceso_firma_mongo'), \
+                        patch('motor_firmas.views._n8n_storage_data_for_proceso', return_value={}), \
+                        patch('motor_firmas.views.tracked_post', return_value=self.N8NResponse()):
+                    response = procesar_firma(request, 'token-prueba', 'firmante-prueba')
+
+        self.assertEqual(response.status_code, 200, response.content)
+        ensure_pdf.assert_called_once_with(proceso)
+        stamp.assert_called_once()
+        self.assertEqual(stamp.call_args.args[0], recovered_pdf)
+
+    def test_existing_absolute_pdf_can_be_signed_when_preview_is_unavailable(self):
+        factory = RequestFactory()
+        request = factory.post(
+            '/api/procesar/token-prueba/firmante-prueba/',
+            data=json.dumps({'firma_base64': 'data:image/png;base64,ZmlybWE=', 'variables': {}}),
+            content_type='application/json',
+        )
+
+        def copy_evidence(firmante, *_args, **_kwargs):
+            firmante['fecha_firma'] = '14/07/2026 12:00:00'
+
+        with tempfile.TemporaryDirectory() as storage_dir, tempfile.TemporaryDirectory() as media_root:
+            pdf_path = os.path.join(storage_dir, 'DOC-2.pdf')
+            with open(pdf_path, 'wb') as f:
+                f.write(b'%PDF-1.4\n%%EOF\n')
+
+            proceso = SimpleNamespace(
+                _id='proceso-2',
+                reference_id='DOC-2',
+                token_acceso='token-prueba',
+                pdf_path=pdf_path,
+                firmantes=[{
+                    'nombre': 'Firmante',
+                    'email': 'firmante@example.com',
+                    'token_firmante': 'firmante-prueba',
+                }],
+                indice_actual=1,
+                status='PROCESSING',
+                summary_data={},
+                valores_capturados={},
+                owner_email='',
+                dir_drive='',
+                exec_mode='normal',
+            )
+
+            with self.settings(MEDIA_ROOT=media_root):
+                with patch('motor_firmas.views._get_proceso_por_token_or_404', return_value=proceso), \
+                        patch('motor_firmas.views._asegurar_proceso_pdf_local') as ensure_pdf, \
+                        patch('motor_firmas.views.estampar_firma_en_pdf', return_value={'hash': 'b' * 64}) as stamp, \
+                        patch('motor_firmas.views._copiar_evidencia_firma', side_effect=copy_evidence), \
+                        patch('motor_firmas.views._marcar_notificaciones_firma'), \
+                        patch('motor_firmas.views._actualizar_proceso_firma_mongo'), \
+                        patch('motor_firmas.views._n8n_storage_data_for_proceso', return_value={}), \
+                        patch('motor_firmas.views.tracked_post', return_value=self.N8NResponse()):
+                    response = procesar_firma(request, 'token-prueba', 'firmante-prueba')
+
+        self.assertEqual(response.status_code, 200, response.content)
+        ensure_pdf.assert_not_called()
+        stamp.assert_called_once()
+        self.assertEqual(stamp.call_args.args[0], pdf_path)
 
 
 class SignatureAdjustmentHelpersTest(SimpleTestCase):

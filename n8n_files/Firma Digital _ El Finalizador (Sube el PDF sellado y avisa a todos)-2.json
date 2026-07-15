@@ -155,6 +155,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "subir-pdf-final",
+        "responseMode": "responseNode",
         "options": {}
       },
       "type": "n8n-nodes-base.webhook",

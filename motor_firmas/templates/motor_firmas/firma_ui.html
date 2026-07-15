@@ -76,7 +76,7 @@
                             <div class="mb-8 flex items-start gap-3 bg-secondary-container text-primary p-4 rounded-lg border border-outline-variant">
                                 <span class="material-symbols-outlined shrink-0">error</span>
                                 <p class="text-sm">
-                                    No se pudo cargar el PDF para revisión. La firma se habilitará cuando el documento esté disponible.
+                                    No se pudo cargar la vista previa del PDF. Puedes continuar con la firma; el sistema preparará el documento al certificar.
                                 </p>
                             </div>
                         {% endif %}
@@ -86,7 +86,7 @@
                                 <div class="text-center space-y-6">
                                     <p class="text-sm text-text-muted">Ingresa tu PIN de seguridad de 6 dígitos para aplicar tu firma electrónica certificada.</p>
                                     <input class="pin-input w-full p-4 text-3xl border-2 border-outline-variant rounded-xl focus:border-primary focus:ring-0 outline-none bg-surface-bright transition-colors" id="inputPin" maxlength="6" placeholder="••••••" type="password">
-                                    <button class="w-full bg-primary hover:bg-primary-container text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" id="btnFirmarPin" onclick="enviar(true)" {% if view_info == 'file' and not pdf_available %}disabled{% endif %}>
+                                    <button class="w-full bg-primary hover:bg-primary-container text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" id="btnFirmarPin" onclick="enviar(true)">
                                         <span class="material-symbols-outlined">lock_open</span>
                                         Validar y Firmar Documento {% if cant_firmas > 1 %}({{ cant_firmas }}){% endif %}
                                     </button>
@@ -100,7 +100,7 @@
                                     </div>
                                     <div class="flex flex-col sm:flex-row gap-3">
                                         <button class="flex-1 px-6 py-4 bg-surface-container-high text-on-surface-variant font-semibold rounded-xl hover:bg-surface-dim transition-colors" onclick="limpiarCanvas()">Limpiar Pizarra</button>
-                                        <button class="flex-[2] px-6 py-4 bg-primary text-white font-bold rounded-xl shadow-lg hover:bg-primary-container transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" id="btnFirmarCanvas" onclick="enviar(false)" {% if view_info == 'file' and not pdf_available %}disabled{% endif %}>
+                                        <button class="flex-[2] px-6 py-4 bg-primary text-white font-bold rounded-xl shadow-lg hover:bg-primary-container transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" id="btnFirmarCanvas" onclick="enviar(false)">
                                             <span class="material-symbols-outlined">edit_square</span>
                                             Aceptar y Firmar {% if cant_firmas > 1 %}({{ cant_firmas }}){% endif %}
                                         </button>
