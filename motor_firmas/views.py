@@ -2215,7 +2215,11 @@ def _parse_email_list(value):
 
 
 def _firmx_headers():
-    config = _mongo_find_one(ConfiguracionFirmex)
+    try:
+        config = _mongo_find_one(ConfiguracionFirmex)
+    except Exception as exc:
+        print(f"No se pudo cargar ConfiguracionFirmex; usando settings.FIRMX_API_KEY: {exc}")
+        config = None
     if config and getattr(config, 'api_key', None):
         api_key = config.api_key
     else:
@@ -2242,7 +2246,11 @@ def _firmx_base_url_default():
 
 
 def _firmx_configuracion_urls():
-    config = _mongo_find_one(ConfiguracionFirmex)
+    try:
+        config = _mongo_find_one(ConfiguracionFirmex)
+    except Exception as exc:
+        print(f"No se pudo cargar ConfiguracionFirmex; usando FIRMX_API_BASE_URL: {exc}")
+        config = None
     default_url = _firmx_base_url_default()
 
     active_url = ''
@@ -2296,8 +2304,34 @@ def _firmx_base_url_actual():
     return _firmx_configuracion_urls()['active_base_url']
 
 
-def _firmx_url(path):
-    base_url = _firmx_base_url_actual()
+def _firmx_base_url_desde_summary(summary_data):
+    summary_data = _json_or_default(summary_data, {})
+    for field in ('firmx_base_url', 'base_url', 'active_base_url'):
+        try:
+            if summary_data.get(field):
+                return _normalizar_firmx_base_url(summary_data.get(field))
+        except ValueError:
+            pass
+
+    qrs = _json_or_default(summary_data.get('qrs', []), [])
+    candidates = []
+    for item in qrs:
+        if isinstance(item, dict):
+            candidates.append(item.get('url_qr_code'))
+    candidates.append(summary_data.get('url_qr_code'))
+
+    for raw_url in candidates:
+        parsed = urlparse(str(raw_url or '').strip())
+        if parsed.scheme in ('http', 'https') and parsed.netloc:
+            try:
+                return _normalizar_firmx_base_url(f"{parsed.scheme}://{parsed.netloc}/digisign/api/v1")
+            except ValueError:
+                pass
+    return ''
+
+
+def _firmx_url(path, base_url=None):
+    base_url = _normalizar_firmx_base_url(base_url) if base_url else _firmx_base_url_actual()
     return f"{base_url}/{path.lstrip('/')}"
 
 
@@ -2974,25 +3008,27 @@ def _firmx_sync_status(clean_id, force=False):
         clean_id = str(clean_id or '').strip()
         db = _mongo_database()
         proceso_actual = db.motor_firmas_procesofirma.find_one({"summary_data.firmx_id": clean_id})
+        proceso_summary_data = _json_or_default(proceso_actual.get('summary_data', {}), {}) if proceso_actual else {}
         local_status = str(proceso_actual.get('status') or '').upper() if proceso_actual else ''
         if proceso_actual and local_status == 'CANCELLED':
-            summary_data = _json_or_default(proceso_actual.get('summary_data', {}), {})
             return True, {
                 "skipped": True,
                 "reason": "Documento FIRMX cancelado localmente; no se consulta al proveedor.",
                 "local_status": proceso_actual.get('status'),
-                "firmx_response": summary_data.get('firmx_response', {}),
+                "firmx_response": proceso_summary_data.get('firmx_response', {}),
             }
         if proceso_actual and local_status == 'COMPLETED' and not force:
-            summary_data = _json_or_default(proceso_actual.get('summary_data', {}), {})
             return True, {
                 "skipped": True,
                 "reason": "Documento FIRMX completado; la sincronización automática no consulta al proveedor.",
                 "local_status": proceso_actual.get('status'),
-                "firmx_response": summary_data.get('firmx_response', {}),
+                "firmx_response": proceso_summary_data.get('firmx_response', {}),
             }
 
-        url = _firmx_url(f'/documents/api/{clean_id}')
+        url = _firmx_url(
+            f'/documents/api/{clean_id}',
+            base_url=_firmx_base_url_desde_summary(proceso_summary_data) or None,
+        )
         headers = _firmx_headers()
         response = requests.get(url, headers=headers, timeout=_firmx_timeout())
         response_data = _json_response_from_requests(response)
@@ -3299,6 +3335,17 @@ def _url_firmada_expirada(url, now=None):
     return False
 
 
+def _proceso_pdf_local_response(proceso):
+    abs_path = _media_abs_path(getattr(proceso, 'pdf_path', ''))
+    if not abs_path or not os.path.exists(abs_path):
+        return None
+
+    filename = _safe_pdf_filename(f"{getattr(proceso, 'reference_id', 'documento')}.pdf")
+    response = FileResponse(open(abs_path, 'rb'), content_type='application/pdf', filename=filename)
+    response['Cache-Control'] = 'no-store, max-age=0'
+    return response
+
+
 def _firmx_pdf_response(proceso, token=None):
     summary_data = getattr(proceso, 'summary_data', {}) or {}
     firmx_id = summary_data.get('firmx_id')
@@ -3309,21 +3356,39 @@ def _firmx_pdf_response(proceso, token=None):
     if success:
         proceso = _get_proceso_por_token_or_404(token or getattr(proceso, 'token_acceso', ''))
 
+    local_response = _proceso_pdf_local_response(proceso)
     url = _firmx_url_documento_visible(proceso)
     if not url or not str(url).lower().startswith(('http://', 'https://')):
-        return None
+        return local_response
 
+    last_error = ''
     try:
         download = requests.get(url, timeout=_firmx_timeout(), allow_redirects=True)
-        if download.status_code in (401, 403):
+        content = download.content or b''
+        content_type = download.headers.get('content-type', '').lower()
+        looks_pdf = content.startswith(b'%PDF') or 'application/pdf' in content_type
+        if download.status_code in (401, 403) or not looks_pdf:
             download = requests.get(url, headers=_firmx_headers(), timeout=_firmx_timeout(), allow_redirects=True)
+            content = download.content or b''
+            content_type = download.headers.get('content-type', '').lower()
+            looks_pdf = content.startswith(b'%PDF') or 'application/pdf' in content_type
     except Exception as exc:
-        return HttpResponse(f"No se pudo obtener el PDF FIRMX por API: {exc}", status=502)
+        last_error = str(exc)
+        download = None
+        content = b''
+        looks_pdf = False
 
-    content = download.content or b''
-    content_type = download.headers.get('content-type', '').lower()
-    looks_pdf = content.startswith(b'%PDF') or 'application/pdf' in content_type
-    if not 200 <= download.status_code < 300 or not looks_pdf:
+    if download and 200 <= download.status_code < 300 and looks_pdf:
+        filename = _safe_pdf_filename(f"{getattr(proceso, 'reference_id', 'documento')}.pdf")
+        response = HttpResponse(content, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        response['Cache-Control'] = 'no-store, max-age=0'
+        return response
+
+    if local_response:
+        return local_response
+
+    if download:
         detail = ''
         try:
             detail = download.text[:300]
@@ -3334,11 +3399,7 @@ def _firmx_pdf_response(proceso, token=None):
             status=502,
         )
 
-    filename = _safe_pdf_filename(f"{getattr(proceso, 'reference_id', 'documento')}.pdf")
-    response = HttpResponse(content, content_type='application/pdf')
-    response['Content-Disposition'] = f'inline; filename="{filename}"'
-    response['Cache-Control'] = 'no-store, max-age=0'
-    return response
+    return HttpResponse(f"No se pudo obtener el PDF FIRMX por API: {last_error}", status=502)
 
 
 def _firmx_url_documento_visible(proceso):
@@ -4295,12 +4356,13 @@ def firmx_registrar_documento(request):
         "message_for_request": request.POST.get('message_for_request') or 'Favor de revisar y firmar el documento.',
     }
     firmx_debug = {}
+    firmx_base_url = _firmx_base_url_actual()
     if request.session.get('admin_email'):
         firmx_debug["firmx_curl"] = _firmx_curl_preview('POST', '/documents/register/', firmx_payload)
 
     try:
         response = tracked_post(
-            _firmx_url('/documents/register/'),
+            _firmx_url('/documents/register/', base_url=firmx_base_url),
             headers=_firmx_headers(),
             json=firmx_payload,
             timeout=_firmx_timeout(),
@@ -4355,6 +4417,7 @@ def firmx_registrar_documento(request):
                 view_info='firmx',
                 summary_data={
                     "firmx_id": document_id,
+                    "firmx_base_url": firmx_base_url,
                     "document_name": document_name,
                     "firmx_response": response_data,
                     "firmx_status_raw": firmx_status_raw,
@@ -4512,13 +4575,25 @@ def firmx_obtener_qr(request, document_id):
     if not re.match(r'^[A-Za-z0-9_-]+$', clean_id):
         return JsonResponse({"error": "ID de documento FIRMX inválido."}, status=400)
 
+    proceso_pre = None
+    firmantes_locales_orden = []
+    try:
+        db_pre = _mongo_database()
+        proceso_pre = db_pre.motor_firmas_procesofirma.find_one({"summary_data.firmx_id": clean_id})
+        if proceso_pre:
+            firmantes_locales_orden = _normalizar_firmantes(proceso_pre.get('firmantes', [])) or []
+    except Exception as _e:
+        proceso_pre = None
+        firmantes_locales_orden = []
+
+    firmx_base_url = _firmx_base_url_desde_summary(proceso_pre.get('summary_data', {}) if proceso_pre else {}) or _firmx_base_url_actual()
     firmx_debug = {}
     if request.session.get('admin_email'):
         firmx_debug["firmx_curl"] = _firmx_curl_preview('GET', f'/documents/api/{clean_id}/sign_qr')
 
     try:
         response = requests.get(
-            _firmx_url(f'/documents/api/{clean_id}/sign_qr'),
+            _firmx_url(f'/documents/api/{clean_id}/sign_qr', base_url=firmx_base_url),
             headers=_firmx_headers(),
             timeout=_firmx_timeout(),
         )
@@ -4536,17 +4611,6 @@ def firmx_obtener_qr(request, document_id):
 
     content_type = response.headers.get('content-type', '')
     qrs_descargados = []
-
-    # Pre-cargar firmantes locales asociados al proceso (orden de envío) para
-    # poder mapear por índice cuando FIRMX no devuelve email en cada QR.
-    firmantes_locales_orden = []
-    try:
-        db_pre = _mongo_database()
-        proceso_pre = db_pre.motor_firmas_procesofirma.find_one({"summary_data.firmx_id": clean_id})
-        if proceso_pre:
-            firmantes_locales_orden = _normalizar_firmantes(proceso_pre.get('firmantes', [])) or []
-    except Exception as _e:
-        firmantes_locales_orden = []
 
     def _extraer_email_item(item, idx):
         """Extrae el correo del firmante del item de FIRMX probando múltiples
@@ -4631,7 +4695,8 @@ def firmx_obtener_qr(request, document_id):
                         summary_data['url_qr_code'] = qr_info['url_qr_code']
                 
                 summary_data['qrs'] = lista_qrs_local
-                
+                summary_data['firmx_base_url'] = firmx_base_url
+
                 api_steps = summary_data.get('api_steps', [])
                 api_steps.append({
                     "step": "Obtención de QR",

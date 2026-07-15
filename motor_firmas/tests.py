@@ -211,6 +211,44 @@ class DocumentReferenceHelpersTest(SimpleTestCase):
         self.assertEqual(response.content, b'%PDF-1.4 contenido')
         self.assertEqual(response['Cache-Control'], 'no-store, max-age=0')
 
+    def test_ver_pdf_proceso_firmx_falls_back_to_local_pdf_when_api_url_is_not_pdf(self):
+        request = RequestFactory().get('/documento-pdf/token-firmx/')
+        html_response = SimpleNamespace(
+            status_code=200,
+            content=b'<html>no pdf</html>',
+            headers={'content-type': 'text/html'},
+            text='<html>no pdf</html>',
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir, override_settings(MEDIA_ROOT=tmpdir):
+            local_path = os.path.join(tmpdir, 'FXP-LOCAL.pdf')
+            with open(local_path, 'wb') as handle:
+                handle.write(b'%PDF-1.4 local')
+
+            initial = SimpleNamespace(
+                token_acceso='token-firmx',
+                summary_data={'firmx_id': 'firmx-1', 'firmx_file_url': 'https://firmx.example.com/html'},
+                pdf_path=local_path,
+                reference_id='FXP-LOCAL',
+            )
+            refreshed = SimpleNamespace(
+                token_acceso='token-firmx',
+                summary_data={'firmx_id': 'firmx-1', 'firmx_file_url': 'https://firmx.example.com/html'},
+                pdf_path=local_path,
+                reference_id='FXP-LOCAL',
+            )
+
+            with patch('motor_firmas.views._get_proceso_por_token_or_404', side_effect=[initial, refreshed]), \
+                    patch('motor_firmas.views._firmx_sync_status', return_value=(True, {})), \
+                    patch('motor_firmas.views._firmx_headers', return_value={'X-Api-Key': 'key'}), \
+                    patch('motor_firmas.views.requests.get', return_value=html_response):
+                response = ver_pdf_proceso(request, 'token-firmx')
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response['Content-Type'], 'application/pdf')
+            self.assertEqual(b''.join(response.streaming_content), b'%PDF-1.4 local')
+            self.assertEqual(response['Cache-Control'], 'no-store, max-age=0')
+
     def test_relation_map_marks_firmx_related_document(self):
         proceso = SimpleNamespace(
             reference_id='BASE-1',
