@@ -387,6 +387,16 @@ def _proceso_pdf_puede_servirse(proceso):
         return True
 
     summary_data = getattr(proceso, 'summary_data', {}) or {}
+    for key in (
+        'firmx_file_url',
+        'firmx_download_file_url',
+        'firmx_certificate_url',
+        'firmx_download_certificate_url',
+        'firmx_archivo_url',
+    ):
+        if isinstance(summary_data.get(key), str) and summary_data.get(key).strip():
+            return True
+
     for key in ('drive_file_id', 'file_id', 'pdf_file_id', 'source_drive_file_id', 'original_drive_file_id'):
         if summary_data.get(key):
             return True
@@ -400,13 +410,15 @@ def _fecha_documento_label(value):
 
 
 def _documento_firmado_relacion_payload(proceso):
+    pdf_url = _proceso_pdf_url(proceso)
     return {
         'token': str(getattr(proceso, 'token_acceso', '') or ''),
         'reference_id': getattr(proceso, 'reference_id', '') or 'Documento firmado',
         'title': getattr(proceso, 'reference_id', '') or 'Documento firmado',
         'owner_email': getattr(proceso, 'owner_email', '') or '',
         'fecha': _fecha_documento_label(getattr(proceso, 'created_at', None)),
-        'pdf_url': _proceso_pdf_url(proceso),
+        'pdf_url': pdf_url,
+        'pdf_available': bool(pdf_url and _proceso_pdf_puede_servirse(proceso)),
     }
 
 
@@ -420,7 +432,6 @@ def _documentos_firmados_usuario(owner_email):
     return [
         _documento_firmado_relacion_payload(proceso)
         for proceso in documentos
-        if _proceso_pdf_url(proceso) and _proceso_pdf_puede_servirse(proceso)
     ]
 
 

@@ -25,8 +25,10 @@ from .views import (
     _indice_por_token,
     _indices_firmas_en_turno,
     _json_or_default,
+    _documentos_firmados_usuario,
     _normalizar_referencias_documento,
     _obtener_hash_para_reestampado,
+    _proceso_pdf_puede_servirse,
     procesar_firma,
 )
 
@@ -118,6 +120,39 @@ class MongoViewHelpersTest(SimpleTestCase):
 
 
 class DocumentReferenceHelpersTest(SimpleTestCase):
+    def test_lists_all_completed_documents_for_owner(self):
+        completed_without_pdf = SimpleNamespace(
+            token_acceso='token-sin-pdf',
+            reference_id='DOC-COMPLETADO-1',
+            owner_email='owner@example.com',
+            created_at=None,
+            summary_data={},
+        )
+        completed_with_pdf = SimpleNamespace(
+            token_acceso='token-con-pdf',
+            reference_id='DOC-COMPLETADO-2',
+            owner_email='owner@example.com',
+            created_at=None,
+            summary_data={'pdf_file_id': 'drive-file-id'},
+        )
+
+        with patch('motor_firmas.views._mongo_find', return_value=[completed_without_pdf, completed_with_pdf]) as find:
+            documentos = _documentos_firmados_usuario('Owner@Example.com')
+
+        find.assert_called_once()
+        self.assertEqual(find.call_args.args[1], {'owner_email': 'owner@example.com', 'status': 'COMPLETED'})
+        self.assertEqual([doc['reference_id'] for doc in documentos], ['DOC-COMPLETADO-1', 'DOC-COMPLETADO-2'])
+        self.assertFalse(documentos[0]['pdf_available'])
+        self.assertTrue(documentos[1]['pdf_available'])
+
+    def test_firmx_completed_document_with_url_can_be_served(self):
+        related = SimpleNamespace(
+            pdf_path='',
+            summary_data={'firmx_file_url': 'https://firmx.example.com/documento.pdf'},
+        )
+
+        self.assertTrue(_proceso_pdf_puede_servirse(related))
+
     def test_normalizes_document_reference_for_completed_owner_document(self):
         related = SimpleNamespace(
             token_acceso='token-relacionado',

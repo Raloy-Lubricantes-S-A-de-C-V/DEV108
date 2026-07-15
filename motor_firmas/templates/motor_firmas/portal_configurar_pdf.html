@@ -193,6 +193,30 @@
         <button class="w-full bg-primary hover:bg-primary-container text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 mb-5" onclick="agregarFirmante()">
             <span class="material-symbols-outlined">add_box</span>
             Añadir Espacio de Firma
+            <span class="reference-help" aria-label="Información de espacios de firma" onclick="event.stopPropagation();" tabindex="0">
+                <span class="material-symbols-outlined text-[18px]">info</span>
+                <span class="reference-tooltip">
+                    <svg class="reference-mini-svg" viewBox="0 0 220 96" role="img" aria-label="Configuración de espacios de firma">
+                        <defs>
+                            <linearGradient id="signSvgGrad" x1="0" x2="1" y1="0" y2="1">
+                                <stop offset="0%" stop-color="#0ea5e9"/>
+                                <stop offset="100%" stop-color="#1e40af"/>
+                            </linearGradient>
+                        </defs>
+                        <rect x="10" y="12" width="76" height="72" rx="8" fill="#eff6ff" stroke="#93c5fd"/>
+                        <path d="M25 28h42M25 40h34M25 52h38" stroke="#1e3a8a" stroke-width="4" stroke-linecap="round"/>
+                        <rect x="28" y="61" width="42" height="12" rx="4" fill="url(#signSvgGrad)"/>
+                        <path d="M37 69c7-9 13-9 18 0 3 5 7 5 11 0" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+                        <path d="M92 48h38" stroke="#0284c7" stroke-width="4" stroke-linecap="round"/>
+                        <path d="M122 39l10 9-10 9" fill="none" stroke="#0284c7" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                        <rect x="140" y="16" width="68" height="64" rx="10" fill="#f8fafc" stroke="#60a5fa"/>
+                        <circle cx="158" cy="34" r="8" fill="#dbeafe"/>
+                        <path d="M154 35l3 3 6-8" stroke="#2563eb" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M176 30h18M152 52h42M152 64h32" stroke="#0f172a" stroke-width="4" stroke-linecap="round"/>
+                    </svg>
+                    Agrega espacios de firma sobre el PDF, arrástralos a la posición exacta y configura nombre, correo, iniciales y orden. Al enviar, el sistema usará esos bloques para guiar la firma de cada participante.
+                </span>
+            </span>
         </button>
 
         <div class="bg-surface-container-low border border-outline-variant rounded-xl p-4" id="propsPanel" style="display:none;">
@@ -321,8 +345,10 @@
     }
 
     function popularDocumentosFirmados() {
+        selRelatedDocument.innerHTML = '<option value="">Seleccionar documento firmado...</option>';
+        selRelatedDocument.disabled = false;
         if (!signedDocuments.length) {
-            selRelatedDocument.innerHTML = '<option value="">No hay documentos firmados disponibles</option>';
+            selRelatedDocument.innerHTML = '<option value="">No hay documentos completados</option>';
             selRelatedDocument.disabled = true;
             referenceSelectedInfo.innerHTML = '<span class="text-status-danger font-semibold">Aún no tienes documentos completados para relacionar.</span>';
             return;
@@ -331,6 +357,7 @@
             const opt = document.createElement('option');
             opt.value = doc.token;
             opt.textContent = `${doc.reference_id}${doc.fecha ? ' · ' + doc.fecha : ''}`;
+            opt.dataset.pdfAvailable = doc.pdf_available === false ? '0' : '1';
             selRelatedDocument.appendChild(opt);
         });
         selRelatedDocument.addEventListener('change', ligarDocumentoSeleccionado);
