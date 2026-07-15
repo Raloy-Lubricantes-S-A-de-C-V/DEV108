@@ -394,7 +394,8 @@ def _proceso_pdf_puede_servirse(proceso):
         'firmx_download_certificate_url',
         'firmx_archivo_url',
     ):
-        if isinstance(summary_data.get(key), str) and summary_data.get(key).strip():
+        url = summary_data.get(key)
+        if isinstance(url, str) and url.strip() and not _url_firmada_expirada(url):
             return True
 
     for key in ('drive_file_id', 'file_id', 'pdf_file_id', 'source_drive_file_id', 'original_drive_file_id'):
@@ -531,11 +532,11 @@ def _firmx_pdf_url_trazabilidad(proceso):
             proceso = _get_proceso_por_token_or_404(getattr(proceso, 'token_acceso', ''))
             summary_data = getattr(proceso, 'summary_data', {}) or {}
 
-    firmx_file_url = summary_data.get('firmx_file_url') or ''
-    if firmx_file_url:
+    firmx_file_url = str(summary_data.get('firmx_file_url') or '').strip()
+    if firmx_file_url and not _url_firmada_expirada(firmx_file_url):
         return firmx_file_url
 
-    return _proceso_pdf_url(proceso) if _proceso_pdf_puede_servirse(proceso) else ''
+    return _proceso_pdf_url(proceso) if getattr(proceso, 'token_acceso', '') else ''
 
 
 def _relaciones_documento_firma(proceso, pdf_url):

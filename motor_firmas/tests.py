@@ -274,6 +274,29 @@ class DocumentReferenceHelpersTest(SimpleTestCase):
             'https://firmx.example.com/visible.pdf?X-Amz-Signature=abc',
         )
 
+    def test_relation_map_uses_internal_route_for_expired_firmx_url(self):
+        proceso = SimpleNamespace(
+            reference_id='BASE-1',
+            summary_data={'document_references': [{'id': 'ref-1', 'related_token': 'token-firmx'}]},
+        )
+        related = SimpleNamespace(
+            token_acceso='token-firmx',
+            reference_id='FXP-1',
+            summary_data={
+                'firmx_id': 'firmx-1',
+                'firmx_file_url': 'https://firmx.example.com/doc.pdf?X-Amz-Date=20260630T162844Z&X-Amz-Expires=60',
+            },
+        )
+        now = datetime(2026, 7, 15, 16, 30, tzinfo=datetime_timezone.utc)
+
+        with patch('motor_firmas.views._mongo_find_proceso_by_token', return_value=related), \
+                patch('motor_firmas.views._firmx_sync_status', return_value=(False, 'sin red')), \
+                patch('motor_firmas.views.timezone.now', return_value=now):
+            relaciones = _relaciones_documento_firma(proceso, '/documento-pdf/base/')
+
+        self.assertEqual(relaciones['references'][0]['related_type'], 'firmx')
+        self.assertEqual(relaciones['references'][0]['related_pdf_url'], '/documento-pdf/token-firmx/')
+
     def test_firmx_visible_url_skips_expired_signed_url(self):
         expired_url = 'https://firmx.example.com/doc.pdf?X-Amz-Date=20260630T162844Z&X-Amz-Expires=60'
         fresh_url = 'https://firmx.example.com/doc-fresh.pdf?X-Amz-Date=20260715T162844Z&X-Amz-Expires=3600'
