@@ -257,14 +257,22 @@ class DocumentReferenceHelpersTest(SimpleTestCase):
         related = SimpleNamespace(
             token_acceso='token-firmx',
             reference_id='FXP-1',
-            summary_data={'firmx_id': 'firmx-1'},
+            summary_data={
+                'firmx_id': 'firmx-1',
+                'firmx_file_url': 'https://firmx.example.com/visible.pdf?X-Amz-Signature=abc',
+            },
         )
 
-        with patch('motor_firmas.views._mongo_find_proceso_by_token', return_value=related):
+        with patch('motor_firmas.views._mongo_find_proceso_by_token', return_value=related), \
+                patch('motor_firmas.views._firmx_sync_status', return_value=(False, 'sin red')):
             relaciones = _relaciones_documento_firma(proceso, '/documento-pdf/base/')
 
         self.assertEqual(relaciones['references'][0]['related_type'], 'firmx')
         self.assertEqual(relaciones['references'][0]['related_type_label'], 'FIRMX')
+        self.assertEqual(
+            relaciones['references'][0]['related_pdf_url'],
+            'https://firmx.example.com/visible.pdf?X-Amz-Signature=abc',
+        )
 
     def test_firmx_visible_url_skips_expired_signed_url(self):
         expired_url = 'https://firmx.example.com/doc.pdf?X-Amz-Date=20260630T162844Z&X-Amz-Expires=60'

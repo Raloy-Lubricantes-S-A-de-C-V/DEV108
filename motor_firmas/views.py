@@ -519,6 +519,25 @@ def _tipo_proceso_relacion(proceso):
     return exec_mode or 'normal', 'Documento'
 
 
+def _firmx_pdf_url_trazabilidad(proceso):
+    summary_data = getattr(proceso, 'summary_data', {}) or {}
+    firmx_id = summary_data.get('firmx_id')
+    if not firmx_id:
+        return ''
+
+    if str(getattr(proceso, 'status', '') or '').upper() != 'CANCELLED':
+        success, _ = _firmx_sync_status(firmx_id, force=True)
+        if success:
+            proceso = _get_proceso_por_token_or_404(getattr(proceso, 'token_acceso', ''))
+            summary_data = getattr(proceso, 'summary_data', {}) or {}
+
+    firmx_file_url = summary_data.get('firmx_file_url') or ''
+    if firmx_file_url:
+        return firmx_file_url
+
+    return _proceso_pdf_url(proceso) if _proceso_pdf_puede_servirse(proceso) else ''
+
+
 def _relaciones_documento_firma(proceso, pdf_url):
     summary_data = _json_or_default(getattr(proceso, 'summary_data', {}) or {}, {})
     referencias = _json_or_default(summary_data.get('document_references', []), [])
@@ -536,8 +555,11 @@ def _relaciones_documento_firma(proceso, pdf_url):
         if related_token:
             related_doc = _mongo_find_proceso_by_token(related_token)
             if related_doc:
-                related_pdf_url = _proceso_pdf_url(related_doc)
                 related_type, related_type_label = _tipo_proceso_relacion(related_doc)
+                if related_type == 'firmx':
+                    related_pdf_url = _firmx_pdf_url_trazabilidad(related_doc)
+                else:
+                    related_pdf_url = _proceso_pdf_url(related_doc)
                 ref_context['related_pdf_url'] = related_pdf_url
                 ref_context['related_type'] = related_type
                 ref_context['related_type_label'] = related_type_label

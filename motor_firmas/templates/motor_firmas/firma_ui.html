@@ -327,6 +327,7 @@
 
 	    function relationPreviewUrl(url) {
 	        if (!url) return '';
+	        if (/^https?:\/\//i.test(url)) return url;
 	        const separator = url.includes('?') ? '&' : '?';
 	        return `${url}${separator}preview_ts=${Date.now()}`;
 	    }
