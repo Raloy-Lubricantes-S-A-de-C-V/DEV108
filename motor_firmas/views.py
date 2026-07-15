@@ -504,6 +504,21 @@ def _normalizar_referencias_documento(raw_refs, owner_email):
     return referencias
 
 
+def _tipo_proceso_relacion(proceso):
+    summary_data = getattr(proceso, 'summary_data', {}) or {}
+    if summary_data.get('firmx_id'):
+        return 'firmx', 'FIRMX'
+
+    exec_mode = str(getattr(proceso, 'exec_mode', '') or '').lower()
+    if exec_mode == 'libre':
+        return 'libre', 'Libre'
+    if exec_mode == 'form':
+        return 'formulario', 'Formulario'
+    if exec_mode == 'api':
+        return 'api', 'API'
+    return exec_mode or 'normal', 'Documento'
+
+
 def _relaciones_documento_firma(proceso, pdf_url):
     summary_data = _json_or_default(getattr(proceso, 'summary_data', {}) or {}, {})
     referencias = _json_or_default(summary_data.get('document_references', []), [])
@@ -522,7 +537,10 @@ def _relaciones_documento_firma(proceso, pdf_url):
             related_doc = _mongo_find_proceso_by_token(related_token)
             if related_doc:
                 related_pdf_url = _proceso_pdf_url(related_doc)
+                related_type, related_type_label = _tipo_proceso_relacion(related_doc)
                 ref_context['related_pdf_url'] = related_pdf_url
+                ref_context['related_type'] = related_type
+                ref_context['related_type_label'] = related_type_label
                 ref_context['related_reference_id'] = getattr(related_doc, 'reference_id', '') or ref_context.get('related_reference_id', '')
                 ref_context['related_title'] = getattr(related_doc, 'reference_id', '') or ref_context.get('related_title', '')
 
@@ -532,12 +550,15 @@ def _relaciones_documento_firma(proceso, pdf_url):
     if not referencias_context:
         return {}
 
+    base_type, base_type_label = _tipo_proceso_relacion(proceso)
     return {
         'base': {
             'reference_id': getattr(proceso, 'reference_id', '') or 'Documento base',
             'title': getattr(proceso, 'reference_id', '') or 'Documento base',
             'pdf_url': pdf_url,
             'type': 'original',
+            'document_type': base_type,
+            'document_type_label': base_type_label,
         },
         'references': referencias_context,
     }
@@ -3233,13 +3254,8 @@ def ver_pdf_proceso(request, token):
 
     firmx_id = summary_data.get('firmx_id')
     if firmx_id:
-        success, _ = _firmx_sync_status(firmx_id, force=True)
-        if success:
-            proceso = _get_proceso_por_token_or_404(token)
-        url = _firmx_url_documento_visible(proceso)
-        if url:
-            response = redirect(url)
-            response['Cache-Control'] = 'no-store, max-age=0'
+        response = _firmx_pdf_response(proceso, token=token)
+        if response:
             return response
 
     try:
@@ -3281,6 +3297,48 @@ def _url_firmada_expirada(url, now=None):
             return False
 
     return False
+
+
+def _firmx_pdf_response(proceso, token=None):
+    summary_data = getattr(proceso, 'summary_data', {}) or {}
+    firmx_id = summary_data.get('firmx_id')
+    if not firmx_id:
+        return None
+
+    success, _ = _firmx_sync_status(firmx_id, force=True)
+    if success:
+        proceso = _get_proceso_por_token_or_404(token or getattr(proceso, 'token_acceso', ''))
+
+    url = _firmx_url_documento_visible(proceso)
+    if not url or not str(url).lower().startswith(('http://', 'https://')):
+        return None
+
+    try:
+        download = requests.get(url, timeout=_firmx_timeout(), allow_redirects=True)
+        if download.status_code in (401, 403):
+            download = requests.get(url, headers=_firmx_headers(), timeout=_firmx_timeout(), allow_redirects=True)
+    except Exception as exc:
+        return HttpResponse(f"No se pudo obtener el PDF FIRMX por API: {exc}", status=502)
+
+    content = download.content or b''
+    content_type = download.headers.get('content-type', '').lower()
+    looks_pdf = content.startswith(b'%PDF') or 'application/pdf' in content_type
+    if not 200 <= download.status_code < 300 or not looks_pdf:
+        detail = ''
+        try:
+            detail = download.text[:300]
+        except Exception:
+            detail = ''
+        return HttpResponse(
+            f"No se pudo obtener el PDF FIRMX vigente ({download.status_code}). {detail}",
+            status=502,
+        )
+
+    filename = _safe_pdf_filename(f"{getattr(proceso, 'reference_id', 'documento')}.pdf")
+    response = HttpResponse(content, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    response['Cache-Control'] = 'no-store, max-age=0'
+    return response
 
 
 def _firmx_url_documento_visible(proceso):

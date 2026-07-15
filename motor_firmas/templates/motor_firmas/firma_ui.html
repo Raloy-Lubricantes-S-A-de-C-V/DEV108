@@ -305,10 +305,11 @@
 	            node.type = 'button';
 	            node.className = 'relation-node';
 	            node.dataset.relationNode = ref.id || `ref-${index}`;
+	            const relatedLabel = ref.related_type_label || 'Relacionado';
 	            node.innerHTML = `
 	                <span class="relation-node-type related">
 	                    <span class="material-symbols-outlined text-[14px]">verified</span>
-	                    Relacionado
+	                    ${escapeHtml(relatedLabel)}
 	                </span>
 	                <strong class="block text-sm text-primary mt-2">${escapeHtml(ref.related_reference_id || 'Documento relacionado')}</strong>
 	                <span class="block text-xs text-text-muted mt-1">Citado desde página ${escapeHtml(ref.page || 1)} del original.</span>
