@@ -688,7 +688,8 @@
         inpDrivePdfsFormatos.value = driveResguardoConfig.pdfs_folder_id || '';
         inpDriveApiPdfs.value = driveResguardoConfig.api_pdfs_folder_id || '';
         inpDriveContratosBase.value = driveResguardoConfig.contratos_base_folder_id || '';
-        inpPageSize.value = DEFAULT_PAGE_SIZE;
+        currentPageSize = normalizePageSize(savedConfig.inpPageSize || savedConfig.page_size || DEFAULT_PAGE_SIZE);
+        inpPageSize.value = currentPageSize;
 
 	        selGroup.addEventListener('change', () => {
 	            expandedAdminGroups = new Set();
@@ -702,13 +703,15 @@
 	        btnPagePrev.addEventListener('click', () => cargarDocumentos(currentPage - 1));
 	        btnPageNext.addEventListener('click', () => cargarDocumentos(currentPage + 1));
 	        inpPageSize.addEventListener('change', () => {
-	            currentPageSize = Math.max(1, Number(inpPageSize.value || DEFAULT_PAGE_SIZE));
+	            currentPageSize = normalizePageSize(inpPageSize.value);
+	            inpPageSize.value = currentPageSize;
 	            cargarDocumentos(1);
 	        });
 	        inpPageSize.addEventListener('keydown', event => {
 	            if (event.key === 'Enter') {
 	                event.preventDefault();
-	                currentPageSize = Math.max(1, Number(inpPageSize.value || DEFAULT_PAGE_SIZE));
+	                currentPageSize = normalizePageSize(inpPageSize.value);
+	                inpPageSize.value = currentPageSize;
 	                cargarDocumentos(1);
 	            }
 	        });
@@ -729,6 +732,11 @@
 	            .replace(/>/g, '&gt;')
 	            .replace(/"/g, '&quot;')
 	            .replace(/'/g, '&#039;');
+	    }
+
+	    function normalizePageSize(value) {
+	        const parsed = Number(value || DEFAULT_PAGE_SIZE);
+	        return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DEFAULT_PAGE_SIZE;
 	    }
 
 	    function normalizeHex(value) {
@@ -1143,13 +1151,17 @@
     }
 
     function guardarDiseno() {
+        const pageSize = normalizePageSize(inpPageSize.value);
+        currentPageSize = pageSize;
+        inpPageSize.value = pageSize;
         const config = {
             group: selGroup.value,
             filFolio: filFolio.value,
             filDominio: filDominio.value,
             filFechaIni: filFechaIni.value,
             filFechaFin: filFechaFin.value,
-            filEstado: filEstado.value
+            filEstado: filEstado.value,
+            inpPageSize: pageSize
         };
         ejecutarAccion('guardar_config', { configuracion: config }).then(() => {
             alert("Configuración de vista guardada correctamente.");
