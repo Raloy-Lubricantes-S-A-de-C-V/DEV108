@@ -394,6 +394,142 @@ def _proceso_pdf_puede_servirse(proceso):
     return bool(_inferir_pdf_libre_origen(proceso))
 
 
+def _fecha_documento_label(value):
+    value = _datetime_for_compare(value)
+    return timezone.localtime(value).strftime('%d/%m/%Y %H:%M') if value else ''
+
+
+def _documento_firmado_relacion_payload(proceso):
+    return {
+        'token': str(getattr(proceso, 'token_acceso', '') or ''),
+        'reference_id': getattr(proceso, 'reference_id', '') or 'Documento firmado',
+        'title': getattr(proceso, 'reference_id', '') or 'Documento firmado',
+        'owner_email': getattr(proceso, 'owner_email', '') or '',
+        'fecha': _fecha_documento_label(getattr(proceso, 'created_at', None)),
+        'pdf_url': _proceso_pdf_url(proceso),
+    }
+
+
+def _documentos_firmados_usuario(owner_email):
+    owner_email = _normalizar_email(owner_email)
+    documentos = _mongo_find(
+        ProcesoFirma,
+        {'owner_email': owner_email, 'status': 'COMPLETED'},
+        [('created_at', -1)],
+    )
+    return [
+        _documento_firmado_relacion_payload(proceso)
+        for proceso in documentos
+        if _proceso_pdf_url(proceso) and _proceso_pdf_puede_servirse(proceso)
+    ]
+
+
+def _normalizar_dimension_referencia(value, default=0.0, min_value=0.0, max_value=1.0):
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        parsed = default
+    return max(min_value, min(parsed, max_value))
+
+
+def _normalizar_referencias_documento(raw_refs, owner_email):
+    refs = _json_or_default(raw_refs, [])
+    if not isinstance(refs, list):
+        return []
+
+    owner_email = _normalizar_email(owner_email)
+    referencias = []
+    for index, item in enumerate(refs[:20], start=1):
+        if not isinstance(item, dict):
+            continue
+
+        related_token = str(item.get('related_token') or '').strip()
+        if not related_token:
+            raise ValueError("Cada referencia debe tener un documento firmado ligado.")
+
+        related_doc = _mongo_find_proceso_by_token(related_token)
+        if not related_doc:
+            raise ValueError("El documento relacionado no existe.")
+        if _normalizar_email(getattr(related_doc, 'owner_email', '')) != owner_email:
+            raise ValueError("No puedes relacionar documentos de otro usuario.")
+        if str(getattr(related_doc, 'status', '') or '').upper() != 'COMPLETED':
+            raise ValueError("Solo puedes relacionar documentos firmados.")
+        if not _proceso_pdf_puede_servirse(related_doc):
+            raise ValueError("El PDF del documento relacionado no está disponible.")
+
+        try:
+            page = max(int(item.get('page') or 1), 1)
+        except (TypeError, ValueError):
+            page = 1
+
+        x = _normalizar_dimension_referencia(item.get('x'), 0.0)
+        y = _normalizar_dimension_referencia(item.get('y'), 0.0)
+        width = _normalizar_dimension_referencia(item.get('width'), 0.1, min_value=0.01)
+        height = _normalizar_dimension_referencia(item.get('height'), 0.06, min_value=0.01)
+        width = min(width, 1.0 - x)
+        height = min(height, 1.0 - y)
+
+        snippet_image = str(item.get('snippet_image') or '').strip()
+        if snippet_image and not snippet_image.startswith('data:image/png;base64,'):
+            snippet_image = ''
+        if len(snippet_image) > 500000:
+            snippet_image = ''
+
+        referencias.append({
+            'id': str(item.get('id') or f'ref-{index}'),
+            'page': page,
+            'x': x,
+            'y': y,
+            'width': width,
+            'height': height,
+            'snippet_image': snippet_image,
+            'related_token': str(getattr(related_doc, 'token_acceso', '') or ''),
+            'related_reference_id': getattr(related_doc, 'reference_id', '') or 'Documento relacionado',
+            'related_title': getattr(related_doc, 'reference_id', '') or 'Documento relacionado',
+            'related_owner_email': getattr(related_doc, 'owner_email', '') or '',
+            'related_pdf_url': _proceso_pdf_url(related_doc),
+        })
+
+    return referencias
+
+
+def _relaciones_documento_firma(proceso, pdf_url):
+    summary_data = _json_or_default(getattr(proceso, 'summary_data', {}) or {}, {})
+    referencias = _json_or_default(summary_data.get('document_references', []), [])
+    if not referencias:
+        return {}
+
+    referencias_context = []
+    for ref in referencias:
+        if not isinstance(ref, dict):
+            continue
+        related_pdf_url = ref.get('related_pdf_url')
+        related_token = str(ref.get('related_token') or '').strip()
+        if related_token and not related_pdf_url:
+            related_doc = _mongo_find_proceso_by_token(related_token)
+            if related_doc:
+                related_pdf_url = _proceso_pdf_url(related_doc)
+                ref['related_pdf_url'] = related_pdf_url
+                ref.setdefault('related_reference_id', getattr(related_doc, 'reference_id', ''))
+                ref.setdefault('related_title', getattr(related_doc, 'reference_id', ''))
+
+        if related_pdf_url:
+            referencias_context.append(ref)
+
+    if not referencias_context:
+        return {}
+
+    return {
+        'base': {
+            'reference_id': getattr(proceso, 'reference_id', '') or 'Documento base',
+            'title': getattr(proceso, 'reference_id', '') or 'Documento base',
+            'pdf_url': pdf_url,
+            'type': 'original',
+        },
+        'references': referencias_context,
+    }
+
+
 def _media_url_for_path(path):
     raw_path = str(path or '').replace('\\', '/').strip()
     if not raw_path:
@@ -2488,8 +2624,10 @@ def vista_firma_ui(request, token, firmante_token=None):
 
     pdf_available = _proceso_pdf_puede_servirse(proceso)
     pdf_url = _proceso_pdf_url(proceso) if pdf_available else ''
+    document_relations = _relaciones_documento_firma(proceso, pdf_url) if pdf_url else {}
     message_context = {'token': token, 'view_info': proceso.view_info, 'summary_data': summary_data,
-                       'pdf_url': pdf_url, 'pdf_available': pdf_available, 'is_message_view': True}
+                       'pdf_url': pdf_url, 'pdf_available': pdf_available, 'is_message_view': True,
+                       'document_relations': json.dumps(document_relations)}
 
     if proceso.status == 'CANCELLED':
         message_context.update(
@@ -2601,6 +2739,7 @@ def vista_firma_ui(request, token, firmante_token=None):
                'summary_data': summary_data,
                'pdf_url': pdf_url,
                'pdf_available': pdf_available,
+               'document_relations': json.dumps(document_relations),
                'is_registered': bool(colaborador), 'campos_a_llenar': campos_a_llenar, 'is_message_view': False,
                'cant_firmas': cant_firmas}
     return render(request, 'motor_firmas/firma_ui.html', context)
@@ -4791,7 +4930,12 @@ def portal_configurar_pdf(request, pdf_id):
     return render(
         request,
         'motor_firmas/portal_configurar_pdf.html',
-        _portal_context(owner_email, doc=doc, pdf_url=pdf_url),
+        _portal_context(
+            owner_email,
+            doc=doc,
+            pdf_url=pdf_url,
+            signed_documents=json.dumps(_documentos_firmados_usuario(owner_email)),
+        ),
     )
 
 
@@ -4814,6 +4958,11 @@ def iniciar_firma_libre(request):
     if not firmantes:
         return JsonResponse({"error": "Añade al menos un firmante."}, status=400)
     for f in firmantes: f['token_firmante'] = str(uuid.uuid4())
+
+    try:
+        document_references = _normalizar_referencias_documento(data.get('document_references', []), owner_email)
+    except ValueError as e:
+        return JsonResponse({"error": str(e)}, status=400)
 
     try:
         _, original_path = _asegurar_pdf_usuario_local(doc, owner_email)
@@ -4839,6 +4988,7 @@ def iniciar_firma_libre(request):
             'source_drive_file_id': getattr(doc, 'drive_file_id', ''),
             'source_pdf_filename': getattr(doc, 'nombre', ''),
             'source_document_id': str(getattr(doc, 'id_documento', '') or ''),
+            'document_references': document_references,
         },
     )
 

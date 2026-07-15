@@ -8,6 +8,100 @@
 <style>
     #pdf-wrapper { position: relative; display: inline-block; background: white; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18); }
     #pdf-render { display: block; }
+    #pdf-wrapper.is-reference-mode { cursor: crosshair; }
+    .reference-feature-button {
+        position: relative;
+        isolation: isolate;
+        overflow: visible;
+        background: linear-gradient(135deg, #071c33, #0b3f74 48%, #1269a8);
+    }
+    .reference-feature-button::before {
+        content: "";
+        position: absolute;
+        inset: -2px;
+        z-index: -1;
+        border-radius: 0.65rem;
+        background: linear-gradient(120deg, #5ee7ff, #1d4ed8, #8bd3ff, #0f766e, #38bdf8);
+        background-size: 320% 320%;
+        animation: referenceAurora 5s ease-in-out infinite;
+        filter: blur(0.5px);
+    }
+    .reference-new-badge {
+        border: 1px solid rgba(255,255,255,0.35);
+        background: rgba(255,255,255,0.16);
+        color: #e0f2fe;
+        font-size: 0.62rem;
+        line-height: 1;
+        padding: 0.25rem 0.38rem;
+        border-radius: 999px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+    @keyframes referenceAurora {
+        0%, 100% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+    }
+    .reference-help { position: relative; display: inline-flex; align-items: center; }
+    .reference-tooltip {
+        position: absolute;
+        right: 0;
+        top: calc(100% + 12px);
+        width: min(310px, 78vw);
+        padding: 0.9rem;
+        border-radius: 0.75rem;
+        background: #ffffff;
+        color: #162839;
+        border: 1px solid #bfdbfe;
+        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+        opacity: 0;
+        transform: translateY(-6px);
+        pointer-events: none;
+        transition: opacity 0.18s ease, transform 0.18s ease;
+        z-index: 40;
+        text-align: left;
+    }
+    .reference-help:hover .reference-tooltip,
+    .reference-help:focus-within .reference-tooltip {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    .reference-selection,
+    .reference-box {
+        position: absolute;
+        border: 2px solid #0ea5e9;
+        background: rgba(14, 165, 233, 0.14);
+        border-radius: 0.5rem;
+        z-index: 12;
+        pointer-events: none;
+    }
+    .reference-box {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #075985;
+        font-weight: 800;
+        font-size: 0.72rem;
+        text-align: center;
+        cursor: pointer;
+        pointer-events: auto;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,0.65);
+    }
+    .reference-box.selected {
+        border-color: #1d4ed8;
+        background: rgba(29, 78, 216, 0.18);
+        color: #1e3a8a;
+    }
+    .reference-box.is-linked {
+        border-color: #0284c7;
+        background: rgba(14, 165, 233, 0.2);
+    }
+    .reference-mini-svg {
+        width: 100%;
+        max-width: 220px;
+        height: auto;
+        margin: 0 auto 0.75rem;
+        display: block;
+    }
 </style>
 {% endblock %}
 
@@ -44,6 +138,58 @@
     </header>
 
     <div class="p-5 flex-1 overflow-y-auto">
+        <button id="btnReferenceMode" class="reference-feature-button w-full text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 mb-3" onclick="activarReferenciaDocumento()">
+            <span class="material-symbols-outlined">account_tree</span>
+            <span>Referenciar documento firmado</span>
+            <span class="reference-new-badge">Nuevo</span>
+            <span class="reference-help" aria-label="Información de referencias documentales">
+                <span class="material-symbols-outlined text-[18px]">info</span>
+                <span class="reference-tooltip">
+                    <svg class="reference-mini-svg" viewBox="0 0 220 92" role="img" aria-label="Documento base ligado a un documento firmado">
+                        <defs>
+                            <linearGradient id="refSvgGrad" x1="0" x2="1" y1="0" y2="1">
+                                <stop offset="0%" stop-color="#38bdf8"/>
+                                <stop offset="100%" stop-color="#1d4ed8"/>
+                            </linearGradient>
+                        </defs>
+                        <rect x="12" y="14" width="64" height="68" rx="8" fill="#eff6ff" stroke="#93c5fd"/>
+                        <path d="M27 31h34M27 43h28M27 55h24" stroke="#1e40af" stroke-width="4" stroke-linecap="round"/>
+                        <rect x="42" y="61" width="24" height="10" rx="3" fill="url(#refSvgGrad)"/>
+                        <path d="M82 47 C104 25, 116 25, 138 47" fill="none" stroke="#0284c7" stroke-width="4" stroke-linecap="round"/>
+                        <path d="M131 38l10 9-10 9" fill="none" stroke="#0284c7" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                        <rect x="144" y="14" width="64" height="68" rx="8" fill="#f8fafc" stroke="#60a5fa"/>
+                        <path d="M159 31h34M159 43h28M159 55h31" stroke="#0f172a" stroke-width="4" stroke-linecap="round"/>
+                        <circle cx="191" cy="66" r="8" fill="#22c55e"/>
+                        <path d="M187 66l3 3 6-7" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    Selecciona un fragmento del documento base, elige un documento ya firmado y crea una cita visual. Al firmar, el usuario verá el mapa de relación, la zona citada y el PDF relacionado.
+                </span>
+            </span>
+        </button>
+
+        <div id="referencePanel" class="hidden bg-surface-container-low border border-blue-200 rounded-xl p-4 mb-5">
+            <div class="flex items-start gap-3 mb-4">
+                <span class="material-symbols-outlined text-primary">link</span>
+                <div>
+                    <h2 class="text-sm font-bold text-primary">Referencia documental</h2>
+                    <p class="text-xs text-on-surface-variant">Arrastra un recuadro sobre el PDF y liga ese bloque con un documento firmado.</p>
+                </div>
+            </div>
+            <label class="block text-sm font-semibold text-on-surface-variant mb-2" for="selRelatedDocument">Documento firmado relacionado</label>
+            <select id="selRelatedDocument" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
+                <option value="">Seleccionar documento firmado...</option>
+            </select>
+            <div id="referenceSelectedInfo" class="mt-4 text-xs text-on-surface-variant"></div>
+            <div id="referencePreviewBox" class="hidden mt-4 rounded-lg border border-outline-variant bg-white p-3">
+                <p class="text-xs font-bold text-primary uppercase mb-2">Bloque citado</p>
+                <img id="referencePreviewImage" alt="Vista del bloque citado" class="w-full rounded border border-outline-variant bg-surface-container-low">
+            </div>
+            <button type="button" class="mt-4 w-full inline-flex items-center justify-center gap-2 text-status-danger font-bold text-sm py-2 hover:underline" onclick="eliminarReferenciaActual()">
+                <span class="material-symbols-outlined text-[18px]">delete</span>
+                Quitar referencia seleccionada
+            </button>
+        </div>
+
         <button class="w-full bg-primary hover:bg-primary-container text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 mb-5" onclick="agregarFirmante()">
             <span class="material-symbols-outlined">add_box</span>
             Añadir Espacio de Firma
@@ -106,12 +252,28 @@
     });
 
     const url = '{{ pdf_url }}';
+    const signedDocuments = {{ signed_documents|default:"[]"|safe }};
     const wrapper = document.getElementById('pdf-wrapper');
+    const pdfCanvas = document.getElementById('pdf-render');
+    const referencePanel = document.getElementById('referencePanel');
+    const selRelatedDocument = document.getElementById('selRelatedDocument');
+    const referenceSelectedInfo = document.getElementById('referenceSelectedInfo');
+    const referencePreviewBox = document.getElementById('referencePreviewBox');
+    const referencePreviewImage = document.getElementById('referencePreviewImage');
+    const btnReferenceMode = document.getElementById('btnReferenceMode');
     let boxes = [];
+    let referenceBlocks = [];
     let activeBoxId = null;
+    let activeReferenceId = null;
     let pdfDocument = null;
     let currentPage = 1;
     let totalPages = 1;
+    let referenceSelectionMode = false;
+    let referenceSelecting = false;
+    let referenceStart = null;
+    let referenceDraftEl = null;
+
+    popularDocumentosFirmados();
 
     pdfjsLib.getDocument(url).promise.then(pdfDoc => {
         pdfDocument = pdfDoc;
@@ -140,6 +302,13 @@
                     el.style.display = (b.page === num) ? 'flex' : 'none';
                 }
             });
+            referenceBlocks.forEach(ref => {
+                const el = document.getElementById(ref.id);
+                if(el) {
+                    el.style.display = (ref.page === num) ? 'flex' : 'none';
+                    posicionarReferenciaEl(el, ref);
+                }
+            });
         });
     }
 
@@ -151,7 +320,218 @@
         }
     }
 
+    function popularDocumentosFirmados() {
+        if (!signedDocuments.length) {
+            selRelatedDocument.innerHTML = '<option value="">No hay documentos firmados disponibles</option>';
+            selRelatedDocument.disabled = true;
+            referenceSelectedInfo.innerHTML = '<span class="text-status-danger font-semibold">Aún no tienes documentos completados para relacionar.</span>';
+            return;
+        }
+        signedDocuments.forEach(doc => {
+            const opt = document.createElement('option');
+            opt.value = doc.token;
+            opt.textContent = `${doc.reference_id}${doc.fecha ? ' · ' + doc.fecha : ''}`;
+            selRelatedDocument.appendChild(opt);
+        });
+        selRelatedDocument.addEventListener('change', ligarDocumentoSeleccionado);
+    }
+
+    function activarReferenciaDocumento() {
+        referencePanel.classList.remove('hidden');
+        referenceSelectionMode = true;
+        btnReferenceMode.classList.add('ring-4', 'ring-sky-200');
+        wrapper.classList.add('is-reference-mode');
+        referenceSelectedInfo.innerHTML = '<span class="font-semibold text-primary">Modo selección activo:</span> arrastra un recuadro sobre el documento base.';
+    }
+
+    function desactivarReferenciaDocumento() {
+        referenceSelectionMode = false;
+        wrapper.classList.remove('is-reference-mode');
+        btnReferenceMode.classList.remove('ring-4', 'ring-sky-200');
+    }
+
+    function wrapperPoint(event) {
+        const rect = wrapper.getBoundingClientRect();
+        return {
+            x: Math.max(0, Math.min(event.clientX - rect.left, wrapper.clientWidth)),
+            y: Math.max(0, Math.min(event.clientY - rect.top, wrapper.clientHeight))
+        };
+    }
+
+    function posicionarReferenciaEl(el, ref) {
+        el.style.left = `${ref.x * wrapper.clientWidth}px`;
+        el.style.top = `${ref.y * wrapper.clientHeight}px`;
+        el.style.width = `${ref.width * wrapper.clientWidth}px`;
+        el.style.height = `${ref.height * wrapper.clientHeight}px`;
+    }
+
+    function cropReferenciaImagen(x, y, width, height) {
+        const cropCanvas = document.createElement('canvas');
+        const safeWidth = Math.max(1, Math.round(width));
+        const safeHeight = Math.max(1, Math.round(height));
+        cropCanvas.width = safeWidth;
+        cropCanvas.height = safeHeight;
+        cropCanvas.getContext('2d').drawImage(
+            pdfCanvas,
+            Math.round(x),
+            Math.round(y),
+            safeWidth,
+            safeHeight,
+            0,
+            0,
+            safeWidth,
+            safeHeight
+        );
+        return cropCanvas.toDataURL('image/png');
+    }
+
+    function crearReferenciaEl(ref) {
+        const el = document.createElement('div');
+        el.id = ref.id;
+        el.className = 'reference-box';
+        el.innerText = ref.related_reference_id ? `REF: ${ref.related_reference_id}` : 'REFERENCIA';
+        posicionarReferenciaEl(el, ref);
+        el.style.display = ref.page === currentPage ? 'flex' : 'none';
+        el.addEventListener('click', event => {
+            event.stopPropagation();
+            seleccionarReferencia(ref.id);
+        });
+        wrapper.appendChild(el);
+    }
+
+    function seleccionarReferencia(id) {
+        activeReferenceId = id;
+        activeBoxId = null;
+        document.querySelectorAll('.signature-box').forEach(b => b.classList.remove('selected'));
+        document.querySelectorAll('.reference-box').forEach(b => b.classList.remove('selected'));
+        const ref = referenceBlocks.find(item => item.id === id);
+        const el = document.getElementById(id);
+        if (!ref || !el) return;
+        document.getElementById('propsPanel').style.display = 'none';
+        el.classList.add('selected');
+        referencePanel.classList.remove('hidden');
+        referencePreviewBox.classList.toggle('hidden', !ref.snippet_image);
+        if (ref.snippet_image) referencePreviewImage.src = ref.snippet_image;
+        selRelatedDocument.value = ref.related_token || '';
+        referenceSelectedInfo.innerHTML = ref.related_reference_id
+            ? `<span class="font-semibold text-primary">Ligado con:</span> ${escapeHtml(ref.related_reference_id)}`
+            : '<span class="font-semibold text-primary">Bloque listo.</span> Selecciona el documento firmado que quieres relacionar.';
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function ligarDocumentoSeleccionado() {
+        const token = selRelatedDocument.value;
+        if (!token) return;
+        const ref = referenceBlocks.find(item => item.id === activeReferenceId);
+        if (!ref) {
+            alert('Primero selecciona un bloque del documento base.');
+            selRelatedDocument.value = '';
+            return;
+        }
+        const doc = signedDocuments.find(item => item.token === token);
+        if (!doc) return;
+        if (!confirm(`¿Ligar este bloque del documento base con el documento firmado ${doc.reference_id}?`)) {
+            selRelatedDocument.value = ref.related_token || '';
+            return;
+        }
+        ref.related_token = doc.token;
+        ref.related_reference_id = doc.reference_id;
+        ref.related_title = doc.title || doc.reference_id;
+        ref.related_owner_email = doc.owner_email || '';
+        ref.related_pdf_url = doc.pdf_url || '';
+        const el = document.getElementById(ref.id);
+        if (el) {
+            el.classList.add('is-linked');
+            el.innerText = `REF: ${doc.reference_id}`;
+        }
+        referenceSelectedInfo.innerHTML = `<span class="font-semibold text-primary">Referencia guardada:</span> bloque ligado con ${escapeHtml(doc.reference_id)}.`;
+        desactivarReferenciaDocumento();
+    }
+
+    function eliminarReferenciaActual() {
+        if (!activeReferenceId) return;
+        const el = document.getElementById(activeReferenceId);
+        if (el) el.remove();
+        referenceBlocks = referenceBlocks.filter(ref => ref.id !== activeReferenceId);
+        activeReferenceId = null;
+        selRelatedDocument.value = '';
+        referencePreviewBox.classList.add('hidden');
+        referenceSelectedInfo.innerHTML = 'Referencia eliminada.';
+    }
+
+    wrapper.addEventListener('mousedown', event => {
+        if (!referenceSelectionMode || event.target.closest('.signature-box') || event.target.closest('.reference-box')) return;
+        event.preventDefault();
+        referenceSelecting = true;
+        referenceStart = wrapperPoint(event);
+        referenceDraftEl = document.createElement('div');
+        referenceDraftEl.className = 'reference-selection';
+        referenceDraftEl.style.left = `${referenceStart.x}px`;
+        referenceDraftEl.style.top = `${referenceStart.y}px`;
+        referenceDraftEl.style.width = '0px';
+        referenceDraftEl.style.height = '0px';
+        wrapper.appendChild(referenceDraftEl);
+    });
+
+    document.addEventListener('mousemove', event => {
+        if (!referenceSelecting || !referenceDraftEl) return;
+        const point = wrapperPoint(event);
+        const left = Math.min(referenceStart.x, point.x);
+        const top = Math.min(referenceStart.y, point.y);
+        const width = Math.abs(point.x - referenceStart.x);
+        const height = Math.abs(point.y - referenceStart.y);
+        referenceDraftEl.style.left = `${left}px`;
+        referenceDraftEl.style.top = `${top}px`;
+        referenceDraftEl.style.width = `${width}px`;
+        referenceDraftEl.style.height = `${height}px`;
+    });
+
+    document.addEventListener('mouseup', event => {
+        if (!referenceSelecting || !referenceDraftEl) return;
+        referenceSelecting = false;
+        const point = wrapperPoint(event);
+        const left = Math.min(referenceStart.x, point.x);
+        const top = Math.min(referenceStart.y, point.y);
+        const width = Math.abs(point.x - referenceStart.x);
+        const height = Math.abs(point.y - referenceStart.y);
+        referenceDraftEl.remove();
+        referenceDraftEl = null;
+
+        if (width < 24 || height < 24) {
+            referenceSelectedInfo.innerHTML = '<span class="text-status-danger font-semibold">El bloque es muy pequeño.</span> Arrastra un área más amplia.';
+            return;
+        }
+
+        const id = `ref-${Date.now()}`;
+        const ref = {
+            id,
+            page: currentPage,
+            x: left / wrapper.clientWidth,
+            y: top / wrapper.clientHeight,
+            width: width / wrapper.clientWidth,
+            height: height / wrapper.clientHeight,
+            snippet_image: cropReferenciaImagen(left, top, width, height),
+            related_token: '',
+            related_reference_id: '',
+            related_title: '',
+            related_owner_email: '',
+            related_pdf_url: ''
+        };
+        referenceBlocks.push(ref);
+        crearReferenciaEl(ref);
+        seleccionarReferencia(id);
+    });
+
     function agregarFirmante() {
+        desactivarReferenciaDocumento();
         const id = Date.now().toString();
         const ordenNum = boxes.length + 1;
 
@@ -198,7 +578,9 @@
 
     function seleccionarCaja(id) {
         activeBoxId = id;
+        activeReferenceId = null;
         document.querySelectorAll('.signature-box').forEach(b => b.classList.remove('selected'));
+        document.querySelectorAll('.reference-box').forEach(b => b.classList.remove('selected'));
         const activeEl = document.getElementById(id);
         if(activeEl) activeEl.classList.add('selected');
 
@@ -256,8 +638,22 @@
         });
 
         if(!isValid) return alert("Completa el nombre, correo y orden de todos los firmantes en el panel.");
+        const referenciasPendientes = referenceBlocks.filter(ref => !ref.related_token);
+        if (referenciasPendientes.length > 0) {
+            return alert("Hay referencias documentales sin documento ligado. Selecciona cada bloque y elige un documento firmado, o quita la referencia.");
+        }
 
         payloadFirmantes.sort((a, b) => a.orden - b.orden);
+        const payloadReferences = referenceBlocks.map(ref => ({
+            id: ref.id,
+            page: ref.page,
+            x: ref.x,
+            y: ref.y,
+            width: ref.width,
+            height: ref.height,
+            snippet_image: ref.snippet_image,
+            related_token: ref.related_token
+        }));
 
         const btn = document.getElementById('btnEnviar');
         btn.disabled = true;
@@ -266,7 +662,7 @@
         fetch('/api/iniciar-firma-libre/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pdf_id: "{{ doc.id_documento }}", firmantes: payloadFirmantes })
+            body: JSON.stringify({ pdf_id: "{{ doc.id_documento }}", firmantes: payloadFirmantes, document_references: payloadReferences })
         }).then(r => r.json()).then(res => {
             if(res.status === 'success') {
                 alert("Documento procesado. Se ha enviado el correo al primer firmante.");

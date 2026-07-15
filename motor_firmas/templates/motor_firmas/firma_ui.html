@@ -3,6 +3,59 @@
 {% block title %}Certificación de Documento - Raloy{% endblock %}
 {% block body_class %}bg-background-pure text-text-main min-h-screen py-10 px-4{% endblock %}
 
+{% block extra_head %}
+<style>
+    .relation-map-shell {
+        background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+    }
+    .relation-node {
+        width: 100%;
+        text-align: left;
+        border: 1px solid #c4c6cd;
+        background: #ffffff;
+        border-radius: 0.65rem;
+        padding: 0.8rem;
+        transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+    }
+    .relation-node:hover,
+    .relation-node.is-active {
+        border-color: #162839;
+        box-shadow: 0 10px 24px rgba(22, 40, 57, 0.12);
+        transform: translateY(-1px);
+    }
+    .relation-node-type {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        border-radius: 999px;
+        padding: 0.2rem 0.45rem;
+        font-size: 0.62rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .relation-node-type.original {
+        background: #e0f2fe;
+        color: #075985;
+    }
+    .relation-node-type.related {
+        background: #dcfce7;
+        color: #166534;
+    }
+    .relation-connector {
+        width: 2px;
+        height: 20px;
+        background: linear-gradient(#93c5fd, #22c55e);
+        margin: 0.25rem 0 0.25rem 1.2rem;
+    }
+    .relation-citation-img {
+        max-height: 260px;
+        object-fit: contain;
+        background: #f8f9fa;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="max-w-4xl mx-auto">
     <header class="text-center mb-10">
@@ -112,19 +165,61 @@
                 </div>
             {% endif %}
 
-            <div class="mt-16 pt-10 border-t border-outline-variant">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-lg font-bold text-primary flex items-center gap-2">
-                        <span class="material-symbols-outlined">description</span>
-                        Vista Previa del Documento
-                    </h3>
-                </div>
+	            <div class="mt-16 pt-10 border-t border-outline-variant">
+	                <div class="flex items-center justify-between mb-6">
+	                    <h3 class="text-lg font-bold text-primary flex items-center gap-2">
+	                        <span class="material-symbols-outlined">description</span>
+	                        Vista Previa del Documento
+	                    </h3>
+	                </div>
 
-                {% if view_info == 'file' %}
-                    {% if pdf_available and pdf_url %}
-                        <div class="rounded-xl overflow-hidden border border-outline-variant shadow-inner">
-                            <iframe class="document-frame" src="{{ pdf_url }}"></iframe>
-                        </div>
+	                {% if document_relations and document_relations != '{}' %}
+	                    <section id="documentRelationPanel" class="relation-map-shell mb-8 rounded-xl border border-outline-variant p-5">
+	                        <div class="flex flex-col md:flex-row md:items-start gap-4 md:justify-between mb-5">
+	                            <div>
+	                                <h4 class="text-base font-bold text-primary flex items-center gap-2">
+	                                    <span class="material-symbols-outlined">account_tree</span>
+	                                    Mapa de relación de documentos
+	                                </h4>
+	                                <p class="text-sm text-text-muted mt-1">Identifica el documento original, sus referencias y qué archivo estás viendo.</p>
+	                            </div>
+	                            <div id="relationViewingBadge" class="inline-flex items-center gap-2 rounded-full bg-surface-container-high px-3 py-2 text-xs font-bold text-primary">
+	                                <span class="material-symbols-outlined text-[16px]">visibility</span>
+	                                Viendo documento original
+	                            </div>
+	                        </div>
+	                        <div class="grid grid-cols-1 lg:grid-cols-[290px_1fr] gap-5">
+	                            <div id="relationTree" class="space-y-1"></div>
+	                            <div class="space-y-4">
+	                                <div id="relationCitationPanel" class="hidden rounded-xl border border-outline-variant bg-white p-4">
+	                                    <div class="flex items-center gap-2 mb-3">
+	                                        <span class="relation-node-type related">
+	                                            <span class="material-symbols-outlined text-[14px]">link</span>
+	                                            Zona citada del original
+	                                        </span>
+	                                    </div>
+	                                    <img id="relationCitationImage" class="relation-citation-img w-full rounded-lg border border-outline-variant" alt="Bloque del documento original relacionado">
+	                                </div>
+	                                <div class="rounded-xl border border-outline-variant bg-white p-4">
+	                                    <div class="flex items-center gap-2 mb-3">
+	                                        <span id="relationPreviewType" class="relation-node-type original">
+	                                            <span class="material-symbols-outlined text-[14px]">description</span>
+	                                            Documento original
+	                                        </span>
+	                                    </div>
+	                                    <p id="relationPreviewTitle" class="text-sm font-bold text-primary">Documento base</p>
+	                                    <p id="relationPreviewHint" class="text-xs text-text-muted mt-1">La vista previa inferior muestra el documento seleccionado en el mapa.</p>
+	                                </div>
+	                            </div>
+	                        </div>
+	                    </section>
+	                {% endif %}
+
+	                {% if view_info == 'file' %}
+	                    {% if pdf_available and pdf_url %}
+	                        <div class="rounded-xl overflow-hidden border border-outline-variant shadow-inner">
+	                            <iframe id="documentPreviewFrame" class="document-frame" src="{{ pdf_url }}"></iframe>
+	                        </div>
                     {% else %}
                         <div class="rounded-xl border border-outline-variant bg-secondary-container p-6 text-sm text-primary">
                             El PDF no está disponible localmente y no hay un ID de Drive recuperable para mostrarlo.
@@ -155,11 +250,11 @@
 {% block scripts %}
 {% if not is_message_view %}
 <script>
-    document.addEventListener('input', function (e) {
-        if (e.target.tagName === 'INPUT') {
-            const type = e.target.type.toLowerCase();
-            if (type !== 'email' && type !== 'password') {
-                const start = e.target.selectionStart;
+	    document.addEventListener('input', function (e) {
+	        if (e.target.tagName === 'INPUT') {
+	            const type = e.target.type.toLowerCase();
+	            if (type !== 'email' && type !== 'password') {
+	                const start = e.target.selectionStart;
                 const end = e.target.selectionEnd;
                 e.target.value = e.target.value.toUpperCase();
                 try { e.target.setSelectionRange(start, end); } catch(err) {}
@@ -169,10 +264,112 @@
                 e.target.value = e.target.value.toLowerCase();
                 try { e.target.setSelectionRange(start, end); } catch(err) {}
             }
-        }
-    });
+	        }
+	    });
 
-    {% if not is_registered %}
+	    const documentRelations = {{ document_relations|default:"{}"|safe }};
+	    initDocumentRelationMap();
+
+	    function escapeHtml(value) {
+	        return String(value ?? '')
+	            .replace(/&/g, '&amp;')
+	            .replace(/</g, '&lt;')
+	            .replace(/>/g, '&gt;')
+	            .replace(/"/g, '&quot;')
+	            .replace(/'/g, '&#039;');
+	    }
+
+	    function initDocumentRelationMap() {
+	        const panel = document.getElementById('documentRelationPanel');
+	        const tree = document.getElementById('relationTree');
+	        const frame = document.getElementById('documentPreviewFrame');
+	        if (!panel || !tree || !frame || !documentRelations || !Array.isArray(documentRelations.references) || documentRelations.references.length === 0) return;
+
+	        const base = documentRelations.base || {};
+	        const baseNode = document.createElement('button');
+	        baseNode.type = 'button';
+	        baseNode.className = 'relation-node is-active';
+	        baseNode.dataset.relationNode = 'base';
+	        baseNode.innerHTML = `
+	            <span class="relation-node-type original">
+	                <span class="material-symbols-outlined text-[14px]">description</span>
+	                Original
+	            </span>
+	            <strong class="block text-sm text-primary mt-2">${escapeHtml(base.reference_id || 'Documento base')}</strong>
+	            <span class="block text-xs text-text-muted mt-1">Documento base que se va a firmar.</span>
+	        `;
+	        baseNode.addEventListener('click', () => showRelationBase(base));
+	        tree.appendChild(baseNode);
+
+	        documentRelations.references.forEach((ref, index) => {
+	            const connector = document.createElement('div');
+	            connector.className = 'relation-connector';
+	            tree.appendChild(connector);
+
+	            const node = document.createElement('button');
+	            node.type = 'button';
+	            node.className = 'relation-node';
+	            node.dataset.relationNode = ref.id || `ref-${index}`;
+	            node.innerHTML = `
+	                <span class="relation-node-type related">
+	                    <span class="material-symbols-outlined text-[14px]">verified</span>
+	                    Relacionado
+	                </span>
+	                <strong class="block text-sm text-primary mt-2">${escapeHtml(ref.related_reference_id || 'Documento relacionado')}</strong>
+	                <span class="block text-xs text-text-muted mt-1">Citado desde página ${escapeHtml(ref.page || 1)} del original.</span>
+	            `;
+	            node.addEventListener('click', () => showRelationReference(ref));
+	            tree.appendChild(node);
+	        });
+	    }
+
+	    function setActiveRelationNode(id) {
+	        document.querySelectorAll('[data-relation-node]').forEach(node => {
+	            node.classList.toggle('is-active', node.dataset.relationNode === id);
+	        });
+	    }
+
+	    function showRelationBase(base) {
+	        const frame = document.getElementById('documentPreviewFrame');
+	        const citationPanel = document.getElementById('relationCitationPanel');
+	        const badge = document.getElementById('relationViewingBadge');
+	        const type = document.getElementById('relationPreviewType');
+	        const title = document.getElementById('relationPreviewTitle');
+	        if (frame && base.pdf_url) frame.src = base.pdf_url;
+	        if (citationPanel) citationPanel.classList.add('hidden');
+	        if (badge) badge.innerHTML = '<span class="material-symbols-outlined text-[16px]">visibility</span> Viendo documento original';
+	        if (type) {
+	            type.className = 'relation-node-type original';
+	            type.innerHTML = '<span class="material-symbols-outlined text-[14px]">description</span> Documento original';
+	        }
+	        if (title) title.innerText = base.reference_id || 'Documento base';
+	        setActiveRelationNode('base');
+	    }
+
+	    function showRelationReference(ref) {
+	        const frame = document.getElementById('documentPreviewFrame');
+	        const citationPanel = document.getElementById('relationCitationPanel');
+	        const citationImage = document.getElementById('relationCitationImage');
+	        const badge = document.getElementById('relationViewingBadge');
+	        const type = document.getElementById('relationPreviewType');
+	        const title = document.getElementById('relationPreviewTitle');
+	        if (frame && ref.related_pdf_url) frame.src = ref.related_pdf_url;
+	        if (citationPanel && citationImage && ref.snippet_image) {
+	            citationImage.src = ref.snippet_image;
+	            citationPanel.classList.remove('hidden');
+	        } else if (citationPanel) {
+	            citationPanel.classList.add('hidden');
+	        }
+	        if (badge) badge.innerHTML = '<span class="material-symbols-outlined text-[16px]">visibility</span> Viendo documento relacionado';
+	        if (type) {
+	            type.className = 'relation-node-type related';
+	            type.innerHTML = '<span class="material-symbols-outlined text-[14px]">verified</span> Documento relacionado';
+	        }
+	        if (title) title.innerText = ref.related_reference_id || 'Documento relacionado';
+	        setActiveRelationNode(ref.id || '');
+	    }
+
+	    {% if not is_registered %}
     const canvas = document.getElementById('pizarra');
     const ctx = canvas.getContext('2d');
     let dibujando = false, haDibujado = false;

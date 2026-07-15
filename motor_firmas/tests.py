@@ -25,6 +25,7 @@ from .views import (
     _indice_por_token,
     _indices_firmas_en_turno,
     _json_or_default,
+    _normalizar_referencias_documento,
     _obtener_hash_para_reestampado,
     procesar_firma,
 )
@@ -114,6 +115,48 @@ class MongoViewHelpersTest(SimpleTestCase):
             _mongo_delete_document(model, document)
 
         self.assertEqual(collection.documents, [])
+
+
+class DocumentReferenceHelpersTest(SimpleTestCase):
+    def test_normalizes_document_reference_for_completed_owner_document(self):
+        related = SimpleNamespace(
+            token_acceso='token-relacionado',
+            reference_id='DOC-FIRMADO-1',
+            owner_email='owner@example.com',
+            status='COMPLETED',
+            summary_data={'pdf_file_id': 'drive-file-id'},
+        )
+        raw_refs = [{
+            'id': 'ref-1',
+            'page': '2',
+            'x': '0.2',
+            'y': '0.3',
+            'width': '0.4',
+            'height': '0.2',
+            'snippet_image': 'data:image/png;base64,AAAA',
+            'related_token': 'token-relacionado',
+        }]
+
+        with patch('motor_firmas.views._mongo_find_proceso_by_token', return_value=related):
+            refs = _normalizar_referencias_documento(raw_refs, 'owner@example.com')
+
+        self.assertEqual(len(refs), 1)
+        self.assertEqual(refs[0]['related_reference_id'], 'DOC-FIRMADO-1')
+        self.assertEqual(refs[0]['page'], 2)
+        self.assertEqual(refs[0]['snippet_image'], 'data:image/png;base64,AAAA')
+
+    def test_rejects_document_reference_from_another_owner(self):
+        related = SimpleNamespace(
+            token_acceso='token-relacionado',
+            reference_id='DOC-FIRMADO-1',
+            owner_email='otro@example.com',
+            status='COMPLETED',
+            summary_data={'pdf_file_id': 'drive-file-id'},
+        )
+
+        with patch('motor_firmas.views._mongo_find_proceso_by_token', return_value=related):
+            with self.assertRaises(ValueError):
+                _normalizar_referencias_documento([{'related_token': 'token-relacionado'}], 'owner@example.com')
 
 
 class MongoNotificationHelpersTest(SimpleTestCase):
