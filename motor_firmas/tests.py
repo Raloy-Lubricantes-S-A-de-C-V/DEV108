@@ -2,6 +2,7 @@ import base64
 import json
 import os
 import tempfile
+from datetime import datetime, timezone as datetime_timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -26,10 +27,12 @@ from .views import (
     _indices_firmas_en_turno,
     _json_or_default,
     _documentos_firmados_usuario,
+    _firmx_url_documento_visible,
     _normalizar_referencias_documento,
     _obtener_hash_para_reestampado,
     _proceso_pdf_puede_servirse,
     _relaciones_documento_firma,
+    _url_firmada_expirada,
     procesar_firma,
     ver_pdf_proceso,
 )
@@ -194,6 +197,23 @@ class DocumentReferenceHelpersTest(SimpleTestCase):
         sync.assert_called_once_with('firmx-1', force=True)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response['Location'], 'https://firmx.example.com/fresh.pdf')
+        self.assertEqual(response['Cache-Control'], 'no-store, max-age=0')
+
+    def test_firmx_visible_url_skips_expired_signed_url(self):
+        expired_url = 'https://firmx.example.com/doc.pdf?X-Amz-Date=20260630T162844Z&X-Amz-Expires=60'
+        fresh_url = 'https://firmx.example.com/doc-fresh.pdf?X-Amz-Date=20260715T162844Z&X-Amz-Expires=3600'
+        now = datetime(2026, 7, 15, 16, 30, tzinfo=datetime_timezone.utc)
+        proceso = SimpleNamespace(
+            summary_data={
+                'firmx_file_url': expired_url,
+                'firmx_download_file_url': fresh_url,
+            },
+            pdf_path='',
+        )
+
+        self.assertTrue(_url_firmada_expirada(expired_url, now=now))
+        with patch('motor_firmas.views.timezone.now', return_value=now):
+            self.assertEqual(_firmx_url_documento_visible(proceso), fresh_url)
 
     def test_normalizes_document_reference_for_completed_owner_document(self):
         related = SimpleNamespace(

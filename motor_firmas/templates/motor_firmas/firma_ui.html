@@ -49,9 +49,20 @@
         margin: 0.25rem 0 0.25rem 1.2rem;
     }
     .relation-citation-img {
-        max-height: 260px;
+        max-height: 220px;
         object-fit: contain;
         background: #f8f9fa;
+    }
+    .relation-citation-inline {
+        display: block;
+        margin-top: 0.9rem;
+        border: 1px solid #bbf7d0;
+        background: #f0fdf4;
+        border-radius: 0.65rem;
+        padding: 0.75rem;
+    }
+    .relation-citation-inline.hidden {
+        display: none;
     }
 </style>
 {% endblock %}
@@ -188,30 +199,7 @@
 	                                Viendo documento original
 	                            </div>
 	                        </div>
-	                        <div class="grid grid-cols-1 lg:grid-cols-[290px_1fr] gap-5">
-	                            <div id="relationTree" class="space-y-1"></div>
-	                            <div class="space-y-4">
-	                                <div id="relationCitationPanel" class="hidden rounded-xl border border-outline-variant bg-white p-4">
-	                                    <div class="flex items-center gap-2 mb-3">
-	                                        <span class="relation-node-type related">
-	                                            <span class="material-symbols-outlined text-[14px]">link</span>
-	                                            Zona citada del original
-	                                        </span>
-	                                    </div>
-	                                    <img id="relationCitationImage" class="relation-citation-img w-full rounded-lg border border-outline-variant" alt="Bloque del documento original relacionado">
-	                                </div>
-	                                <div class="rounded-xl border border-outline-variant bg-white p-4">
-	                                    <div class="flex items-center gap-2 mb-3">
-	                                        <span id="relationPreviewType" class="relation-node-type original">
-	                                            <span class="material-symbols-outlined text-[14px]">description</span>
-	                                            Documento original
-	                                        </span>
-	                                    </div>
-	                                    <p id="relationPreviewTitle" class="text-sm font-bold text-primary">Documento base</p>
-	                                    <p id="relationPreviewHint" class="text-xs text-text-muted mt-1">La vista previa inferior muestra el documento seleccionado en el mapa.</p>
-	                                </div>
-	                            </div>
-	                        </div>
+	                        <div id="relationTree" class="space-y-2"></div>
 	                    </section>
 	                {% endif %}
 
@@ -296,7 +284,14 @@
 	                Original
 	            </span>
 	            <strong class="block text-sm text-primary mt-2">${escapeHtml(base.reference_id || 'Documento base')}</strong>
-	            <span class="block text-xs text-text-muted mt-1">Documento base que se va a firmar.</span>
+	            <span id="relationOriginalHint" class="block text-xs text-text-muted mt-1">Documento base que se va a firmar.</span>
+	            <span id="relationCitationPanel" class="relation-citation-inline hidden">
+	                <span class="relation-node-type related">
+	                    <span class="material-symbols-outlined text-[14px]">link</span>
+	                    Zona citada del original
+	                </span>
+	                <img id="relationCitationImage" class="relation-citation-img w-full rounded-lg border border-outline-variant mt-3" alt="Bloque del documento original relacionado">
+	            </span>
 	        `;
 	        baseNode.addEventListener('click', () => showRelationBase(base));
 	        tree.appendChild(baseNode);
@@ -339,16 +334,11 @@
 	        const frame = document.getElementById('documentPreviewFrame');
 	        const citationPanel = document.getElementById('relationCitationPanel');
 	        const badge = document.getElementById('relationViewingBadge');
-	        const type = document.getElementById('relationPreviewType');
-	        const title = document.getElementById('relationPreviewTitle');
+	        const originalHint = document.getElementById('relationOriginalHint');
 	        if (frame && base.pdf_url) frame.src = relationPreviewUrl(base.pdf_url);
 	        if (citationPanel) citationPanel.classList.add('hidden');
 	        if (badge) badge.innerHTML = '<span class="material-symbols-outlined text-[16px]">visibility</span> Viendo documento original';
-	        if (type) {
-	            type.className = 'relation-node-type original';
-	            type.innerHTML = '<span class="material-symbols-outlined text-[14px]">description</span> Documento original';
-	        }
-	        if (title) title.innerText = base.reference_id || 'Documento base';
+	        if (originalHint) originalHint.innerText = 'Documento base que se va a firmar.';
 	        setActiveRelationNode('base');
 	    }
 
@@ -357,8 +347,7 @@
 	        const citationPanel = document.getElementById('relationCitationPanel');
 	        const citationImage = document.getElementById('relationCitationImage');
 	        const badge = document.getElementById('relationViewingBadge');
-	        const type = document.getElementById('relationPreviewType');
-	        const title = document.getElementById('relationPreviewTitle');
+	        const originalHint = document.getElementById('relationOriginalHint');
 	        if (frame && ref.related_pdf_url) frame.src = relationPreviewUrl(ref.related_pdf_url);
 	        if (citationPanel && citationImage && ref.snippet_image) {
 	            citationImage.src = ref.snippet_image;
@@ -367,11 +356,7 @@
 	            citationPanel.classList.add('hidden');
 	        }
 	        if (badge) badge.innerHTML = '<span class="material-symbols-outlined text-[16px]">visibility</span> Viendo documento relacionado';
-	        if (type) {
-	            type.className = 'relation-node-type related';
-	            type.innerHTML = '<span class="material-symbols-outlined text-[14px]">verified</span> Documento relacionado';
-	        }
-	        if (title) title.innerText = ref.related_reference_id || 'Documento relacionado';
+	        if (originalHint) originalHint.innerText = `Cita usada para relacionar este original con ${ref.related_reference_id || 'el documento seleccionado'}.`;
 	        setActiveRelationNode(ref.id || '');
 	    }
 

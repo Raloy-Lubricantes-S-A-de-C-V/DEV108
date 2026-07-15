@@ -7,9 +7,9 @@ import uuid
 import shutil
 import base64
 import shlex
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone as datetime_timezone
 from types import SimpleNamespace
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, parse_qs, urlparse
 from django.conf import settings
 from django.core import signing
 from django.http import JsonResponse, HttpResponse, Http404, FileResponse
@@ -525,8 +525,6 @@ def _relaciones_documento_firma(proceso, pdf_url):
                 ref_context['related_pdf_url'] = related_pdf_url
                 ref_context['related_reference_id'] = getattr(related_doc, 'reference_id', '') or ref_context.get('related_reference_id', '')
                 ref_context['related_title'] = getattr(related_doc, 'reference_id', '') or ref_context.get('related_title', '')
-        else:
-            related_pdf_url = ref_context.get('related_pdf_url') or ''
 
         if related_pdf_url:
             referencias_context.append(ref_context)
@@ -3240,7 +3238,9 @@ def ver_pdf_proceso(request, token):
             proceso = _get_proceso_por_token_or_404(token)
         url = _firmx_url_documento_visible(proceso)
         if url:
-            return redirect(url)
+            response = redirect(url)
+            response['Cache-Control'] = 'no-store, max-age=0'
+            return response
 
     try:
         _asegurar_proceso_pdf_local(proceso)
@@ -3255,6 +3255,34 @@ def ver_pdf_proceso(request, token):
     return FileResponse(open(abs_path, 'rb'), content_type='application/pdf', filename=filename)
 
 
+def _url_firmada_expirada(url, now=None):
+    try:
+        query = parse_qs(urlparse(str(url or '')).query)
+    except Exception:
+        return False
+
+    now = now or timezone.now()
+    amz_date = (query.get('X-Amz-Date') or query.get('x-amz-date') or [''])[0]
+    amz_expires = (query.get('X-Amz-Expires') or query.get('x-amz-expires') or [''])[0]
+    if amz_date and amz_expires:
+        try:
+            issued_at = datetime.strptime(amz_date, '%Y%m%dT%H%M%SZ').replace(tzinfo=datetime_timezone.utc)
+            expires_at = issued_at + timedelta(seconds=int(amz_expires))
+            return now >= expires_at
+        except (TypeError, ValueError):
+            return False
+
+    expires = (query.get('Expires') or query.get('expires') or [''])[0]
+    if expires:
+        try:
+            expires_at = datetime.fromtimestamp(int(expires), tz=datetime_timezone.utc)
+            return now >= expires_at
+        except (TypeError, ValueError, OSError):
+            return False
+
+    return False
+
+
 def _firmx_url_documento_visible(proceso):
     summary_data = getattr(proceso, 'summary_data', {}) or {}
     for key in (
@@ -3265,7 +3293,7 @@ def _firmx_url_documento_visible(proceso):
         'firmx_archivo_url',
     ):
         url = summary_data.get(key)
-        if isinstance(url, str) and url.strip():
+        if isinstance(url, str) and url.strip() and not _url_firmada_expirada(url):
             return url.strip()
     return _media_url_for_path(proceso.pdf_path)
 
