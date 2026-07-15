@@ -29,7 +29,9 @@ from .views import (
     _normalizar_referencias_documento,
     _obtener_hash_para_reestampado,
     _proceso_pdf_puede_servirse,
+    _relaciones_documento_firma,
     procesar_firma,
+    ver_pdf_proceso,
 )
 
 
@@ -152,6 +154,46 @@ class DocumentReferenceHelpersTest(SimpleTestCase):
         )
 
         self.assertTrue(_proceso_pdf_puede_servirse(related))
+
+    def test_relation_map_resolves_related_pdf_from_token_not_stored_url(self):
+        proceso = SimpleNamespace(
+            reference_id='BASE-1',
+            summary_data={
+                'document_references': [{
+                    'id': 'ref-1',
+                    'related_token': 'token-fresco',
+                    'related_pdf_url': 'https://firmx.example.com/expired.pdf?X-Amz-Expires=1',
+                }]
+            },
+        )
+        related = SimpleNamespace(token_acceso='token-fresco', reference_id='REL-1')
+
+        with patch('motor_firmas.views._mongo_find_proceso_by_token', return_value=related):
+            relaciones = _relaciones_documento_firma(proceso, '/documento-pdf/base/')
+
+        self.assertEqual(relaciones['references'][0]['related_pdf_url'], '/documento-pdf/token-fresco/')
+        self.assertEqual(relaciones['references'][0]['related_reference_id'], 'REL-1')
+
+    def test_ver_pdf_proceso_refreshes_firmx_url_before_redirect(self):
+        request = RequestFactory().get('/documento-pdf/token-firmx/')
+        initial = SimpleNamespace(
+            summary_data={'firmx_id': 'firmx-1', 'firmx_file_url': 'https://firmx.example.com/expired.pdf'},
+            pdf_path='',
+            reference_id='REL-1',
+        )
+        refreshed = SimpleNamespace(
+            summary_data={'firmx_id': 'firmx-1', 'firmx_file_url': 'https://firmx.example.com/fresh.pdf'},
+            pdf_path='',
+            reference_id='REL-1',
+        )
+
+        with patch('motor_firmas.views._get_proceso_por_token_or_404', side_effect=[initial, refreshed]), \
+                patch('motor_firmas.views._firmx_sync_status', return_value=(True, {})) as sync:
+            response = ver_pdf_proceso(request, 'token-firmx')
+
+        sync.assert_called_once_with('firmx-1', force=True)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], 'https://firmx.example.com/fresh.pdf')
 
     def test_normalizes_document_reference_for_completed_owner_document(self):
         related = SimpleNamespace(

@@ -514,18 +514,22 @@ def _relaciones_documento_firma(proceso, pdf_url):
     for ref in referencias:
         if not isinstance(ref, dict):
             continue
-        related_pdf_url = ref.get('related_pdf_url')
+
+        ref_context = dict(ref)
         related_token = str(ref.get('related_token') or '').strip()
-        if related_token and not related_pdf_url:
+        related_pdf_url = ''
+        if related_token:
             related_doc = _mongo_find_proceso_by_token(related_token)
             if related_doc:
                 related_pdf_url = _proceso_pdf_url(related_doc)
-                ref['related_pdf_url'] = related_pdf_url
-                ref.setdefault('related_reference_id', getattr(related_doc, 'reference_id', ''))
-                ref.setdefault('related_title', getattr(related_doc, 'reference_id', ''))
+                ref_context['related_pdf_url'] = related_pdf_url
+                ref_context['related_reference_id'] = getattr(related_doc, 'reference_id', '') or ref_context.get('related_reference_id', '')
+                ref_context['related_title'] = getattr(related_doc, 'reference_id', '') or ref_context.get('related_title', '')
+        else:
+            related_pdf_url = ref_context.get('related_pdf_url') or ''
 
         if related_pdf_url:
-            referencias_context.append(ref)
+            referencias_context.append(ref_context)
 
     if not referencias_context:
         return {}
@@ -3229,7 +3233,11 @@ def ver_pdf_proceso(request, token):
     proceso = _get_proceso_por_token_or_404(token)
     summary_data = getattr(proceso, 'summary_data', {}) or {}
 
-    if summary_data.get('firmx_id'):
+    firmx_id = summary_data.get('firmx_id')
+    if firmx_id:
+        success, _ = _firmx_sync_status(firmx_id, force=True)
+        if success:
+            proceso = _get_proceso_por_token_or_404(token)
         url = _firmx_url_documento_visible(proceso)
         if url:
             return redirect(url)

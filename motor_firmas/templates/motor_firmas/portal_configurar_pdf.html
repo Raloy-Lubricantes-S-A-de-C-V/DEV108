@@ -298,6 +298,7 @@
     let referenceDraftEl = null;
 
     popularDocumentosFirmados();
+    actualizarEstadoBotonReferencia();
 
     pdfjsLib.getDocument(url).promise.then(pdfDoc => {
         pdfDocument = pdfDoc;
@@ -363,7 +364,27 @@
         selRelatedDocument.addEventListener('change', ligarDocumentoSeleccionado);
     }
 
+    function referenciaPendiente() {
+        return referenceBlocks.find(ref => !ref.related_token);
+    }
+
+    function actualizarEstadoBotonReferencia() {
+        const pending = referenciaPendiente();
+        btnReferenceMode.classList.toggle('opacity-70', Boolean(pending));
+        btnReferenceMode.title = pending
+            ? 'Termina o elimina la referencia pendiente antes de crear otra.'
+            : 'Crear una referencia a un documento firmado.';
+    }
+
     function activarReferenciaDocumento() {
+        const pending = referenciaPendiente();
+        if (pending) {
+            referencePanel.classList.remove('hidden');
+            seleccionarReferencia(pending.id);
+            desactivarReferenciaDocumento();
+            referenceSelectedInfo.innerHTML = '<span class="text-status-danger font-semibold">Termina esta referencia antes de crear otra.</span> Selecciona un documento firmado o usa borrar relación.';
+            return;
+        }
         referencePanel.classList.remove('hidden');
         referenceSelectionMode = true;
         btnReferenceMode.classList.add('ring-4', 'ring-sky-200');
@@ -480,22 +501,38 @@
             el.innerText = `REF: ${doc.reference_id}`;
         }
         referenceSelectedInfo.innerHTML = `<span class="font-semibold text-primary">Referencia guardada:</span> bloque ligado con ${escapeHtml(doc.reference_id)}.`;
+        actualizarEstadoBotonReferencia();
         desactivarReferenciaDocumento();
     }
 
     function eliminarReferenciaActual() {
-        if (!activeReferenceId) return;
-        const el = document.getElementById(activeReferenceId);
+        const pending = referenciaPendiente();
+        const fallback = referenceBlocks.length ? referenceBlocks[referenceBlocks.length - 1] : null;
+        const targetId = activeReferenceId || (pending && pending.id) || (fallback && fallback.id);
+        if (!targetId) {
+            referenceSelectedInfo.innerHTML = '<span class="text-on-surface-variant">No hay una relación para borrar.</span>';
+            return;
+        }
+        const el = document.getElementById(targetId);
         if (el) el.remove();
-        referenceBlocks = referenceBlocks.filter(ref => ref.id !== activeReferenceId);
+        referenceBlocks = referenceBlocks.filter(ref => ref.id !== targetId);
         activeReferenceId = null;
         selRelatedDocument.value = '';
         referencePreviewBox.classList.add('hidden');
-        referenceSelectedInfo.innerHTML = 'Referencia eliminada.';
+        referenceSelectedInfo.innerHTML = 'Relación eliminada.';
+        actualizarEstadoBotonReferencia();
     }
 
     wrapper.addEventListener('mousedown', event => {
         if (!referenceSelectionMode || event.target.closest('.signature-box') || event.target.closest('.reference-box')) return;
+        const pending = referenciaPendiente();
+        if (pending) {
+            event.preventDefault();
+            seleccionarReferencia(pending.id);
+            desactivarReferenciaDocumento();
+            referenceSelectedInfo.innerHTML = '<span class="text-status-danger font-semibold">Ya hay una relación en curso.</span> Termínala o bórrala antes de crear otra.';
+            return;
+        }
         event.preventDefault();
         referenceSelecting = true;
         referenceStart = wrapperPoint(event);
@@ -555,6 +592,8 @@
         referenceBlocks.push(ref);
         crearReferenciaEl(ref);
         seleccionarReferencia(id);
+        desactivarReferenciaDocumento();
+        actualizarEstadoBotonReferencia();
     });
 
     function agregarFirmante() {

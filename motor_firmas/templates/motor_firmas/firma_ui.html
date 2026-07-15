@@ -329,13 +329,19 @@
 	        });
 	    }
 
+	    function relationPreviewUrl(url) {
+	        if (!url) return '';
+	        const separator = url.includes('?') ? '&' : '?';
+	        return `${url}${separator}preview_ts=${Date.now()}`;
+	    }
+
 	    function showRelationBase(base) {
 	        const frame = document.getElementById('documentPreviewFrame');
 	        const citationPanel = document.getElementById('relationCitationPanel');
 	        const badge = document.getElementById('relationViewingBadge');
 	        const type = document.getElementById('relationPreviewType');
 	        const title = document.getElementById('relationPreviewTitle');
-	        if (frame && base.pdf_url) frame.src = base.pdf_url;
+	        if (frame && base.pdf_url) frame.src = relationPreviewUrl(base.pdf_url);
 	        if (citationPanel) citationPanel.classList.add('hidden');
 	        if (badge) badge.innerHTML = '<span class="material-symbols-outlined text-[16px]">visibility</span> Viendo documento original';
 	        if (type) {
@@ -353,7 +359,7 @@
 	        const badge = document.getElementById('relationViewingBadge');
 	        const type = document.getElementById('relationPreviewType');
 	        const title = document.getElementById('relationPreviewTitle');
-	        if (frame && ref.related_pdf_url) frame.src = ref.related_pdf_url;
+	        if (frame && ref.related_pdf_url) frame.src = relationPreviewUrl(ref.related_pdf_url);
 	        if (citationPanel && citationImage && ref.snippet_image) {
 	            citationImage.src = ref.snippet_image;
 	            citationPanel.classList.remove('hidden');
