@@ -3378,6 +3378,8 @@ def _firmx_pdf_response(proceso, token=None):
     success, _ = _firmx_sync_status(firmx_id, force=True)
     if success:
         proceso = _get_proceso_por_token_or_404(token or getattr(proceso, 'token_acceso', ''))
+        summary_data = getattr(proceso, 'summary_data', {}) or {}
+        firmx_id = summary_data.get('firmx_id') or firmx_id
 
     local_response = _proceso_pdf_local_response(proceso)
     url = _firmx_url_documento_visible(proceso)
@@ -3401,7 +3403,7 @@ def _firmx_pdf_response(proceso, token=None):
         content = b''
         looks_pdf = False
 
-    if download and 200 <= download.status_code < 300 and looks_pdf:
+    if download is not None and 200 <= download.status_code < 300 and looks_pdf:
         filename = _safe_pdf_filename(f"{getattr(proceso, 'reference_id', 'documento')}.pdf")
         response = HttpResponse(content, content_type='application/pdf')
         response['Content-Disposition'] = f'inline; filename="{filename}"'
@@ -3411,18 +3413,31 @@ def _firmx_pdf_response(proceso, token=None):
     if local_response:
         return local_response
 
-    if download:
+    if download is not None:
         detail = ''
         try:
-            detail = download.text[:300]
+            detail = download.text[:300].strip()
         except Exception:
             detail = ''
-        return HttpResponse(
-            f"No se pudo obtener el PDF FIRMX vigente ({download.status_code}). {detail}",
-            status=502,
+        base_url = _firmx_base_url_desde_summary(summary_data) or 'endpoint FIRMX configurado'
+        reference_id = getattr(proceso, 'reference_id', '') or 'documento'
+        message = (
+            f"No se pudo obtener el PDF FIRMX vigente para {reference_id} "
+            f"(ID FIRMX: {firmx_id}) desde {base_url}: HTTP {download.status_code}."
         )
+        if detail:
+            message = f"{message} {detail}"
+        else:
+            message = f"{message} FIRMX no devolvio detalle del error."
+        if download.status_code in (401, 403):
+            message = f"{message} Revisa que la API Key guardada corresponda a ese endpoint FIRMX."
+        response = HttpResponse(message, status=502)
+        response['Cache-Control'] = 'no-store, max-age=0'
+        return response
 
-    return HttpResponse(f"No se pudo obtener el PDF FIRMX por API: {last_error}", status=502)
+    response = HttpResponse(f"No se pudo obtener el PDF FIRMX por API: {last_error}", status=502)
+    response['Cache-Control'] = 'no-store, max-age=0'
+    return response
 
 
 def _firmx_url_documento_visible(proceso):

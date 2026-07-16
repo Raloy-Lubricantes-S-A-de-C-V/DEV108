@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import fitz
+import requests
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.template.loader import render_to_string
@@ -248,6 +249,38 @@ class DocumentReferenceHelpersTest(SimpleTestCase):
             self.assertEqual(response['Content-Type'], 'application/pdf')
             self.assertEqual(b''.join(response.streaming_content), b'%PDF-1.4 local')
             self.assertEqual(response['Cache-Control'], 'no-store, max-age=0')
+
+    def test_ver_pdf_proceso_firmx_reports_http_401_error_details(self):
+        request = RequestFactory().get('/documento-pdf/token-firmx/')
+        proceso = SimpleNamespace(
+            token_acceso='token-firmx',
+            summary_data={
+                'firmx_id': '1577',
+                'firmx_base_url': 'https://stage.firmx.mobilender.mx/digisign/api/v1',
+                'firmx_download_file_url': 'https://stage.firmx.mobilender.mx/digisign/api/v1/documents/download/document/1577/base64document_signed/token',
+            },
+            pdf_path='',
+            reference_id='FXP-0000000014',
+        )
+        unauthorized = requests.Response()
+        unauthorized.status_code = 401
+        unauthorized._content = b'{"detail":"Authentication credentials were not provided."}'
+        unauthorized.headers['content-type'] = 'application/json'
+
+        with patch('motor_firmas.views._get_proceso_por_token_or_404', return_value=proceso), \
+                patch('motor_firmas.views._firmx_sync_status', return_value=(False, 'FIRMX Error 401')), \
+                patch('motor_firmas.views._firmx_headers', return_value={'X-Api-Key': 'key'}), \
+                patch('motor_firmas.views.requests.get', return_value=unauthorized) as get:
+            response = ver_pdf_proceso(request, 'token-firmx')
+
+        self.assertEqual(get.call_count, 2)
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response['Cache-Control'], 'no-store, max-age=0')
+        body = response.content.decode('utf-8')
+        self.assertIn('FXP-0000000014', body)
+        self.assertIn('HTTP 401', body)
+        self.assertIn('stage.firmx.mobilender.mx', body)
+        self.assertIn('API Key guardada corresponda a ese endpoint FIRMX', body)
 
     def test_relation_map_marks_firmx_related_document(self):
         proceso = SimpleNamespace(
