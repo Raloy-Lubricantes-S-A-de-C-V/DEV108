@@ -2237,12 +2237,35 @@ def _parse_email_list(value):
     return emails
 
 
-def _firmx_headers():
+def _firmx_headers(base_url=None):
+    api_key = _firmx_api_key(base_url=base_url)
+    return {
+        'X-Api-Key': api_key,
+        'Content-Type': 'application/json',
+    }
+
+
+def _firmx_api_key(base_url=None):
     try:
-        config = _mongo_find_one(ConfiguracionFirmex)
+        config_urls = _firmx_configuracion_urls(include_secrets=True)
+        config = config_urls['config']
     except Exception as exc:
         print(f"No se pudo cargar ConfiguracionFirmex; usando settings.FIRMX_API_KEY: {exc}")
+        config_urls = {'base_urls': []}
         config = None
+
+    target_url = ''
+    if base_url:
+        try:
+            target_url = _normalizar_firmx_base_url(base_url)
+        except ValueError:
+            target_url = ''
+
+    if target_url:
+        for endpoint in config_urls.get('base_urls', []):
+            if endpoint.get('url') == target_url and endpoint.get('api_key'):
+                return endpoint['api_key']
+
     if config and getattr(config, 'api_key', None):
         api_key = config.api_key
     else:
@@ -2250,10 +2273,7 @@ def _firmx_headers():
 
     if not api_key:
         raise ValueError("FIRMX_API_KEY no está configurada.")
-    return {
-        'X-Api-Key': api_key,
-        'Content-Type': 'application/json',
-    }
+    return api_key
 
 
 def _normalizar_firmx_base_url(base_url):
@@ -2268,7 +2288,7 @@ def _firmx_base_url_default():
     return _normalizar_firmx_base_url(getattr(settings, 'FIRMX_API_BASE_URL', ''))
 
 
-def _firmx_configuracion_urls():
+def _firmx_configuracion_urls(include_secrets=False):
     try:
         config = _mongo_find_one(ConfiguracionFirmex)
     except Exception as exc:
@@ -2293,7 +2313,7 @@ def _firmx_configuracion_urls():
     endpoints = []
     seen = set()
 
-    def add_endpoint(raw_url, created_at='', updated_at=''):
+    def add_endpoint(raw_url, created_at='', updated_at='', api_key=''):
         try:
             clean_url = _normalizar_firmx_base_url(raw_url)
         except ValueError:
@@ -2306,11 +2326,14 @@ def _firmx_configuracion_urls():
             'created_at': str(created_at or ''),
             'updated_at': str(updated_at or ''),
             'active': clean_url == active_url,
+            'has_api_key': bool(api_key),
         })
+        if include_secrets:
+            endpoints[-1]['api_key'] = str(api_key or '')
 
     for item in raw_urls:
         if isinstance(item, dict):
-            add_endpoint(item.get('url'), item.get('created_at'), item.get('updated_at'))
+            add_endpoint(item.get('url'), item.get('created_at'), item.get('updated_at'), item.get('api_key'))
         else:
             add_endpoint(item)
 
@@ -2351,6 +2374,20 @@ def _firmx_base_url_desde_summary(summary_data):
             except ValueError:
                 pass
     return ''
+
+
+def _firmx_base_url_desde_api_url(raw_url):
+    parsed = urlparse(str(raw_url or '').strip())
+    if parsed.scheme not in ('http', 'https') or not parsed.netloc:
+        return ''
+    api_prefix = '/digisign/api/v1'
+    if api_prefix not in parsed.path:
+        return ''
+    prefix = parsed.path.split(api_prefix, 1)[0] + api_prefix
+    try:
+        return _normalizar_firmx_base_url(f"{parsed.scheme}://{parsed.netloc}{prefix}")
+    except ValueError:
+        return ''
 
 
 def _firmx_url(path, base_url=None):
@@ -3048,11 +3085,12 @@ def _firmx_sync_status(clean_id, force=False):
                 "firmx_response": proceso_summary_data.get('firmx_response', {}),
             }
 
+        firmx_base_url = _firmx_base_url_desde_summary(proceso_summary_data) or None
         url = _firmx_url(
             f'/documents/api/{clean_id}',
-            base_url=_firmx_base_url_desde_summary(proceso_summary_data) or None,
+            base_url=firmx_base_url,
         )
-        headers = _firmx_headers()
+        headers = _firmx_headers(base_url=firmx_base_url)
         response = requests.get(url, headers=headers, timeout=_firmx_timeout())
         response_data = _json_response_from_requests(response)
         
@@ -3393,7 +3431,8 @@ def _firmx_pdf_response(proceso, token=None):
         content_type = download.headers.get('content-type', '').lower()
         looks_pdf = content.startswith(b'%PDF') or 'application/pdf' in content_type
         if download.status_code in (401, 403) or not looks_pdf:
-            download = requests.get(url, headers=_firmx_headers(), timeout=_firmx_timeout(), allow_redirects=True)
+            firmx_base_url = _firmx_base_url_desde_summary(summary_data) or _firmx_base_url_desde_api_url(url)
+            download = requests.get(url, headers=_firmx_headers(base_url=firmx_base_url), timeout=_firmx_timeout(), allow_redirects=True)
             content = download.content or b''
             content_type = download.headers.get('content-type', '').lower()
             looks_pdf = content.startswith(b'%PDF') or 'application/pdf' in content_type
@@ -4261,13 +4300,14 @@ def firmx_guardar_config(request):
             updates['api_key'] = api_key.strip()
 
         if base_url_action:
-            config_urls = _firmx_configuracion_urls()
+            config_urls = _firmx_configuracion_urls(include_secrets=True)
             active_url = config_urls['active_base_url']
             endpoints = [
                 {
                     'url': item['url'],
                     'created_at': item.get('created_at') or _datetime_for_mongo().isoformat(),
                     'updated_at': item.get('updated_at') or '',
+                    'api_key': item.get('api_key') or '',
                 }
                 for item in config_urls['base_urls']
             ]
@@ -4285,7 +4325,7 @@ def firmx_guardar_config(request):
                 if endpoint:
                     endpoint['updated_at'] = now_label
                 else:
-                    endpoints.append({'url': clean_url, 'created_at': now_label, 'updated_at': now_label})
+                    endpoints.append({'url': clean_url, 'created_at': now_label, 'updated_at': now_label, 'api_key': ''})
                 active_url = clean_url
             elif base_url_action == 'activate_base_url':
                 clean_url = _normalizar_firmx_base_url(data.get('base_url'))
@@ -4299,6 +4339,18 @@ def firmx_guardar_config(request):
                 if clean_url == active_url:
                     return JsonResponse({"error": "No puedes eliminar la Base FIRMX activa. Activa otra antes de eliminarla."}, status=400)
                 endpoints = [endpoint for endpoint in endpoints if endpoint['url'] != clean_url]
+            elif base_url_action == 'save_endpoint_api_key':
+                clean_url = _normalizar_firmx_base_url(data.get('base_url'))
+                endpoint_api_key = str(data.get('endpoint_api_key') or '').strip()
+                if not endpoint_api_key:
+                    return JsonResponse({"error": "Captura una API Key para ese endpoint FIRMX."}, status=400)
+                endpoint = find_endpoint(clean_url)
+                now_label = _datetime_for_mongo().isoformat()
+                if not endpoint:
+                    endpoint = {'url': clean_url, 'created_at': now_label, 'updated_at': now_label, 'api_key': ''}
+                    endpoints.append(endpoint)
+                endpoint['api_key'] = endpoint_api_key
+                endpoint['updated_at'] = now_label
             else:
                 return JsonResponse({"error": "Acción de Base FIRMX inválida."}, status=400)
 
@@ -4401,7 +4453,7 @@ def firmx_registrar_documento(request):
     try:
         response = tracked_post(
             _firmx_url('/documents/register/', base_url=firmx_base_url),
-            headers=_firmx_headers(),
+            headers=_firmx_headers(base_url=firmx_base_url),
             json=firmx_payload,
             timeout=_firmx_timeout(),
         )
@@ -4632,7 +4684,7 @@ def firmx_obtener_qr(request, document_id):
     try:
         response = requests.get(
             _firmx_url(f'/documents/api/{clean_id}/sign_qr', base_url=firmx_base_url),
-            headers=_firmx_headers(),
+            headers=_firmx_headers(base_url=firmx_base_url),
             timeout=_firmx_timeout(),
         )
         response_data = _json_response_from_requests(response)

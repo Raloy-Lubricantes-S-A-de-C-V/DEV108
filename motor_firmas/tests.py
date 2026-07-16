@@ -28,6 +28,8 @@ from .views import (
     _indices_firmas_en_turno,
     _json_or_default,
     _documentos_firmados_usuario,
+    _firmx_api_key,
+    _firmx_configuracion_urls,
     _firmx_url_documento_visible,
     _normalizar_referencias_documento,
     _obtener_hash_para_reestampado,
@@ -126,6 +128,47 @@ class MongoViewHelpersTest(SimpleTestCase):
 
 
 class DocumentReferenceHelpersTest(SimpleTestCase):
+    @override_settings(
+        FIRMX_API_BASE_URL='https://firmx.mx/digisign/api/v1',
+        FIRMX_API_KEY='settings-key',
+    )
+    def test_firmx_api_key_can_be_selected_by_endpoint(self):
+        config = SimpleNamespace(
+            api_key='global-prod-key',
+            firmx_base_url='https://firmx.mx/digisign/api/v1',
+            base_urls=[
+                {
+                    'url': 'https://stage.firmx.mobilender.mx/digisign/api/v1',
+                    'api_key': 'stage-key',
+                    'created_at': '',
+                    'updated_at': '',
+                },
+                {
+                    'url': 'https://firmx.mx/digisign/api/v1',
+                    'created_at': '',
+                    'updated_at': '',
+                },
+            ],
+        )
+
+        with patch('motor_firmas.views._mongo_find_one', return_value=config):
+            self.assertEqual(
+                _firmx_api_key('https://stage.firmx.mobilender.mx/digisign/api/v1'),
+                'stage-key',
+            )
+            self.assertEqual(
+                _firmx_api_key('https://firmx.mx/digisign/api/v1'),
+                'global-prod-key',
+            )
+            public_config = _firmx_configuracion_urls()
+            private_config = _firmx_configuracion_urls(include_secrets=True)
+
+        stage_public = public_config['base_urls'][0]
+        stage_private = private_config['base_urls'][0]
+        self.assertTrue(stage_public['has_api_key'])
+        self.assertNotIn('api_key', stage_public)
+        self.assertEqual(stage_private['api_key'], 'stage-key')
+
     def test_lists_all_completed_documents_for_owner(self):
         completed_without_pdf = SimpleNamespace(
             token_acceso='token-sin-pdf',
