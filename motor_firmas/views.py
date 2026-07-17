@@ -99,6 +99,27 @@ def _n8n_response_error(response):
     return response_error_detail(response) or f"HTTP {getattr(response, 'status_code', '')}".strip()
 
 
+def _n8n_error_respond_webhook_sin_usar(error):
+    text = str(error or '').strip().lower()
+    return 'unused respond to webhook node found in the workflow' in text
+
+
+def _registrar_advertencia_finalizacion_n8n(proceso, n8n_error):
+    summary_data = _json_or_default(getattr(proceso, 'summary_data', {}) or {}, {})
+    warning = {
+        'type': 'unused_respond_to_webhook',
+        'webhook': 'subir-pdf-final',
+        'message': str(n8n_error or '')[:500],
+        'created_at': _datetime_for_mongo().isoformat(),
+    }
+    warnings = _json_or_default(summary_data.get('n8n_warnings', []), [])
+    warnings.append(warning)
+    summary_data['n8n_warnings'] = warnings[-20:]
+    summary_data['n8n_finalizar_pdf_warning'] = warning
+    _mongo_update_document(ProcesoFirma, proceso, {'summary_data': summary_data})
+    return warning
+
+
 def _default_json_value(default):
     if isinstance(default, dict):
         return {}
@@ -2212,6 +2233,9 @@ def _sincronizar_pdf_finalizado(proceso):
             )
         n8n_error = _n8n_response_error(response)
         if n8n_error:
+            if _n8n_error_respond_webhook_sin_usar(n8n_error):
+                _registrar_advertencia_finalizacion_n8n(proceso, n8n_error)
+                return ''
             return f"N8N respondió con error: {n8n_error}"
         _registrar_pdf_final_drive_id(proceso, response)
     except Exception as e:
@@ -3025,6 +3049,7 @@ def procesar_firma(request, token, firmante_token=None):
         correos_internos = [email for email in set(todos_los_correos) if any(email.endswith(d) for d in dominios_permitidos)]
         correos = ",".join(correos_internos)
 
+        n8n_finalization_warning = None
         with open(proceso.pdf_path, 'rb') as f:
             try:
                 resp_n8n = tracked_post(N8N_WEBHOOK_FINALIZAR_PROCESO,
@@ -3036,10 +3061,24 @@ def procesar_firma(request, token, firmante_token=None):
 
                 n8n_error = _n8n_response_error(resp_n8n)
                 if n8n_error:
-                    return JsonResponse({"error": f"N8N no pudo finalizar el PDF: {n8n_error}"}, status=502)
-                _registrar_pdf_final_drive_id(proceso, resp_n8n)
+                    if _n8n_error_respond_webhook_sin_usar(n8n_error):
+                        n8n_finalization_warning = _registrar_advertencia_finalizacion_n8n(proceso, n8n_error)
+                    else:
+                        return JsonResponse({"error": f"N8N no pudo finalizar el PDF: {n8n_error}"}, status=502)
+                else:
+                    _registrar_pdf_final_drive_id(proceso, resp_n8n)
             except Exception as e:
-                return JsonResponse({"error": f"Error en N8N_WEBHOOK_FINALIZAR_PROCESO: {e}"}, status=502)
+                if _n8n_error_respond_webhook_sin_usar(e):
+                    n8n_finalization_warning = _registrar_advertencia_finalizacion_n8n(proceso, e)
+                else:
+                    return JsonResponse({"error": f"Error en N8N_WEBHOOK_FINALIZAR_PROCESO: {e}"}, status=502)
+
+        if n8n_finalization_warning:
+            return JsonResponse({
+                "status": "success",
+                "warning": "El PDF fue firmado y finalizado localmente, pero N8N devolvio una advertencia de configuracion.",
+                "n8n_warning": n8n_finalization_warning,
+            })
 
         return JsonResponse({"status": "success"})
     except Exception as e:

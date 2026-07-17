@@ -583,6 +583,22 @@ class ProcesarFirmaPdfRecoveryTest(SimpleTestCase):
         def json(self):
             return {}
 
+    class N8NUnusedRespondResponse:
+        status_code = 500
+        headers = {'content-type': 'application/json'}
+        text = '{"code":0,"message":"Unused Respond to Webhook node found in the workflow"}'
+
+        def json(self):
+            return {"code": 0, "message": "Unused Respond to Webhook node found in the workflow"}
+
+    class N8NBlockingErrorResponse:
+        status_code = 500
+        headers = {'content-type': 'application/json'}
+        text = '{"code":0,"message":"NodeApiError: Drive permission denied"}'
+
+        def json(self):
+            return {"code": 0, "message": "NodeApiError: Drive permission denied"}
+
     def test_missing_local_pdf_is_rehydrated_before_signing(self):
         factory = RequestFactory()
         request = factory.post(
@@ -687,6 +703,107 @@ class ProcesarFirmaPdfRecoveryTest(SimpleTestCase):
         ensure_pdf.assert_not_called()
         stamp.assert_called_once()
         self.assertEqual(stamp.call_args.args[0], pdf_path)
+
+    def test_unused_respond_webhook_error_does_not_block_completed_signature(self):
+        factory = RequestFactory()
+        request = factory.post(
+            '/api/procesar/token-prueba/firmante-prueba/',
+            data=json.dumps({'firma_base64': 'data:image/png;base64,ZmlybWE=', 'variables': {}}),
+            content_type='application/json',
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = os.path.join(tmpdir, 'DOC-N8N.pdf')
+            with open(pdf_path, 'wb') as f:
+                f.write(b'%PDF-1.4\n%%EOF\n')
+
+            def copy_evidence(firmante, *_args, **_kwargs):
+                firmante['fecha_firma'] = '16/07/2026 17:08:08'
+
+            proceso = SimpleNamespace(
+                _id='proceso-n8n',
+                reference_id='DOC-N8N',
+                token_acceso='token-prueba',
+                pdf_path=pdf_path,
+                firmantes=[{
+                    'nombre': 'Firmante',
+                    'email': 'firmante@example.com',
+                    'token_firmante': 'firmante-prueba',
+                }],
+                indice_actual=1,
+                status='PROCESSING',
+                summary_data={},
+                valores_capturados={},
+                owner_email='',
+                dir_drive='',
+                exec_mode='normal',
+            )
+
+            with patch('motor_firmas.views._get_proceso_por_token_or_404', return_value=proceso), \
+                    patch('motor_firmas.views.estampar_firma_en_pdf', return_value={'hash': 'c' * 64}), \
+                    patch('motor_firmas.views._copiar_evidencia_firma', side_effect=copy_evidence), \
+                    patch('motor_firmas.views._marcar_notificaciones_firma'), \
+                    patch('motor_firmas.views._actualizar_proceso_firma_mongo'), \
+                    patch('motor_firmas.views._n8n_storage_data_for_proceso', return_value={}), \
+                    patch('motor_firmas.views.tracked_post', return_value=self.N8NUnusedRespondResponse()), \
+                    patch('motor_firmas.views._registrar_pdf_final_drive_id') as register_drive, \
+                    patch('motor_firmas.views._registrar_advertencia_finalizacion_n8n',
+                          return_value={'type': 'unused_respond_to_webhook'}) as register_warning:
+                response = procesar_firma(request, 'token-prueba', 'firmante-prueba')
+
+        self.assertEqual(response.status_code, 200, response.content)
+        payload = json.loads(response.content)
+        self.assertEqual(payload['status'], 'success')
+        self.assertEqual(payload['n8n_warning']['type'], 'unused_respond_to_webhook')
+        register_warning.assert_called_once()
+        register_drive.assert_not_called()
+
+    def test_other_n8n_finalization_errors_still_block_signature_response(self):
+        factory = RequestFactory()
+        request = factory.post(
+            '/api/procesar/token-prueba/firmante-prueba/',
+            data=json.dumps({'firma_base64': 'data:image/png;base64,ZmlybWE=', 'variables': {}}),
+            content_type='application/json',
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = os.path.join(tmpdir, 'DOC-N8N-BLOCK.pdf')
+            with open(pdf_path, 'wb') as f:
+                f.write(b'%PDF-1.4\n%%EOF\n')
+
+            def copy_evidence(firmante, *_args, **_kwargs):
+                firmante['fecha_firma'] = '16/07/2026 17:08:08'
+
+            proceso = SimpleNamespace(
+                _id='proceso-n8n-block',
+                reference_id='DOC-N8N-BLOCK',
+                token_acceso='token-prueba',
+                pdf_path=pdf_path,
+                firmantes=[{
+                    'nombre': 'Firmante',
+                    'email': 'firmante@example.com',
+                    'token_firmante': 'firmante-prueba',
+                }],
+                indice_actual=1,
+                status='PROCESSING',
+                summary_data={},
+                valores_capturados={},
+                owner_email='',
+                dir_drive='',
+                exec_mode='normal',
+            )
+
+            with patch('motor_firmas.views._get_proceso_por_token_or_404', return_value=proceso), \
+                    patch('motor_firmas.views.estampar_firma_en_pdf', return_value={'hash': 'd' * 64}), \
+                    patch('motor_firmas.views._copiar_evidencia_firma', side_effect=copy_evidence), \
+                    patch('motor_firmas.views._marcar_notificaciones_firma'), \
+                    patch('motor_firmas.views._actualizar_proceso_firma_mongo'), \
+                    patch('motor_firmas.views._n8n_storage_data_for_proceso', return_value={}), \
+                    patch('motor_firmas.views.tracked_post', return_value=self.N8NBlockingErrorResponse()):
+                response = procesar_firma(request, 'token-prueba', 'firmante-prueba')
+
+        self.assertEqual(response.status_code, 502, response.content)
+        self.assertIn('N8N no pudo finalizar el PDF', response.content.decode('utf-8'))
 
 
 class SignatureAdjustmentHelpersTest(SimpleTestCase):
