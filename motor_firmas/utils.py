@@ -203,6 +203,65 @@ def estampar_variables_en_pdf(pdf_path, variables_dict):
         doc.close()
 
 
+def estampar_campos_posicionados_en_pdf(pdf_path, variables_dict, campos):
+    doc = fitz.open(pdf_path)
+    modificado = False
+
+    for campo in campos or []:
+        if not isinstance(campo, dict):
+            continue
+        key = str(campo.get('key') or '').strip()
+        value = variables_dict.get(key)
+        if value in (None, ''):
+            continue
+        try:
+            page_num = max(int(campo.get('page') or 1) - 1, 0)
+        except (TypeError, ValueError):
+            page_num = 0
+        if page_num >= len(doc):
+            continue
+
+        page = doc[page_num]
+        try:
+            x = float(campo.get('x') or 0) * page.rect.width
+            y = float(campo.get('y') or 0) * page.rect.height
+            width = max(float(campo.get('width') or 0.1) * page.rect.width, 24)
+            height = max(float(campo.get('height') or 0.035) * page.rect.height, 12)
+        except (TypeError, ValueError):
+            continue
+
+        rect = fitz.Rect(
+            max(0, x),
+            max(0, y),
+            min(page.rect.width, x + width),
+            min(page.rect.height, y + height),
+        )
+        if rect.is_empty or rect.width <= 0 or rect.height <= 0:
+            continue
+
+        page.clean_contents()
+        page.draw_rect(rect, color=(1, 1, 1), fill=(1, 1, 1), width=0)
+        font_size = min(11, max(7, rect.height * 0.48))
+        page.insert_textbox(
+            fitz.Rect(rect.x0 + 2, rect.y0 + 1, rect.x1 - 2, rect.y1 - 1),
+            str(value).upper(),
+            fontsize=font_size,
+            fontname="hebo",
+            color=(0, 0, 0),
+            align=fitz.TEXT_ALIGN_LEFT,
+        )
+        modificado = True
+
+    if modificado:
+        import shutil
+        temp_fields_path = pdf_path.replace(".pdf", "_temp_fields.pdf")
+        doc.save(temp_fields_path)
+        doc.close()
+        shutil.move(temp_fields_path, pdf_path)
+    else:
+        doc.close()
+
+
 def estampar_firma_en_pdf(
         pdf_path, signature_b64, signer_index, email_user, nombre_user, ip_user,
         coordenadas=None, registro=None, fecha_firma=None, hash_documento=None, return_metadata=False):

@@ -8,7 +8,8 @@
 <style>
     #pdf-wrapper { position: relative; display: inline-block; background: white; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18); }
     #pdf-render { display: block; }
-    #pdf-wrapper.is-reference-mode { cursor: crosshair; }
+    #pdf-wrapper.is-reference-mode,
+    #pdf-wrapper.is-fill-mode { cursor: crosshair; }
     .reference-feature-button {
         position: relative;
         isolation: isolate;
@@ -66,7 +67,9 @@
         transform: translateY(0);
     }
     .reference-selection,
-    .reference-box {
+    .reference-box,
+    .fill-field-selection,
+    .fill-field-box {
         position: absolute;
         border: 2px solid #0ea5e9;
         background: rgba(14, 165, 233, 0.14);
@@ -74,7 +77,8 @@
         z-index: 12;
         pointer-events: none;
     }
-    .reference-box {
+    .reference-box,
+    .fill-field-box {
         display: flex;
         align-items: center;
         justify-content: center;
@@ -94,6 +98,23 @@
     .reference-box.is-linked {
         border-color: #0284c7;
         background: rgba(14, 165, 233, 0.2);
+    }
+    .fill-field-selection,
+    .fill-field-box {
+        border-color: #2563eb;
+        background: rgba(37, 99, 235, 0.13);
+        color: #1e3a8a;
+    }
+    .fill-field-box.selected {
+        border-color: #0f766e;
+        background: rgba(45, 212, 191, 0.18);
+        color: #115e59;
+    }
+    .fill-field-row {
+        border: 1px solid #bfdbfe;
+        background: #ffffff;
+        border-radius: 0.65rem;
+        padding: 0.65rem;
     }
     .reference-mini-svg {
         width: 100%;
@@ -188,6 +209,53 @@
                 <span class="material-symbols-outlined text-[18px]">delete</span>
                 Quitar referencia seleccionada
             </button>
+        </div>
+
+        <button id="btnFillMode" class="reference-feature-button w-full text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 mb-3" onclick="activarLlenadoCampos()">
+            <span class="material-symbols-outlined">edit_note</span>
+            <span>Llenado de campos</span>
+            <span class="reference-new-badge">Nuevo</span>
+            <span class="reference-help" aria-label="Información de llenado de campos">
+                <span class="material-symbols-outlined text-[18px]">info</span>
+                <span class="reference-tooltip">
+                    <svg class="reference-mini-svg" viewBox="0 0 220 96" role="img" aria-label="Campos obligatorios ligados a firmantes">
+                        <defs>
+                            <linearGradient id="fillSvgGrad" x1="0" x2="1" y1="0" y2="1">
+                                <stop offset="0%" stop-color="#38bdf8"/>
+                                <stop offset="58%" stop-color="#2563eb"/>
+                                <stop offset="100%" stop-color="#0f766e"/>
+                            </linearGradient>
+                        </defs>
+                        <rect x="12" y="14" width="72" height="68" rx="9" fill="#eff6ff" stroke="#93c5fd"/>
+                        <path d="M27 31h38M27 43h26M27 55h34" stroke="#1e40af" stroke-width="4" stroke-linecap="round"/>
+                        <rect x="26" y="62" width="44" height="12" rx="4" fill="url(#fillSvgGrad)"/>
+                        <path d="M93 48h34" stroke="#0284c7" stroke-width="4" stroke-linecap="round"/>
+                        <path d="M120 39l10 9-10 9" fill="none" stroke="#0284c7" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                        <rect x="140" y="18" width="68" height="60" rx="10" fill="#ffffff" stroke="#60a5fa"/>
+                        <circle cx="158" cy="36" r="9" fill="#dbeafe"/>
+                        <path d="M154 37l3 3 7-9" stroke="#2563eb" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        <rect x="152" y="53" width="44" height="11" rx="3" fill="#e0f2fe" stroke="#38bdf8"/>
+                        <path d="M160 59h26" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round"/>
+                    </svg>
+                    Selecciona un área del PDF, elige el firmante responsable y asigna un label. Ese campo será obligatorio para ese firmante y su respuesta se colocará en la zona marcada al certificar.
+                </span>
+            </span>
+        </button>
+
+        <div id="fillPanel" class="hidden bg-surface-container-low border border-blue-200 rounded-xl p-4 mb-5">
+            <div class="flex items-start gap-3 mb-4">
+                <span class="material-symbols-outlined text-primary">edit_square</span>
+                <div>
+                    <h2 class="text-sm font-bold text-primary">Llenado de campos</h2>
+                    <p class="text-xs text-on-surface-variant">Selecciona un firmante, marca un área del PDF y define el label del campo obligatorio.</p>
+                </div>
+            </div>
+            <label class="block text-sm font-semibold text-on-surface-variant mb-2" for="selFillSigner">Firmante responsable</label>
+            <select id="selFillSigner" class="w-full px-4 py-3 border border-outline-variant rounded-lg bg-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
+                <option value="">Seleccionar firmante...</option>
+            </select>
+            <div id="fillSelectedInfo" class="mt-4 text-xs text-on-surface-variant"></div>
+            <div id="fillFieldsList" class="mt-4 space-y-3"></div>
         </div>
 
         <button class="w-full bg-primary hover:bg-primary-container text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 mb-5" onclick="agregarFirmante()">
@@ -285,10 +353,17 @@
     const referencePreviewBox = document.getElementById('referencePreviewBox');
     const referencePreviewImage = document.getElementById('referencePreviewImage');
     const btnReferenceMode = document.getElementById('btnReferenceMode');
+    const fillPanel = document.getElementById('fillPanel');
+    const selFillSigner = document.getElementById('selFillSigner');
+    const fillSelectedInfo = document.getElementById('fillSelectedInfo');
+    const fillFieldsList = document.getElementById('fillFieldsList');
+    const btnFillMode = document.getElementById('btnFillMode');
     let boxes = [];
     let referenceBlocks = [];
+    let fillFields = [];
     let activeBoxId = null;
     let activeReferenceId = null;
+    let activeFillFieldId = null;
     let pdfDocument = null;
     let currentPage = 1;
     let totalPages = 1;
@@ -296,6 +371,10 @@
     let referenceSelecting = false;
     let referenceStart = null;
     let referenceDraftEl = null;
+    let fillSelectionMode = false;
+    let fillSelecting = false;
+    let fillStart = null;
+    let fillDraftEl = null;
 
     popularDocumentosFirmados();
     actualizarEstadoBotonReferencia();
@@ -332,6 +411,13 @@
                 if(el) {
                     el.style.display = (ref.page === num) ? 'flex' : 'none';
                     posicionarReferenciaEl(el, ref);
+                }
+            });
+            fillFields.forEach(field => {
+                const el = document.getElementById(field.id);
+                if(el) {
+                    el.style.display = (field.page === num) ? 'flex' : 'none';
+                    posicionarCampoLlenadoEl(el, field);
                 }
             });
         });
@@ -377,6 +463,7 @@
     }
 
     function activarReferenciaDocumento() {
+        desactivarLlenadoCampos();
         const pending = referenciaPendiente();
         if (pending) {
             referencePanel.classList.remove('hidden');
@@ -398,6 +485,65 @@
         btnReferenceMode.classList.remove('ring-4', 'ring-sky-200');
     }
 
+    function desactivarLlenadoCampos() {
+        fillSelectionMode = false;
+        wrapper.classList.remove('is-fill-mode');
+        btnFillMode.classList.remove('ring-4', 'ring-sky-200');
+    }
+
+    function firmantesConCorreo() {
+        return boxes
+            .map(box => ({ ...box, email: String(box.email || '').trim().toLowerCase() }))
+            .filter(box => box.email);
+    }
+
+    function popularFirmantesCampos() {
+        const firmantes = firmantesConCorreo();
+        const selectedValue = selFillSigner.value;
+        selFillSigner.innerHTML = '<option value="">Seleccionar firmante...</option>';
+        firmantes.forEach(box => {
+            const opt = document.createElement('option');
+            opt.value = box.id;
+            opt.textContent = `${box.email}${box.nombre ? ' · ' + box.nombre : ''}`;
+            selFillSigner.appendChild(opt);
+        });
+        if (firmantes.some(box => box.id === selectedValue)) {
+            selFillSigner.value = selectedValue;
+        } else if (firmantes.length) {
+            selFillSigner.value = firmantes[0].id;
+        }
+    }
+
+    function firmanteCampoSeleccionado() {
+        const signerId = selFillSigner.value;
+        return boxes.find(box => box.id === signerId && box.email);
+    }
+
+    function activarLlenadoCampos() {
+        desactivarReferenciaDocumento();
+        popularFirmantesCampos();
+        fillPanel.classList.remove('hidden');
+        renderFillFieldsList();
+        const firmantes = firmantesConCorreo();
+        if (!firmantes.length) {
+            desactivarLlenadoCampos();
+            fillSelectedInfo.innerHTML = '<span class="text-status-danger font-semibold">Es necesario que exista al menos un firmante con correo antes de crear campos de llenado.</span>';
+            return;
+        }
+        fillSelectionMode = true;
+        wrapper.classList.add('is-fill-mode');
+        btnFillMode.classList.add('ring-4', 'ring-sky-200');
+        const signer = firmanteCampoSeleccionado();
+        fillSelectedInfo.innerHTML = `<span class="font-semibold text-primary">Modo selección activo:</span> arrastra un área para asignar un campo obligatorio a ${escapeHtml(signer.email)}.`;
+    }
+
+    selFillSigner.addEventListener('change', () => {
+        const signer = firmanteCampoSeleccionado();
+        fillSelectedInfo.innerHTML = signer
+            ? `<span class="font-semibold text-primary">Firmante seleccionado:</span> ${escapeHtml(signer.email)}. Arrastra el área del campo en el PDF.`
+            : '<span class="text-status-danger font-semibold">Selecciona un firmante para continuar.</span>';
+    });
+
     function wrapperPoint(event) {
         const rect = wrapper.getBoundingClientRect();
         return {
@@ -411,6 +557,13 @@
         el.style.top = `${ref.y * wrapper.clientHeight}px`;
         el.style.width = `${ref.width * wrapper.clientWidth}px`;
         el.style.height = `${ref.height * wrapper.clientHeight}px`;
+    }
+
+    function posicionarCampoLlenadoEl(el, field) {
+        el.style.left = `${field.x * wrapper.clientWidth}px`;
+        el.style.top = `${field.y * wrapper.clientHeight}px`;
+        el.style.width = `${field.width * wrapper.clientWidth}px`;
+        el.style.height = `${field.height * wrapper.clientHeight}px`;
     }
 
     function cropReferenciaImagen(x, y, width, height) {
@@ -445,6 +598,87 @@
             seleccionarReferencia(ref.id);
         });
         wrapper.appendChild(el);
+    }
+
+    function crearCampoLlenadoEl(field) {
+        const el = document.createElement('div');
+        el.id = field.id;
+        el.className = 'fill-field-box';
+        el.innerText = field.label || 'CAMPO';
+        posicionarCampoLlenadoEl(el, field);
+        el.style.display = field.page === currentPage ? 'flex' : 'none';
+        el.addEventListener('click', event => {
+            event.stopPropagation();
+            seleccionarCampoLlenado(field.id);
+        });
+        wrapper.appendChild(el);
+    }
+
+    function seleccionarCampoLlenado(id) {
+        activeFillFieldId = id;
+        activeBoxId = null;
+        activeReferenceId = null;
+        document.querySelectorAll('.signature-box').forEach(b => b.classList.remove('selected'));
+        document.querySelectorAll('.reference-box').forEach(b => b.classList.remove('selected'));
+        document.querySelectorAll('.fill-field-box').forEach(b => b.classList.remove('selected'));
+        const field = fillFields.find(item => item.id === id);
+        const el = document.getElementById(id);
+        if (!field || !el) return;
+        document.getElementById('propsPanel').style.display = 'none';
+        referencePanel.classList.add('hidden');
+        fillPanel.classList.remove('hidden');
+        el.classList.add('selected');
+        renderFillFieldsList();
+        const signer = boxes.find(box => box.id === field.signer_box_id);
+        fillSelectedInfo.innerHTML = `<span class="font-semibold text-primary">Campo seleccionado:</span> ${escapeHtml(field.label)} para ${escapeHtml((signer && signer.email) || field.signer_email || '')}.`;
+    }
+
+    function renderFillFieldsList() {
+        if (!fillFields.length) {
+            fillFieldsList.innerHTML = '<div class="text-xs text-on-surface-variant italic">Aún no hay campos asignados.</div>';
+            return;
+        }
+        const groups = new Map();
+        fillFields.forEach(field => {
+            const signer = boxes.find(box => box.id === field.signer_box_id);
+            const email = (signer && signer.email) || field.signer_email || 'firmante sin correo';
+            if (!groups.has(email)) groups.set(email, []);
+            groups.get(email).push(field);
+        });
+        fillFieldsList.innerHTML = Array.from(groups.entries()).map(([email, fields]) => `
+            <div class="rounded-lg border border-outline-variant bg-white p-3">
+                <div class="text-xs font-bold text-primary mb-2">${escapeHtml(email)}</div>
+                <div class="space-y-2">
+                    ${fields.map(field => `
+                        <div class="fill-field-row">
+                            <label class="block text-[11px] font-bold text-on-surface-variant mb-1">Label del campo</label>
+                            <input type="text" class="w-full px-3 py-2 border border-outline-variant rounded-lg bg-white text-sm" value="${escapeHtml(field.label)}" data-fill-label="${escapeHtml(field.id)}" oninput="actualizarLabelCampoLlenado('${escapeHtml(field.id)}', this.value)">
+                            <div class="mt-2 flex items-center justify-between gap-2 text-[11px] text-text-muted">
+                                <span>Página ${escapeHtml(field.page)}</span>
+                                <button type="button" class="text-status-danger font-bold hover:underline" onclick="eliminarCampoLlenado('${escapeHtml(field.id)}')">Eliminar</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function actualizarLabelCampoLlenado(id, label) {
+        const field = fillFields.find(item => item.id === id);
+        if (!field) return;
+        field.label = label;
+        const el = document.getElementById(id);
+        if (el) el.innerText = label || 'CAMPO';
+    }
+
+    function eliminarCampoLlenado(id) {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+        fillFields = fillFields.filter(field => field.id !== id);
+        activeFillFieldId = null;
+        renderFillFieldsList();
+        fillSelectedInfo.innerHTML = 'Campo eliminado.';
     }
 
     function seleccionarReferencia(id) {
@@ -524,7 +758,7 @@
     }
 
     wrapper.addEventListener('mousedown', event => {
-        if (!referenceSelectionMode || event.target.closest('.signature-box') || event.target.closest('.reference-box')) return;
+        if (!referenceSelectionMode || event.target.closest('.signature-box') || event.target.closest('.reference-box') || event.target.closest('.fill-field-box')) return;
         const pending = referenciaPendiente();
         if (pending) {
             event.preventDefault();
@@ -545,6 +779,26 @@
         wrapper.appendChild(referenceDraftEl);
     });
 
+    wrapper.addEventListener('mousedown', event => {
+        if (!fillSelectionMode || event.target.closest('.signature-box') || event.target.closest('.reference-box') || event.target.closest('.fill-field-box')) return;
+        const signer = firmanteCampoSeleccionado();
+        if (!signer) {
+            event.preventDefault();
+            fillSelectedInfo.innerHTML = '<span class="text-status-danger font-semibold">Selecciona un firmante antes de marcar el campo.</span>';
+            return;
+        }
+        event.preventDefault();
+        fillSelecting = true;
+        fillStart = wrapperPoint(event);
+        fillDraftEl = document.createElement('div');
+        fillDraftEl.className = 'fill-field-selection';
+        fillDraftEl.style.left = `${fillStart.x}px`;
+        fillDraftEl.style.top = `${fillStart.y}px`;
+        fillDraftEl.style.width = '0px';
+        fillDraftEl.style.height = '0px';
+        wrapper.appendChild(fillDraftEl);
+    });
+
     document.addEventListener('mousemove', event => {
         if (!referenceSelecting || !referenceDraftEl) return;
         const point = wrapperPoint(event);
@@ -556,6 +810,19 @@
         referenceDraftEl.style.top = `${top}px`;
         referenceDraftEl.style.width = `${width}px`;
         referenceDraftEl.style.height = `${height}px`;
+    });
+
+    document.addEventListener('mousemove', event => {
+        if (!fillSelecting || !fillDraftEl) return;
+        const point = wrapperPoint(event);
+        const left = Math.min(fillStart.x, point.x);
+        const top = Math.min(fillStart.y, point.y);
+        const width = Math.abs(point.x - fillStart.x);
+        const height = Math.abs(point.y - fillStart.y);
+        fillDraftEl.style.left = `${left}px`;
+        fillDraftEl.style.top = `${top}px`;
+        fillDraftEl.style.width = `${width}px`;
+        fillDraftEl.style.height = `${height}px`;
     });
 
     document.addEventListener('mouseup', event => {
@@ -596,8 +863,62 @@
         actualizarEstadoBotonReferencia();
     });
 
+    document.addEventListener('mouseup', event => {
+        if (!fillSelecting || !fillDraftEl) return;
+        fillSelecting = false;
+        const point = wrapperPoint(event);
+        const left = Math.min(fillStart.x, point.x);
+        const top = Math.min(fillStart.y, point.y);
+        const width = Math.abs(point.x - fillStart.x);
+        const height = Math.abs(point.y - fillStart.y);
+        fillDraftEl.remove();
+        fillDraftEl = null;
+
+        if (width < 24 || height < 18) {
+            fillSelectedInfo.innerHTML = '<span class="text-status-danger font-semibold">El campo es muy pequeño.</span> Arrastra un área más amplia.';
+            return;
+        }
+
+        const signer = firmanteCampoSeleccionado();
+        if (!signer) {
+            fillSelectedInfo.innerHTML = '<span class="text-status-danger font-semibold">Selecciona un firmante antes de crear el campo.</span>';
+            return;
+        }
+
+        const label = String(prompt(`Label para el campo obligatorio de ${signer.email}:`, '') || '').trim();
+        if (!label) {
+            fillSelectedInfo.innerHTML = '<span class="text-status-danger font-semibold">No se creó el campo.</span> El label es obligatorio.';
+            return;
+        }
+        if (!confirm(`¿Asignar el campo "${label}" al firmante ${signer.email}?`)) {
+            fillSelectedInfo.innerHTML = 'Asignación cancelada.';
+            return;
+        }
+
+        const id = `field-${Date.now()}`;
+        const field = {
+            id,
+            key: `campo_${Date.now()}`,
+            label,
+            signer_box_id: signer.id,
+            signer_email: signer.email,
+            page: currentPage,
+            x: left / wrapper.clientWidth,
+            y: top / wrapper.clientHeight,
+            width: width / wrapper.clientWidth,
+            height: height / wrapper.clientHeight
+        };
+        fillFields.push(field);
+        crearCampoLlenadoEl(field);
+        seleccionarCampoLlenado(id);
+        renderFillFieldsList();
+        desactivarLlenadoCampos();
+        fillSelectedInfo.innerHTML = `<span class="font-semibold text-primary">Campo asignado:</span> ${escapeHtml(label)} para ${escapeHtml(signer.email)}.`;
+    });
+
     function agregarFirmante() {
         desactivarReferenciaDocumento();
+        desactivarLlenadoCampos();
         const id = Date.now().toString();
         const ordenNum = boxes.length + 1;
 
@@ -640,13 +961,17 @@
 
         wrapper.appendChild(box);
         seleccionarCaja(id);
+        popularFirmantesCampos();
+        renderFillFieldsList();
     }
 
     function seleccionarCaja(id) {
         activeBoxId = id;
         activeReferenceId = null;
+        activeFillFieldId = null;
         document.querySelectorAll('.signature-box').forEach(b => b.classList.remove('selected'));
         document.querySelectorAll('.reference-box').forEach(b => b.classList.remove('selected'));
+        document.querySelectorAll('.fill-field-box').forEach(b => b.classList.remove('selected'));
         const activeEl = document.getElementById(id);
         if(activeEl) activeEl.classList.add('selected');
 
@@ -670,15 +995,24 @@
             data.iniciales = document.getElementById('inpIniciales').value.toUpperCase();
             data.email = document.getElementById('inpEmail').value.toLowerCase();
             document.getElementById(activeBoxId).innerText = (data.nombre || 'FIRMANTE') + ' (' + data.orden + ')';
+            popularFirmantesCampos();
+            renderFillFieldsList();
         }
     }
 
     function eliminarCajaActual() {
         if(!activeBoxId) return;
         document.getElementById(activeBoxId).remove();
+        fillFields.filter(field => field.signer_box_id === activeBoxId).forEach(field => {
+            const el = document.getElementById(field.id);
+            if (el) el.remove();
+        });
+        fillFields = fillFields.filter(field => field.signer_box_id !== activeBoxId);
         boxes = boxes.filter(b => b.id !== activeBoxId);
         document.getElementById('propsPanel').style.display = 'none';
         activeBoxId = null;
+        popularFirmantesCampos();
+        renderFillFieldsList();
     }
 
     function enviarAFirma() {
@@ -708,6 +1042,27 @@
         if (referenciasPendientes.length > 0) {
             return alert("Hay referencias documentales sin documento ligado. Selecciona cada bloque y elige un documento firmado, o quita la referencia.");
         }
+        const payloadFillFields = [];
+        for (const field of fillFields) {
+            const signer = boxes.find(box => box.id === field.signer_box_id);
+            if (!signer || !signer.email) {
+                return alert("Hay campos de llenado sin firmante válido. Elimina el campo o asigna correo al firmante.");
+            }
+            if (!String(field.label || '').trim()) {
+                return alert("Todos los campos de llenado deben tener label.");
+            }
+            payloadFillFields.push({
+                id: field.id,
+                key: field.key,
+                label: field.label,
+                signer_email: signer.email,
+                page: field.page,
+                x: field.x,
+                y: field.y,
+                width: field.width,
+                height: field.height
+            });
+        }
 
         payloadFirmantes.sort((a, b) => a.orden - b.orden);
         const payloadReferences = referenceBlocks.map(ref => ({
@@ -728,7 +1083,12 @@
         fetch('/api/iniciar-firma-libre/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pdf_id: "{{ doc.id_documento }}", firmantes: payloadFirmantes, document_references: payloadReferences })
+            body: JSON.stringify({
+                pdf_id: "{{ doc.id_documento }}",
+                firmantes: payloadFirmantes,
+                document_references: payloadReferences,
+                fill_fields: payloadFillFields
+            })
         }).then(r => r.json()).then(res => {
             if(res.status === 'success') {
                 alert("Documento procesado. Se ha enviado el correo al primer firmante.");

@@ -29,7 +29,13 @@ from .n8n_monitor import (
     response_was_successful,
     session_can_view_monitor,
 )
-from .utils import estampar_firma_en_pdf, estampar_variables_en_pdf, crear_notificacion_firma, reubicar_firmas_en_pdf
+from .utils import (
+    estampar_firma_en_pdf,
+    estampar_variables_en_pdf,
+    estampar_campos_posicionados_en_pdf,
+    crear_notificacion_firma,
+    reubicar_firmas_en_pdf,
+)
 
 # WEBHOOKS DE N8N
 N8N_WEBHOOK_NOTIFICAR_CORREO = "https://n8n.raloy.com.mx/webhook/enviar-correo-firma"
@@ -524,6 +530,113 @@ def _normalizar_referencias_documento(raw_refs, owner_email):
         })
 
     return referencias
+
+
+def _firmantes_por_email(firmantes):
+    emails = {}
+    for firmante in _normalizar_firmantes(firmantes):
+        email = _normalizar_email(firmante.get('email'))
+        if email:
+            emails[email] = firmante
+    return emails
+
+
+def _normalizar_key_campo_llenado(value, index):
+    key = str(value or '').strip().lower()
+    key = re.sub(r'[^a-z0-9_]+', '_', key)
+    key = re.sub(r'_+', '_', key).strip('_')
+    return key or f'campo_libre_{index}'
+
+
+def _normalizar_campos_llenado(raw_fields, firmantes):
+    fields = _json_or_default(raw_fields, [])
+    if not isinstance(fields, list):
+        return []
+
+    firmantes_email = _firmantes_por_email(firmantes)
+    campos = []
+    used_keys = set()
+    for index, item in enumerate(fields[:100], start=1):
+        if not isinstance(item, dict):
+            continue
+
+        signer_email = _normalizar_email(item.get('signer_email') or item.get('email'))
+        if not signer_email or signer_email not in firmantes_email:
+            raise ValueError("Cada campo de llenado debe estar ligado a un firmante existente.")
+
+        label = str(item.get('label') or '').strip()
+        if not label:
+            raise ValueError("Cada campo de llenado debe tener un label.")
+
+        key = _normalizar_key_campo_llenado(item.get('key'), index)
+        while key in used_keys:
+            key = f"{key}_{index}"
+        used_keys.add(key)
+
+        try:
+            page = max(int(item.get('page') or 1), 1)
+        except (TypeError, ValueError):
+            page = 1
+
+        x = _normalizar_dimension_referencia(item.get('x'), 0.0)
+        y = _normalizar_dimension_referencia(item.get('y'), 0.0)
+        width = _normalizar_dimension_referencia(item.get('width'), 0.18, min_value=0.03)
+        height = _normalizar_dimension_referencia(item.get('height'), 0.04, min_value=0.015)
+        width = min(width, 1.0 - x)
+        height = min(height, 1.0 - y)
+
+        firmante = firmantes_email[signer_email]
+        campos.append({
+            'id': str(item.get('id') or key),
+            'key': key,
+            'label': label,
+            'signer_email': signer_email,
+            'signer_name': firmante.get('nombre') or '',
+            'page': page,
+            'x': x,
+            'y': y,
+            'width': width,
+            'height': height,
+            'type': 'text',
+        })
+
+    return campos
+
+
+def _document_variables_desde_campos_llenado(campos):
+    return {
+        campo['key']: campo['signer_email']
+        for campo in campos
+        if isinstance(campo, dict) and campo.get('key') and campo.get('signer_email')
+    }
+
+
+def _campos_llenado_libre(summary_data, signer_email='', valores_capturados=None, excluir_capturados=True):
+    signer_email = _normalizar_email(signer_email)
+    valores_capturados = _json_or_default(valores_capturados or {}, {})
+    campos = _json_or_default((summary_data or {}).get('fill_fields', []), [])
+    result = []
+    for campo in campos:
+        if not isinstance(campo, dict):
+            continue
+        key = str(campo.get('key') or '').strip()
+        if not key:
+            continue
+        if signer_email and _normalizar_email(campo.get('signer_email')) != signer_email:
+            continue
+        if excluir_capturados and key in valores_capturados:
+            continue
+        result.append({
+            'key': key,
+            'label': campo.get('label') or key,
+            'options': None,
+            'page': campo.get('page'),
+            'x': campo.get('x'),
+            'y': campo.get('y'),
+            'width': campo.get('width'),
+            'height': campo.get('height'),
+        })
+    return result
 
 
 def _tipo_proceso_relacion(proceso):
@@ -2882,6 +2995,9 @@ def vista_firma_ui(request, token, firmante_token=None):
                     'label': labels_map.get(key, key),
                     'options': opciones
                 })
+    campos_a_llenar.extend(
+        _campos_llenado_libre(summary_data, firmante_actual.get('email'), valores_capturados)
+    )
 
     cant_firmas = len(indices_turno)
 
@@ -2934,6 +3050,23 @@ def procesar_firma(request, token, firmante_token=None):
     if not email_firmante:
         return JsonResponse({"error": "El firmante actual no tiene correo configurado."}, status=400)
 
+    variables = _json_or_default(data.get('variables', {}), {})
+    campos_libres_requeridos = _campos_llenado_libre(
+        _json_or_default(getattr(proceso, 'summary_data', {}) or {}, {}),
+        email_firmante,
+        _json_or_default(getattr(proceso, 'valores_capturados', {}) or {}, {}),
+    )
+    campos_faltantes = [
+        campo.get('label') or campo.get('key')
+        for campo in campos_libres_requeridos
+        if not str(variables.get(campo.get('key')) or '').strip()
+    ]
+    if campos_faltantes:
+        return JsonResponse({
+            "error": "Completa todos los campos obligatorios antes de firmar.",
+            "missing_fields": campos_faltantes,
+        }, status=400)
+
     backup_path = None
     try:
         pin_ingresado = data.get('pin')
@@ -2964,12 +3097,12 @@ def procesar_firma(request, token, firmante_token=None):
         backup_path = f"{proceso.pdf_path}.{uuid.uuid4().hex}.bak"
         shutil.copyfile(proceso.pdf_path, backup_path)
 
-        variables = _json_or_default(data.get('variables', {}), {})
         if variables:
             valores_capturados = _json_or_default(proceso.valores_capturados, {})
             valores_capturados.update(variables)
             proceso.valores_capturados = valores_capturados
             estampar_variables_en_pdf(proceso.pdf_path, variables)
+            estampar_campos_posicionados_en_pdf(proceso.pdf_path, variables, campos_libres_requeridos)
 
         fecha_firma = timezone.now().strftime("%d/%m/%Y %H:%M:%S")
         for idx in indices_turno:
@@ -5260,8 +5393,10 @@ def iniciar_firma_libre(request):
 
     try:
         document_references = _normalizar_referencias_documento(data.get('document_references', []), owner_email)
+        fill_fields = _normalizar_campos_llenado(data.get('fill_fields', []), firmantes)
     except ValueError as e:
         return JsonResponse({"error": str(e)}, status=400)
+    document_variables = _document_variables_desde_campos_llenado(fill_fields)
 
     try:
         _, original_path = _asegurar_pdf_usuario_local(doc, owner_email)
@@ -5283,11 +5418,13 @@ def iniciar_firma_libre(request):
         reference_id=ref_id, pdf_path=final_path, firmantes=firmantes,
         indice_actual=1, view_info="file", owner_email=owner_email,
         dir_drive=carpeta_dom.drive_folder_id if carpeta_dom else '', exec_mode="libre",
+        document_variables=document_variables,
         summary_data={
             'source_drive_file_id': getattr(doc, 'drive_file_id', ''),
             'source_pdf_filename': getattr(doc, 'nombre', ''),
             'source_document_id': str(getattr(doc, 'id_documento', '') or ''),
             'document_references': document_references,
+            'fill_fields': fill_fields,
         },
     )
 

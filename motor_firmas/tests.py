@@ -31,6 +31,9 @@ from .views import (
     _firmx_api_key,
     _firmx_configuracion_urls,
     _firmx_url_documento_visible,
+    _campos_llenado_libre,
+    _normalizar_campos_llenado,
+    _document_variables_desde_campos_llenado,
     _normalizar_referencias_documento,
     _obtener_hash_para_reestampado,
     _proceso_pdf_puede_servirse,
@@ -128,6 +131,52 @@ class MongoViewHelpersTest(SimpleTestCase):
 
 
 class DocumentReferenceHelpersTest(SimpleTestCase):
+    def test_normalizes_fill_fields_for_existing_signer(self):
+        firmantes = [{
+            'nombre': 'Firmante Uno',
+            'email': 'Firmante@Example.com',
+        }]
+        raw_fields = [{
+            'id': 'field-1',
+            'key': 'Campo Libre 1',
+            'label': 'Número de orden',
+            'signer_email': 'firmante@example.com',
+            'page': '2',
+            'x': '0.25',
+            'y': '0.30',
+            'width': '0.40',
+            'height': '0.05',
+        }]
+
+        fields = _normalizar_campos_llenado(raw_fields, firmantes)
+
+        self.assertEqual(fields[0]['key'], 'campo_libre_1')
+        self.assertEqual(fields[0]['signer_email'], 'firmante@example.com')
+        self.assertEqual(fields[0]['signer_name'], 'FIRMANTE UNO')
+        self.assertEqual(fields[0]['page'], 2)
+        self.assertEqual(_document_variables_desde_campos_llenado(fields), {
+            'campo_libre_1': 'firmante@example.com',
+        })
+
+    def test_fill_fields_reject_unknown_signer(self):
+        with self.assertRaisesMessage(ValueError, 'firmante existente'):
+            _normalizar_campos_llenado(
+                [{'label': 'Dato', 'signer_email': 'otro@example.com'}],
+                [{'nombre': 'Uno', 'email': 'uno@example.com'}],
+            )
+
+    def test_fill_fields_for_signer_skip_captured_values(self):
+        summary_data = {
+            'fill_fields': [
+                {'key': 'dato_1', 'label': 'Dato 1', 'signer_email': 'uno@example.com'},
+                {'key': 'dato_2', 'label': 'Dato 2', 'signer_email': 'dos@example.com'},
+            ]
+        }
+
+        fields = _campos_llenado_libre(summary_data, 'UNO@example.com', {'dato_1': 'OK'})
+
+        self.assertEqual(fields, [])
+
     @override_settings(
         FIRMX_API_BASE_URL='https://firmx.mx/digisign/api/v1',
         FIRMX_API_KEY='settings-key',
@@ -703,6 +752,50 @@ class ProcesarFirmaPdfRecoveryTest(SimpleTestCase):
         ensure_pdf.assert_not_called()
         stamp.assert_called_once()
         self.assertEqual(stamp.call_args.args[0], pdf_path)
+
+    def test_free_fill_field_is_required_for_assigned_signer(self):
+        factory = RequestFactory()
+        request = factory.post(
+            '/api/procesar/token-prueba/firmante-prueba/',
+            data=json.dumps({'firma_base64': 'data:image/png;base64,ZmlybWE=', 'variables': {}}),
+            content_type='application/json',
+        )
+        proceso = SimpleNamespace(
+            _id='proceso-fill',
+            reference_id='DOC-FILL',
+            token_acceso='token-prueba',
+            pdf_path='/tmp/no-necesario.pdf',
+            firmantes=[{
+                'nombre': 'Firmante',
+                'email': 'firmante@example.com',
+                'token_firmante': 'firmante-prueba',
+            }],
+            indice_actual=1,
+            status='PROCESSING',
+            summary_data={
+                'fill_fields': [{
+                    'key': 'numero_cliente',
+                    'label': 'Número de cliente',
+                    'signer_email': 'firmante@example.com',
+                    'page': 1,
+                    'x': 0.1,
+                    'y': 0.2,
+                    'width': 0.3,
+                    'height': 0.04,
+                }]
+            },
+            valores_capturados={},
+            owner_email='',
+            dir_drive='',
+            exec_mode='libre',
+        )
+
+        with patch('motor_firmas.views._get_proceso_por_token_or_404', return_value=proceso):
+            response = procesar_firma(request, 'token-prueba', 'firmante-prueba')
+
+        self.assertEqual(response.status_code, 400, response.content)
+        payload = json.loads(response.content)
+        self.assertIn('Número de cliente', payload['missing_fields'])
 
     def test_unused_respond_webhook_error_does_not_block_completed_signature(self):
         factory = RequestFactory()
