@@ -44,6 +44,7 @@ from .views import (
     _proceso_pdf_puede_servirse,
     _relaciones_documento_firma,
     _url_firmada_expirada,
+    admin_api,
     iniciar_firma_libre,
     n8n_monitor_events,
     procesar_firma,
@@ -1239,6 +1240,109 @@ class SubirPdfUsuarioTest(SimpleTestCase):
         background_upload.assert_called_once()
         self.assertEqual(background_upload.call_args.args[2], 'contrato.pdf')
         self.assertEqual(background_upload.call_args.args[5], 'drive-folder-raloy')
+
+
+class AdminInviteRegistroTest(SimpleTestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def _post_request(self, email='alopez@consorcionova.com'):
+        request = self.factory.post(
+            '/api/admin-action/invitar_registro/',
+            data=json.dumps({'email': email}),
+            content_type='application/json',
+        )
+        middleware = SessionMiddleware(lambda req: None)
+        middleware.process_request(request)
+        request.session['admin_email'] = 'admin@example.com'
+        return request
+
+    def _admin(self, invitations=None):
+        return SimpleNamespace(
+            id=1,
+            email='admin@example.com',
+            es_superadmin=True,
+            invitaciones_registro=invitations or [],
+        )
+
+    def test_invitar_registro_programa_n8n_en_background_sin_bloquear_respuesta(self):
+        admin = self._admin()
+
+        def find_one(model, query=None):
+            if getattr(model, '__name__', '') == 'AdministradorPortal':
+                return admin
+            return None
+
+        with patch('motor_firmas.views._mongo_find_one', side_effect=find_one), \
+                patch('motor_firmas.views._mongo_update_document') as update_doc, \
+                patch('motor_firmas.views._post_n8n_json_background') as background_post, \
+                patch('motor_firmas.views.tracked_post') as tracked:
+            response = admin_api(self._post_request(), 'invitar_registro')
+
+        payload = json.loads(response.content)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload['status'], 'success')
+        self.assertTrue(payload['queued'])
+        update_doc.assert_called_once()
+        background_post.assert_called_once()
+        self.assertEqual(background_post.call_args.args[1]['email'], 'alopez@consorcionova.com')
+        tracked.assert_not_called()
+
+    def test_invitar_registro_no_envia_correo_si_alopez_ya_existe(self):
+        admin = self._admin()
+
+        def find_one(model, query=None):
+            model_name = getattr(model, '__name__', '')
+            if model_name == 'AdministradorPortal':
+                return admin
+            if model_name == 'DirectorioFirmas':
+                return SimpleNamespace(email='alopez@consorcionova.com')
+            return None
+
+        with patch('motor_firmas.views._mongo_find_one', side_effect=find_one), \
+                patch('motor_firmas.views._mongo_update_document') as update_doc, \
+                patch('motor_firmas.views._post_n8n_json_background') as background_post:
+            response = admin_api(self._post_request(), 'invitar_registro')
+
+        payload = json.loads(response.content)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(payload['already_registered'])
+        update_doc.assert_not_called()
+        background_post.assert_not_called()
+
+    def test_invitar_registro_reintento_reciente_no_duplica_webhook(self):
+        admin = self._admin([{
+            'email': 'alopez@consorcionova.com',
+            'requested_at': timezone.now().replace(tzinfo=None),
+        }])
+
+        def find_one(model, query=None):
+            if getattr(model, '__name__', '') == 'AdministradorPortal':
+                return admin
+            return None
+
+        with patch('motor_firmas.views._mongo_find_one', side_effect=find_one), \
+                patch('motor_firmas.views._mongo_update_document') as update_doc, \
+                patch('motor_firmas.views._post_n8n_json_background') as background_post:
+            response = admin_api(self._post_request(), 'invitar_registro')
+
+        payload = json.loads(response.content)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(payload['duplicate'])
+        update_doc.assert_not_called()
+        background_post.assert_not_called()
+
+    def test_invitar_registro_rechaza_correo_invalido(self):
+        admin = self._admin()
+
+        with patch('motor_firmas.views._mongo_find_one', return_value=admin), \
+                patch('motor_firmas.views._post_n8n_json_background') as background_post:
+            response = admin_api(self._post_request('correo-invalido'), 'invitar_registro')
+
+        payload = json.loads(response.content)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Correo inválido', payload['error'])
+        background_post.assert_not_called()
 
 
 class PdfsUsuarioDedupeTest(SimpleTestCase):

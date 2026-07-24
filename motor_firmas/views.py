@@ -13,7 +13,9 @@ from datetime import datetime, timedelta, timezone as datetime_timezone
 from types import SimpleNamespace
 from urllib.parse import quote, parse_qs, urlparse
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core import signing
+from django.core.validators import validate_email
 from django.http import JsonResponse, HttpResponse, Http404, FileResponse
 from django.shortcuts import render, redirect
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
@@ -89,6 +91,8 @@ PDF_UPLOAD_RETRY_COOLDOWN_SECONDS = int(getattr(settings, 'PDF_UPLOAD_RETRY_COOL
 PDF_UPLOAD_N8N_BACKGROUND_TIMEOUT_SECONDS = int(getattr(settings, 'PDF_UPLOAD_N8N_BACKGROUND_TIMEOUT_SECONDS', 30))
 FIRMA_LIBRE_DUPLICATE_GUARD_SECONDS = int(getattr(settings, 'FIRMA_LIBRE_DUPLICATE_GUARD_SECONDS', 10 * 60))
 PDF_LEGACY_DUPLICATE_WINDOW_SECONDS = int(getattr(settings, 'PDF_LEGACY_DUPLICATE_WINDOW_SECONDS', 2 * 60 * 60))
+ADMIN_INVITE_DUPLICATE_GUARD_SECONDS = int(getattr(settings, 'ADMIN_INVITE_DUPLICATE_GUARD_SECONDS', 10 * 60))
+ADMIN_INVITE_HISTORY_LIMIT = int(getattr(settings, 'ADMIN_INVITE_HISTORY_LIMIT', 50))
 
 _MONGO_CLIENT = None
 
@@ -178,6 +182,14 @@ def _normalizar_firmantes(firmantes):
 
 def _normalizar_email(email):
     return str(email or '').strip().lower()
+
+
+def _email_tiene_formato_valido(email):
+    try:
+        validate_email(email)
+        return True
+    except ValidationError:
+        return False
 
 
 def _normalizar_dominio(dominio):
@@ -1877,6 +1889,58 @@ def _datetime_for_compare(value):
     if timezone.is_naive(value):
         return timezone.make_aware(value, timezone.get_current_timezone())
     return value
+
+
+def _datetime_for_compare_or_none(value):
+    if value is None:
+        return None
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    if not hasattr(value, 'utcoffset'):
+        return None
+    return _datetime_for_compare(value)
+
+
+def _admin_invitation_recent(admin_obj, email, now=None):
+    email = _normalizar_email(email)
+    now = now or timezone.now()
+    invitations = _json_or_default(getattr(admin_obj, 'invitaciones_registro', []), [])
+    for invitation in invitations:
+        if not isinstance(invitation, dict):
+            continue
+        if _normalizar_email(invitation.get('email')) != email:
+            continue
+        requested_at = _datetime_for_compare_or_none(invitation.get('requested_at') or invitation.get('queued_at'))
+        if requested_at and now - requested_at < timedelta(seconds=ADMIN_INVITE_DUPLICATE_GUARD_SECONDS):
+            return invitation
+    return None
+
+
+def _registrar_admin_invitation(admin_obj, email):
+    email = _normalizar_email(email)
+    now = _datetime_for_mongo()
+    invitations = _json_or_default(getattr(admin_obj, 'invitaciones_registro', []), [])
+    valid_invitations = [
+        invitation
+        for invitation in invitations
+        if isinstance(invitation, dict) and _normalizar_email(invitation.get('email')) != email
+    ]
+    entry = {
+        'id': uuid.uuid4().hex,
+        'email': email,
+        'requested_at': now,
+        'requested_by': getattr(admin_obj, 'email', ''),
+        'status': 'queued',
+    }
+    history_limit = max(1, ADMIN_INVITE_HISTORY_LIMIT)
+    previous_limit = history_limit - 1
+    previous = valid_invitations[-previous_limit:] if previous_limit else []
+    updated = [*previous, entry]
+    _mongo_update_document(AdministradorPortal, admin_obj, {'invitaciones_registro': updated})
+    return entry
 
 
 def _mongo_to_namespace(document):
@@ -6294,13 +6358,42 @@ def admin_api(request, accion):
             return JsonResponse({"status": "success", "msg": "Notificación WhatsApp enviada.", "fecha": fecha_whatsapp, "telefono": telefono})
 
         elif accion == 'invitar_registro':
-            try:
-                tracked_post(N8N_WEBHOOK_INVITAR_REGISTRO,
-                              json={"email": data.get('email'), "link": "https://dsign.raloy.com.mx/registro-firmas/"},
-                              timeout=20)
-            except Exception as e:
-                print(f"Error en N8N_WEBHOOK_INVITAR_REGISTRO: {e}")
-            return JsonResponse({"status": "success", "msg": "Invitación enviada."})
+            email = _normalizar_email(data.get('email'))
+            if not email:
+                return JsonResponse({"error": "Correo requerido."}, status=400)
+            if not _email_tiene_formato_valido(email):
+                return JsonResponse({"error": "Correo inválido."}, status=400)
+            if _mongo_find_one(DirectorioFirmas, {'email': email}) is not None:
+                return JsonResponse({
+                    "status": "success",
+                    "msg": "El usuario ya está registrado; no se envió otra invitación.",
+                    "already_registered": True,
+                })
+
+            if _admin_invitation_recent(admin_actual, email):
+                return JsonResponse({
+                    "status": "success",
+                    "msg": "La invitación ya está programada; no se enviará otro correo por este reintento.",
+                    "duplicate": True,
+                })
+
+            invitation = _registrar_admin_invitation(admin_actual, email)
+            _post_n8n_json_background(
+                N8N_WEBHOOK_INVITAR_REGISTRO,
+                {
+                    "email": email,
+                    "link": f"{PUBLIC_BASE_URL}/registro-firmas/",
+                    "requested_by": request.session.get('admin_email'),
+                    "request_id": invitation['id'],
+                },
+                owner_email=request.session.get('admin_email'),
+                timeout=10,
+            )
+            return JsonResponse({
+                "status": "success",
+                "msg": "Invitación programada. Si N8N falla, quedará registrado en el monitor.",
+                "queued": True,
+            })
         elif accion == 'guardar_config':
             _mongo_update_document(
                 AdministradorPortal,
