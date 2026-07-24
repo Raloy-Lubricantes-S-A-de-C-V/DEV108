@@ -1089,9 +1089,19 @@
                 document_references: payloadReferences,
                 fill_fields: payloadFillFields
             })
-        }).then(r => r.json()).then(res => {
-            if(res.status === 'success') {
-                alert("Documento procesado. Se ha enviado el correo al primer firmante.");
+        }).then(async r => {
+            const text = await r.text();
+            try {
+                return { ok: r.ok, statusCode: r.status, data: text ? JSON.parse(text) : {} };
+            } catch(error) {
+                return { ok: false, statusCode: r.status, data: { error: text.slice(0, 300) } };
+            }
+        }).then(({ ok, statusCode, data: res }) => {
+            if(ok && res.status === 'success') {
+                alert(res.already_started ? (res.msg || "La solicitud de firma ya estaba enviada.") : "Documento procesado. Se ha enviado el correo al primer firmante.");
+                window.location.href = '/portal/dashboard/';
+            } else if(statusCode === 202 && res.status === 'processing') {
+                alert(res.msg || "La solicitud ya esta en proceso. No se enviara otro correo.");
                 window.location.href = '/portal/dashboard/';
             } else {
                 alert("Error: " + res.error);

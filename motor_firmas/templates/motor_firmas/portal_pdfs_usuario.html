@@ -41,10 +41,19 @@
                         <span class="material-symbols-outlined text-outline text-[18px]">schedule</span>
                         <span><strong>Subido el:</strong> {{ p.created_at|date:"d/m/Y H:i" }}</span>
                     </div>
+                    {% if p.upload_status == 'paused' %}
+                        <div class="mt-4 rounded-lg border border-status-danger bg-error-container px-3 py-2 text-sm font-bold text-on-error-container">
+                            Subida a Drive pausada. Reintenta desde Alta de PDF Libre.
+                        </div>
+                    {% endif %}
                 </div>
                 <div class="p-5 border-t border-outline-variant bg-white flex items-center gap-3">
                     {% if p.id_documento %}
-                        <a href="{% url 'portal_configurar_pdf' p.id_documento %}" class="flex-1 bg-primary hover:bg-primary-container text-white px-4 py-3 rounded-lg font-bold text-center transition-colors">Configurar y Enviar</a>
+                        {% if p.upload_status == 'paused' %}
+                            <span class="flex-1 bg-surface-container text-on-surface-variant px-4 py-3 rounded-lg font-bold text-center">Pausado</span>
+                        {% else %}
+                            <a href="{% url 'portal_configurar_pdf' p.id_documento %}" class="flex-1 bg-primary hover:bg-primary-container text-white px-4 py-3 rounded-lg font-bold text-center transition-colors">Configurar y Enviar</a>
+                        {% endif %}
                         <button class="border border-status-danger text-status-danger hover:bg-status-danger hover:text-white px-4 py-3 rounded-lg font-bold transition-colors" onclick="eliminarPdf('{{ p.id_documento }}')" title="Eliminar Borrador">
                             <span class="material-symbols-outlined">delete</span>
                         </button>

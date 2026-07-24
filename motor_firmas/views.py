@@ -7,6 +7,7 @@ import uuid
 import shutil
 import base64
 import shlex
+import hashlib
 from datetime import datetime, timedelta, timezone as datetime_timezone
 from types import SimpleNamespace
 from urllib.parse import quote, parse_qs, urlparse
@@ -81,6 +82,10 @@ DRIVE_API_PDFS_FOLDER_ID = getattr(settings, 'DRIVE_API_PDFS_FOLDER_ID', DEFAULT
 DRIVE_CONTRATOS_BASE_FOLDER_ID = getattr(settings, 'DRIVE_CONTRATOS_BASE_FOLDER_ID', DEFAULT_DRIVE_CONTRATOS_BASE_FOLDER_ID)
 DRIVE_CONTRATOS_BASE_FOLDER_NAME = getattr(settings, 'DRIVE_CONTRATOS_BASE_FOLDER_NAME', 'Contratos_Base')
 DRIVE_CONTRATOS_BASE_FOLDER_ID = getattr(settings, 'DRIVE_CONTRATOS_BASE_FOLDER_ID', DEFAULT_DRIVE_CONTRATOS_BASE_FOLDER_ID)
+PDF_UPLOAD_RETRY_COOLDOWN_SECONDS = int(getattr(settings, 'PDF_UPLOAD_RETRY_COOLDOWN_SECONDS', 90))
+PDF_UPLOAD_N8N_TIMEOUT_SECONDS = int(getattr(settings, 'PDF_UPLOAD_N8N_TIMEOUT_SECONDS', 15))
+FIRMA_LIBRE_DUPLICATE_GUARD_SECONDS = int(getattr(settings, 'FIRMA_LIBRE_DUPLICATE_GUARD_SECONDS', 10 * 60))
+PDF_LEGACY_DUPLICATE_WINDOW_SECONDS = int(getattr(settings, 'PDF_LEGACY_DUPLICATE_WINDOW_SECONDS', 2 * 60 * 60))
 
 _MONGO_CLIENT = None
 
@@ -110,20 +115,23 @@ def _n8n_error_respond_webhook_sin_usar(error):
     return 'unused respond to webhook node found in the workflow' in text
 
 
-def _pausar_subida_pdf_usuario_por_n8n(error, detail=''):
+def _pausar_subida_pdf_usuario_por_n8n(error, detail='', document_id='', owner_email=''):
     message = str(error or '').strip() or 'N8N no confirmo la subida del PDF a Google Drive.'
     detail = str(detail or '').strip()
-    record_exception(
-        get_current_request(),
+    request = get_current_request()
+    event = record_exception(
+        request,
         N8N_WEBHOOK_SUBIR_PDF_USUARIO,
         RuntimeError(detail or message),
         method='POST',
         source='backend',
     )
+    _registrar_evento_global_n8n_monitor(event, request, owner_email=owner_email)
     return JsonResponse({
         'status': 'paused',
         'source': 'n8n',
         'n8n_paused': True,
+        'id': str(document_id or ''),
         'error': message,
         'detail': detail,
         'admin_notice': 'El proceso quedo pausado. Revisa el monitor n8n del administrador; debe aparecer subir-pdf-usuario como FALLA - PARAR.',
@@ -1720,6 +1728,52 @@ def _mongo_database():
 
 def _mongo_collection(model):
     return _mongo_database()[model._meta.db_table]
+
+
+def _n8n_monitor_global_collection():
+    return _mongo_database()['n8n_monitor_events']
+
+
+def _registrar_evento_global_n8n_monitor(event, request=None, owner_email=''):
+    if not event:
+        return
+    try:
+        actor = owner_email
+        if not actor and request is not None:
+            actor = request.session.get('owner_email') or request.session.get('admin_email') or ''
+        global_event = {
+            **event,
+            'owner_email': _normalizar_email(actor),
+            'global_event': True,
+            'created_at': _datetime_for_mongo(),
+        }
+        _n8n_monitor_global_collection().insert_one(global_event)
+    except Exception as exc:
+        print(f"No se pudo registrar evento global n8n: {exc}")
+
+
+def _eventos_globales_n8n_monitor(limit=80):
+    try:
+        cursor = _n8n_monitor_global_collection().find({}, {'_id': 0}).sort('timestamp', -1).limit(limit)
+        return list(reversed(list(cursor)))
+    except Exception as exc:
+        print(f"No se pudieron cargar eventos globales n8n: {exc}")
+        return []
+
+
+def _combinar_eventos_n8n_monitor(*event_groups):
+    combined = []
+    seen = set()
+    for group in event_groups:
+        for event in group or []:
+            event_id = str(event.get('id') or '')
+            if event_id and event_id in seen:
+                continue
+            if event_id:
+                seen.add(event_id)
+            combined.append(event)
+    combined.sort(key=lambda item: str(item.get('timestamp') or ''))
+    return combined[-80:]
 
 
 def _mongo_pk_query(document):
@@ -5168,7 +5222,10 @@ def n8n_monitor_events(request):
         return JsonResponse({"error": "No autenticado"}, status=403)
 
     if request.method == 'GET':
-        return JsonResponse({"events": get_session_events(request)})
+        return JsonResponse({"events": _combinar_eventos_n8n_monitor(
+            _eventos_globales_n8n_monitor(),
+            get_session_events(request),
+        )})
 
     if request.method == 'POST':
         try:
@@ -5178,8 +5235,14 @@ def n8n_monitor_events(request):
 
         event = record_client_event(request, data)
         if event is None:
-            return JsonResponse({"status": "ignored", "events": get_session_events(request)})
-        return JsonResponse({"status": "success", "event": event, "events": get_session_events(request)})
+            return JsonResponse({"status": "ignored", "events": _combinar_eventos_n8n_monitor(
+                _eventos_globales_n8n_monitor(),
+                get_session_events(request),
+            )})
+        return JsonResponse({"status": "success", "event": event, "events": _combinar_eventos_n8n_monitor(
+            _eventos_globales_n8n_monitor(),
+            get_session_events(request),
+        )})
 
     return JsonResponse({"error": "Metodo no permitido."}, status=405)
 
@@ -5285,10 +5348,64 @@ def solicitar_firma_plantilla(request, plantilla_id):
 
 
 # ================= VISTAS DE PDFS LIBRES (DRAG & DROP) =================
+def _pdf_usuario_confirmado_en_drive(doc):
+    return bool(str(getattr(doc, 'drive_file_id', '') or '').strip()) and getattr(doc, 'upload_status', 'uploaded') != 'paused'
+
+
+def _pdf_usuario_dedupe_key(doc):
+    upload_sha256 = str(getattr(doc, 'upload_sha256', '') or '').strip()
+    if upload_sha256:
+        return f"sha256:{upload_sha256}"
+    nombre = str(getattr(doc, 'nombre', '') or '').strip().lower()
+    return f"nombre:{nombre}" if nombre else ''
+
+
+def _pdf_usuario_mismo_intento_legacy(a_doc, b_doc):
+    if getattr(a_doc, 'upload_sha256', '') and getattr(b_doc, 'upload_sha256', ''):
+        return True
+    a_created = _datetime_for_compare(getattr(a_doc, 'created_at', None))
+    b_created = _datetime_for_compare(getattr(b_doc, 'created_at', None))
+    if a_created is None or b_created is None:
+        return True
+    return abs((a_created - b_created).total_seconds()) <= PDF_LEGACY_DUPLICATE_WINDOW_SECONDS
+
+
+def _deduplicar_pdfs_usuario_visibles(pdfs):
+    visibles = []
+    seen = {}
+    for doc in pdfs:
+        if getattr(doc, 'enviado_a_firma', False) or getattr(doc, 'converted_to_master', False):
+            visibles.append(doc)
+            continue
+        key = _pdf_usuario_dedupe_key(doc)
+        if not key:
+            visibles.append(doc)
+            continue
+        existing_index = seen.get(key)
+        if existing_index is None:
+            seen[key] = len(visibles)
+            visibles.append(doc)
+            continue
+        existing = visibles[existing_index]
+        if not _pdf_usuario_mismo_intento_legacy(doc, existing):
+            seen[f"{key}:{getattr(doc, 'id_documento', len(visibles))}"] = len(visibles)
+            visibles.append(doc)
+            continue
+        if _pdf_usuario_confirmado_en_drive(doc) and not _pdf_usuario_confirmado_en_drive(existing):
+            visibles[existing_index] = doc
+
+    return sorted(
+        visibles,
+        key=lambda doc: _datetime_for_compare(getattr(doc, 'created_at', None)) or datetime.min.replace(tzinfo=datetime_timezone.utc),
+        reverse=True,
+    )
+
+
 def portal_pdfs_usuario(request):
     owner_email = request.session.get('owner_email')
     if not owner_email: return redirect('portal_login')
     pdfs = _mongo_find(DocumentoPDFUsuario, {'owner_email': owner_email, 'deleted': {'$ne': True}}, [('created_at', -1)])
+    pdfs = _deduplicar_pdfs_usuario_visibles(pdfs)
 
     return render(
         request,
@@ -5319,6 +5436,94 @@ def portal_subir_pdf(request):
     return render(request, 'motor_firmas/portal_subir_pdf.html', _portal_context(owner_email))
 
 
+def _safe_pdf_libre_filename(original_filename):
+    filename = os.path.basename(str(original_filename or '') or 'documento.pdf')
+    safe_original = re.sub(r'[^A-Za-z0-9._-]+', '_', filename).strip('._') or 'documento.pdf'
+    if not safe_original.lower().endswith('.pdf'):
+        safe_original = f"{safe_original}.pdf"
+    return f"{uuid.uuid4()}_{safe_original[:180]}"
+
+
+def _guardar_pdf_libre_local_desde_bytes(file_bytes, original_filename, existing_doc=None):
+    rel_path = str(getattr(existing_doc, 'archivo_local', '') or '').replace('\\', '/') if existing_doc else ''
+    if rel_path:
+        abs_path = os.path.join(settings.MEDIA_ROOT, rel_path)
+        if os.path.exists(abs_path):
+            return rel_path
+
+    os.makedirs(os.path.join(settings.MEDIA_ROOT, 'pdfs_libres'), exist_ok=True)
+    local_path = os.path.join('pdfs_libres', _safe_pdf_libre_filename(original_filename))
+    with open(os.path.join(settings.MEDIA_ROOT, local_path), 'wb+') as f:
+        f.write(file_bytes)
+    return local_path
+
+
+def _buscar_pdf_usuario_por_hash(owner_email, upload_sha256):
+    if not upload_sha256:
+        return None
+    return _mongo_find_one(DocumentoPDFUsuario, {
+        'owner_email': owner_email,
+        'upload_sha256': upload_sha256,
+        'deleted': {'$ne': True},
+        'converted_to_master': {'$ne': True},
+    })
+
+
+def _n8n_upload_attempt_es_reciente(doc):
+    last_attempt = _datetime_for_compare(getattr(doc, 'last_n8n_upload_attempt_at', None))
+    if last_attempt is None:
+        return False
+    return timezone.now() - last_attempt < timedelta(seconds=PDF_UPLOAD_RETRY_COOLDOWN_SECONDS)
+
+
+def _guardar_borrador_pdf_pausado(owner_email, original_filename, file_bytes, upload_sha256, existing_doc=None, error=''):
+    now = _datetime_for_mongo()
+    local_path = _guardar_pdf_libre_local_desde_bytes(file_bytes, original_filename, existing_doc)
+    fields = {
+        'nombre': original_filename,
+        'owner_email': owner_email,
+        'archivo_local': local_path,
+        'enviado_a_firma': False,
+        'upload_sha256': upload_sha256,
+        'upload_size': len(file_bytes),
+        'upload_status': 'paused',
+        'n8n_upload_error': str(error or '')[:1000],
+        'last_n8n_upload_attempt_at': now,
+        'updated_at': now,
+    }
+    if existing_doc is not None:
+        _mongo_update_document(DocumentoPDFUsuario, existing_doc, fields)
+        return existing_doc
+
+    id_documento = str(uuid.uuid4())
+    document = {
+        'id_documento': id_documento,
+        'drive_file_id': '',
+        'created_at': now,
+        **fields,
+    }
+    _mongo_collection(DocumentoPDFUsuario).insert_one(document)
+    return _mongo_to_namespace(document)
+
+
+def _marcar_borrador_pdf_subido(doc, drive_file_id, original_filename, file_bytes, upload_sha256):
+    now = _datetime_for_mongo()
+    local_path = _guardar_pdf_libre_local_desde_bytes(file_bytes, original_filename, doc)
+    fields = {
+        'nombre': original_filename,
+        'drive_file_id': drive_file_id,
+        'archivo_local': local_path,
+        'upload_sha256': upload_sha256,
+        'upload_size': len(file_bytes),
+        'upload_status': 'uploaded',
+        'n8n_upload_error': '',
+        'last_n8n_upload_success_at': now,
+        'updated_at': now,
+    }
+    _mongo_update_document(DocumentoPDFUsuario, doc, fields)
+    return doc
+
+
 @csrf_exempt
 def subir_pdf_usuario(request):
     owner_email = request.session.get('owner_email')
@@ -5331,6 +5536,24 @@ def subir_pdf_usuario(request):
     original_filename = os.path.basename(str(getattr(pdf_file, 'name', '') or 'documento.pdf'))
     if not original_filename.lower().endswith('.pdf'):
         return JsonResponse({"error": "Solo se permiten archivos PDF."}, status=400)
+    file_bytes = pdf_file.read()
+    pdf_file.seek(0)
+    upload_sha256 = hashlib.sha256(file_bytes).hexdigest()
+    existing_doc = _buscar_pdf_usuario_por_hash(owner_email, upload_sha256)
+    if existing_doc and str(getattr(existing_doc, 'drive_file_id', '') or '').strip():
+        return JsonResponse({
+            "status": "success",
+            "nombre": getattr(existing_doc, 'nombre', original_filename) or original_filename,
+            "id": str(getattr(existing_doc, 'id_documento', '') or ''),
+            "deduplicated": True,
+        })
+    if existing_doc and _n8n_upload_attempt_es_reciente(existing_doc):
+        return _pausar_subida_pdf_usuario_por_n8n(
+            'La subida ya esta pausada por una falla reciente de N8N.',
+            f"Reintento duplicado bloqueado por {PDF_UPLOAD_RETRY_COOLDOWN_SECONDS} segundos para evitar subidas/correos duplicados.",
+            document_id=getattr(existing_doc, 'id_documento', ''),
+            owner_email=owner_email,
+        )
 
     dominio = _dominio_de_email(owner_email)
     try:
@@ -5346,31 +5569,69 @@ def subir_pdf_usuario(request):
     if not drive_folder_id:
         return JsonResponse({"error": f"Tu dominio (@{dominio}) no tiene una carpeta de Google Drive valida."}, status=400)
 
+    existing_doc = _guardar_borrador_pdf_pausado(
+        owner_email,
+        original_filename,
+        file_bytes,
+        upload_sha256,
+        existing_doc=existing_doc,
+        error='Subida a N8N en proceso.',
+    )
+
     try:
-        files = {'data': (original_filename, pdf_file.read(), 'application/pdf')}
-        pdf_file.seek(0)
+        files = {'data': (original_filename, file_bytes, 'application/pdf')}
         response = tracked_post(N8N_WEBHOOK_SUBIR_PDF_USUARIO, data={'folder_id': drive_folder_id},
-                                files=files, timeout=30)
+                                files=files, timeout=PDF_UPLOAD_N8N_TIMEOUT_SECONDS)
         n8n_error = _n8n_response_error(response)
         if n8n_error:
+            _guardar_borrador_pdf_pausado(
+                owner_email,
+                original_filename,
+                file_bytes,
+                upload_sha256,
+                existing_doc=existing_doc,
+                error=n8n_error,
+            )
             return _pausar_subida_pdf_usuario_por_n8n(
                 'N8N fallo al subir el PDF a Google Drive.',
                 n8n_error,
+                document_id=getattr(existing_doc, 'id_documento', ''),
+                owner_email=owner_email,
             )
         try:
             resp = response.json()
         except ValueError as exc:
+            _guardar_borrador_pdf_pausado(
+                owner_email,
+                original_filename,
+                file_bytes,
+                upload_sha256,
+                existing_doc=existing_doc,
+                error=exc,
+            )
             return _pausar_subida_pdf_usuario_por_n8n(
                 'N8N no devolvio una respuesta JSON valida al subir el PDF.',
                 exc,
+                document_id=getattr(existing_doc, 'id_documento', ''),
+                owner_email=owner_email,
             )
 
         if isinstance(resp, list):
             resp = resp[0] if resp else {}
         if not isinstance(resp, dict):
+            _guardar_borrador_pdf_pausado(
+                owner_email,
+                original_filename,
+                file_bytes,
+                upload_sha256,
+                existing_doc=existing_doc,
+                error=resp,
+            )
             return _pausar_subida_pdf_usuario_por_n8n(
                 'N8N devolvio una respuesta invalida al subir el PDF.',
                 resp,
+                document_id=getattr(existing_doc, 'id_documento', ''),
+                owner_email=owner_email,
             )
 
         n8n_status = str(resp.get('status') or resp.get('state') or '').strip().lower()
@@ -5382,34 +5643,44 @@ def subir_pdf_usuario(request):
         ).strip()
 
         if n8n_status == 'success' and drive_file_id:
-            id_documento = str(uuid.uuid4())
-            safe_original = re.sub(r'[^A-Za-z0-9._-]+', '_', original_filename).strip('._') or 'documento.pdf'
-            safe_filename = f"{uuid.uuid4()}_{safe_original[:180]}"
-            os.makedirs(os.path.join(settings.MEDIA_ROOT, 'pdfs_libres'), exist_ok=True)
-            local_path = os.path.join('pdfs_libres', safe_filename)
-            with open(os.path.join(settings.MEDIA_ROOT, local_path), 'wb+') as f:
-                for chunk in pdf_file.chunks(): f.write(chunk)
-
-            _mongo_collection(DocumentoPDFUsuario).insert_one({
-                'id_documento': id_documento,
-                'nombre': original_filename,
-                'drive_file_id': drive_file_id,
-                'owner_email': owner_email,
-                'archivo_local': local_path,
-                'enviado_a_firma': False,
-                'created_at': timezone.now().replace(tzinfo=None),
-            })
-            return JsonResponse({"status": "success", "nombre": original_filename, "id": id_documento})
+            doc = _marcar_borrador_pdf_subido(
+                existing_doc,
+                drive_file_id,
+                original_filename,
+                file_bytes,
+                upload_sha256,
+            )
+            return JsonResponse({"status": "success", "nombre": original_filename, "id": str(getattr(doc, 'id_documento', '') or '')})
 
         n8n_detail = resp.get('error') or resp.get('message') or resp.get('detail') or resp
+        _guardar_borrador_pdf_pausado(
+            owner_email,
+            original_filename,
+            file_bytes,
+            upload_sha256,
+            existing_doc=existing_doc,
+            error=n8n_detail,
+        )
         return _pausar_subida_pdf_usuario_por_n8n(
             'N8N no confirmo la subida del PDF a Google Drive.',
             n8n_detail,
+            document_id=getattr(existing_doc, 'id_documento', ''),
+            owner_email=owner_email,
         )
     except requests.RequestException as e:
+        _guardar_borrador_pdf_pausado(
+            owner_email,
+            original_filename,
+            file_bytes,
+            upload_sha256,
+            existing_doc=existing_doc,
+            error=e,
+        )
         return _pausar_subida_pdf_usuario_por_n8n(
             'No se pudo contactar N8N para subir el PDF a Google Drive.',
             e,
+            document_id=getattr(existing_doc, 'id_documento', ''),
+            owner_email=owner_email,
         )
     except Exception as e:
         return JsonResponse({"error": f"Error interno al subir el PDF: {e}"}, status=500)
@@ -5421,6 +5692,8 @@ def portal_configurar_pdf(request, pdf_id):
     doc = _mongo_find_one_by_uuid_field(DocumentoPDFUsuario, 'id_documento', pdf_id, {'owner_email': owner_email})
     if not doc:
         raise Http404("Documento PDF no encontrado")
+    if not str(getattr(doc, 'drive_file_id', '') or '').strip() or getattr(doc, 'upload_status', 'uploaded') == 'paused':
+        raise Http404("El PDF aun no fue confirmado en Google Drive. Reintenta la subida antes de configurarlo.")
     try:
         rel_path, _ = _asegurar_pdf_usuario_local(doc, owner_email)
     except Exception as e:
@@ -5438,6 +5711,33 @@ def portal_configurar_pdf(request, pdf_id):
     )
 
 
+def _firma_libre_en_proceso_reciente(doc):
+    started_at = _datetime_for_compare(getattr(doc, 'firma_iniciando_at', None))
+    if started_at is None:
+        return False
+    return timezone.now() - started_at < timedelta(seconds=FIRMA_LIBRE_DUPLICATE_GUARD_SECONDS)
+
+
+def _respuesta_firma_libre_ya_iniciada(doc):
+    ref_id = str(
+        getattr(doc, 'proceso_reference_id', '')
+        or getattr(doc, 'reference_id', '')
+        or ''
+    ).strip()
+    if ref_id:
+        return JsonResponse({
+            "status": "success",
+            "already_started": True,
+            "reference_id": ref_id,
+            "msg": "La solicitud de firma ya estaba enviada; no se envio otro correo.",
+        })
+    return JsonResponse({
+        "status": "processing",
+        "already_started": True,
+        "msg": "La solicitud de firma ya esta en proceso; no se enviara otro correo.",
+    }, status=202)
+
+
 @csrf_exempt
 def iniciar_firma_libre(request):
     owner_email = request.session.get('owner_email')
@@ -5452,6 +5752,15 @@ def iniciar_firma_libre(request):
     doc = _mongo_find_one_by_uuid_field(DocumentoPDFUsuario, 'id_documento', data.get('pdf_id'), {'owner_email': owner_email})
     if not doc:
         return JsonResponse({"error": "Documento no encontrado."}, status=404)
+    if getattr(doc, 'enviado_a_firma', False) or getattr(doc, 'converted_to_master', False):
+        return _respuesta_firma_libre_ya_iniciada(doc)
+    if getattr(doc, 'firma_iniciando', False) and _firma_libre_en_proceso_reciente(doc):
+        return _respuesta_firma_libre_ya_iniciada(doc)
+    if not str(getattr(doc, 'drive_file_id', '') or '').strip() or getattr(doc, 'upload_status', 'uploaded') == 'paused':
+        return JsonResponse({
+            "status": "paused",
+            "error": "El PDF aun no esta confirmado en Google Drive. Reintenta la subida antes de solicitar firmas.",
+        }, status=409)
 
     firmantes = _normalizar_firmantes(data.get('firmantes', []))
     if not firmantes:
@@ -5477,6 +5786,11 @@ def iniciar_firma_libre(request):
         counter += 1
     final_path = os.path.join(settings.MEDIA_ROOT, f"{ref_id}.pdf")
     shutil.copyfile(original_path, final_path)
+    _mongo_update_document(DocumentoPDFUsuario, doc, {
+        'firma_iniciando': True,
+        'firma_iniciando_at': _datetime_for_mongo(),
+        'firma_iniciando_error': '',
+    })
 
     dominio = owner_email.split('@')[1] if '@' in owner_email else ''
     carpeta_dom = _mongo_find_one(CarpetaDominio, {'dominio': dominio})
@@ -5494,6 +5808,13 @@ def iniciar_firma_libre(request):
             'fill_fields': fill_fields,
         },
     )
+    _mongo_update_document(DocumentoPDFUsuario, doc, {
+        'enviado_a_firma': True,
+        'proceso_reference_id': ref_id,
+        'firma_iniciando': True,
+        'firma_iniciando_at': _datetime_for_mongo(),
+        'updated_at': _datetime_for_mongo(),
+    })
 
     primer_firmante = firmantes[0]
     link_firma = f"https://dsign.raloy.com.mx/firmar/{proceso.token_acceso}/{primer_firmante.get('token_firmante', '')}/"
@@ -5515,7 +5836,15 @@ def iniciar_firma_libre(request):
         print(f"Error en N8N_WEBHOOK_NOTIFICAR_OWNER: {e}")
     crear_notificacion_firma(owner_email, ref_id, f"Has iniciado el proceso de firma libre para {ref_id}.")
 
-    doc_updates = {'deleted': True, 'converted_to_master': True}
+    doc_updates = {
+        'deleted': True,
+        'converted_to_master': True,
+        'enviado_a_firma': True,
+        'proceso_reference_id': ref_id,
+        'firma_iniciando': False,
+        'firma_iniciando_at': None,
+        'updated_at': _datetime_for_mongo(),
+    }
     if _eliminar_archivo_media(original_path):
         doc_updates['archivo_local'] = ''
     _mongo_update_document(DocumentoPDFUsuario, doc, doc_updates)
