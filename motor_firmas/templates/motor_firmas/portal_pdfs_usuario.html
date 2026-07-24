@@ -45,6 +45,10 @@
                         <div class="mt-4 rounded-lg border border-status-danger bg-error-container px-3 py-2 text-sm font-bold text-on-error-container">
                             Subida a Drive pausada. Reintenta desde Alta de PDF Libre.
                         </div>
+                    {% elif p.upload_status == 'pending_n8n' %}
+                        <div class="mt-4 rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm font-bold text-primary">
+                            PDF recibido. Resguardo Drive en proceso.
+                        </div>
                     {% endif %}
                 </div>
                 <div class="p-5 border-t border-outline-variant bg-white flex items-center gap-3">

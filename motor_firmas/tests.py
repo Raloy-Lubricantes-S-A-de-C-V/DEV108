@@ -37,8 +37,10 @@ from .views import (
     _normalizar_campos_llenado,
     _document_variables_desde_campos_llenado,
     _deduplicar_pdfs_usuario_visibles,
+    _ejecutar_subida_pdf_usuario_n8n,
     _normalizar_referencias_documento,
     _obtener_hash_para_reestampado,
+    _programar_resguardo_pdf_usuario_pendiente,
     _proceso_pdf_puede_servirse,
     _relaciones_documento_firma,
     _url_firmada_expirada,
@@ -990,59 +992,107 @@ class SubirPdfUsuarioTest(SimpleTestCase):
             return SimpleNamespace(drive_folder_id='drive-folder-raloy')
         return None
 
-    def test_subida_pdf_usuario_guarda_solo_si_n8n_confirma_drive_file_id(self):
+    def test_subida_pdf_usuario_acepta_pdf_y_programa_n8n_en_background(self):
         request = self._post_pdf_request()
         collection = FakeMongoCollection([])
-        n8n_payload = {
-            'status': 'success',
-            'file_id': 'drive-file-123',
-            'nombre': 'SCANNER@RALOY.COM.MX_20260724_113548.PDF',
-        }
 
         with tempfile.TemporaryDirectory() as media_root, \
                 override_settings(MEDIA_ROOT=media_root), \
                 patch('motor_firmas.views._mongo_find_one', side_effect=self._find_one_folder_only), \
                 patch('motor_firmas.views._mongo_collection', return_value=collection), \
-                patch('motor_firmas.views.tracked_post',
-                      return_value=self._n8n_response(n8n_payload)) as tracked:
+                patch('motor_firmas.views._programar_subida_pdf_usuario_n8n') as background_upload, \
+                patch('motor_firmas.views.tracked_post') as tracked:
             response = subir_pdf_usuario(request)
 
         payload = json.loads(response.content)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(payload['status'], 'success')
         self.assertEqual(payload['nombre'], 'SCANNER@RALOY.COM.MX_20260724_113548.PDF')
+        self.assertTrue(payload['drive_pending'])
         self.assertEqual(len(collection.documents), 1)
         self.assertEqual(collection.documents[0]['owner_email'], 'alopez@consorcionova.com')
+        self.assertEqual(collection.documents[0]['drive_file_id'], '')
+        self.assertEqual(collection.documents[0]['upload_status'], 'pending_n8n')
+        self.assertTrue(collection.documents[0]['archivo_local'].startswith('pdfs_libres/'))
+        background_upload.assert_called_once()
+        self.assertEqual(background_upload.call_args.args[5], 'drive-folder-raloy')
+        tracked.assert_not_called()
+
+    def test_worker_subida_pdf_usuario_deja_pendiente_y_notifica_monitor_si_n8n_responde_502(self):
+        collection = FakeMongoCollection([{
+            '_id': 'doc-1',
+            'id_documento': 'pdf-123',
+            'nombre': 'contrato.pdf',
+            'owner_email': 'alopez@consorcionova.com',
+            'drive_file_id': '',
+            'upload_status': 'pending_n8n',
+            'archivo_local': 'pdfs_libres/contrato.pdf',
+            'upload_sha256': 'abc',
+        }])
+        doc = SimpleNamespace(**collection.documents[0])
+        response_502 = SimpleNamespace(
+            status_code=502,
+            headers={'content-type': 'text/html'},
+            text='<html><h1>502 Bad Gateway</h1></html>',
+            json=lambda: {},
+        )
+
+        with patch('motor_firmas.views.requests.post', return_value=response_502), \
+                patch('motor_firmas.views._mongo_collection', return_value=collection), \
+                patch('motor_firmas.views._registrar_evento_global_n8n_monitor') as monitor:
+            ok = _ejecutar_subida_pdf_usuario_n8n(
+                doc,
+                'alopez@consorcionova.com',
+                'contrato.pdf',
+                b'%PDF-1.4\n%test\n',
+                'abc',
+                'drive-folder-raloy',
+            )
+
+        self.assertFalse(ok)
+        self.assertEqual(collection.documents[0]['upload_status'], 'pending_n8n')
+        self.assertIn('502 Bad Gateway', collection.documents[0]['n8n_upload_error'])
+        monitor.assert_called_once()
+        event = monitor.call_args.args[0]
+        self.assertFalse(event['ok'])
+        self.assertEqual(event['http_status'], 502)
+        self.assertEqual(event['decision_label'], 'FALLA - PARAR')
+
+    def test_worker_subida_pdf_usuario_actualiza_drive_file_id_si_n8n_confirma(self):
+        collection = FakeMongoCollection([{
+            '_id': 'doc-1',
+            'id_documento': 'pdf-123',
+            'nombre': 'contrato.pdf',
+            'owner_email': 'alopez@consorcionova.com',
+            'drive_file_id': '',
+            'upload_status': 'pending_n8n',
+            'archivo_local': '',
+            'upload_sha256': 'abc',
+        }])
+        doc = SimpleNamespace(**collection.documents[0])
+
+        with tempfile.TemporaryDirectory() as media_root, \
+                override_settings(MEDIA_ROOT=media_root), \
+                patch('motor_firmas.views.requests.post',
+                      return_value=self._n8n_response({'status': 'success', 'file_id': 'drive-file-123'})), \
+                patch('motor_firmas.views._mongo_collection', return_value=collection), \
+                patch('motor_firmas.views._registrar_evento_global_n8n_monitor') as monitor:
+            ok = _ejecutar_subida_pdf_usuario_n8n(
+                doc,
+                'alopez@consorcionova.com',
+                'contrato.pdf',
+                b'%PDF-1.4\n%test\n',
+                'abc',
+                'drive-folder-raloy',
+            )
+
+        self.assertTrue(ok)
+        self.assertEqual(collection.documents[0]['upload_status'], 'uploaded')
         self.assertEqual(collection.documents[0]['drive_file_id'], 'drive-file-123')
         self.assertTrue(collection.documents[0]['archivo_local'].startswith('pdfs_libres/'))
-        tracked.assert_called_once()
-        self.assertEqual(tracked.call_args.kwargs['data'], {'folder_id': 'drive-folder-raloy'})
-
-    def test_subida_pdf_usuario_pausa_y_notifica_monitor_si_n8n_no_devuelve_file_id(self):
-        request = self._post_pdf_request()
-        collection = FakeMongoCollection([])
-        n8n_payload = {'status': 'success', 'nombre': 'sin-id.pdf'}
-
-        with patch('motor_firmas.views._mongo_find_one', side_effect=self._find_one_folder_only), \
-                patch('motor_firmas.views._mongo_collection', return_value=collection), \
-                patch('motor_firmas.views.tracked_post',
-                      return_value=self._n8n_response(n8n_payload)), \
-                patch('motor_firmas.views.get_current_request', return_value=request), \
-                patch('motor_firmas.views._registrar_evento_global_n8n_monitor'), \
-                patch('motor_firmas.views.record_exception') as record_exception_mock:
-            response = subir_pdf_usuario(request)
-
-        payload = json.loads(response.content)
-        self.assertEqual(response.status_code, 502)
-        self.assertEqual(payload['status'], 'paused')
-        self.assertEqual(payload['source'], 'n8n')
-        self.assertTrue(payload['n8n_paused'])
-        self.assertIn('monitor n8n', payload['admin_notice'])
-        self.assertEqual(len(collection.documents), 1)
-        self.assertEqual(collection.documents[0]['upload_status'], 'paused')
-        self.assertEqual(collection.documents[0]['owner_email'], 'alopez@consorcionova.com')
-        record_exception_mock.assert_called_once()
-        self.assertEqual(record_exception_mock.call_args.args[1], 'https://n8n.raloy.com.mx/webhook/subir-pdf-usuario')
+        event = monitor.call_args.args[0]
+        self.assertTrue(event['ok'])
+        self.assertEqual(event['http_status'], 200)
 
     def test_subida_pdf_usuario_reusa_borrador_si_el_mismo_pdf_ya_tiene_drive_id(self):
         request = self._post_pdf_request()
@@ -1058,6 +1108,7 @@ class SubirPdfUsuarioTest(SimpleTestCase):
         }])
 
         with patch('motor_firmas.views._mongo_collection', return_value=collection), \
+                patch('motor_firmas.views._programar_subida_pdf_usuario_n8n') as background_upload, \
                 patch('motor_firmas.views.tracked_post') as tracked:
             response = subir_pdf_usuario(request)
 
@@ -1066,9 +1117,10 @@ class SubirPdfUsuarioTest(SimpleTestCase):
         self.assertEqual(payload['status'], 'success')
         self.assertEqual(payload['id'], 'pdf-existente')
         self.assertTrue(payload['deduplicated'])
+        background_upload.assert_not_called()
         tracked.assert_not_called()
 
-    def test_subida_pdf_usuario_pausa_borrador_y_bloquea_reintento_inmediato(self):
+    def test_subida_pdf_usuario_reintento_inmediato_reusa_pendiente_sin_duplicar_n8n(self):
         collection = FakeMongoCollection([])
 
         def find_one(model, query=None):
@@ -1081,22 +1133,54 @@ class SubirPdfUsuarioTest(SimpleTestCase):
                 override_settings(MEDIA_ROOT=media_root), \
                 patch('motor_firmas.views._mongo_find_one', side_effect=find_one), \
                 patch('motor_firmas.views._mongo_collection', return_value=collection), \
-                patch('motor_firmas.views.tracked_post',
-                      side_effect=requests.Timeout('n8n timeout')) as tracked, \
-                patch('motor_firmas.views._registrar_evento_global_n8n_monitor'):
+                patch('motor_firmas.views._programar_subida_pdf_usuario_n8n') as background_upload, \
+                patch('motor_firmas.views.tracked_post') as tracked:
             first_response = subir_pdf_usuario(self._post_pdf_request())
             second_response = subir_pdf_usuario(self._post_pdf_request())
 
         first_payload = json.loads(first_response.content)
         second_payload = json.loads(second_response.content)
-        self.assertEqual(first_response.status_code, 502)
-        self.assertEqual(second_response.status_code, 502)
-        self.assertEqual(first_payload['status'], 'paused')
-        self.assertEqual(second_payload['status'], 'paused')
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+        self.assertEqual(first_payload['status'], 'success')
+        self.assertEqual(second_payload['status'], 'success')
         self.assertEqual(first_payload['id'], second_payload['id'])
+        self.assertFalse(first_payload['deduplicated'])
+        self.assertTrue(second_payload['deduplicated'])
         self.assertEqual(len(collection.documents), 1)
-        self.assertEqual(collection.documents[0]['upload_status'], 'paused')
-        tracked.assert_called_once()
+        self.assertEqual(collection.documents[0]['upload_status'], 'pending_n8n')
+        background_upload.assert_called_once()
+        tracked.assert_not_called()
+
+    def test_reintento_pendiente_programa_n8n_si_existe_archivo_local_y_paso_cooldown(self):
+        with tempfile.TemporaryDirectory() as media_root:
+            rel_path = os.path.join('pdfs_libres', 'contrato.pdf')
+            abs_dir = os.path.join(media_root, 'pdfs_libres')
+            os.makedirs(abs_dir, exist_ok=True)
+            with open(os.path.join(media_root, rel_path), 'wb') as f:
+                f.write(b'%PDF-1.4\n%retry\n')
+
+            doc = SimpleNamespace(
+                id_documento='pdf-123',
+                nombre='contrato.pdf',
+                drive_file_id='',
+                upload_status='pending_n8n',
+                archivo_local=rel_path,
+                upload_sha256='',
+                last_n8n_upload_attempt_at=timezone.now().replace(tzinfo=None) - timedelta(minutes=5),
+            )
+
+            with override_settings(MEDIA_ROOT=media_root), \
+                    patch('motor_firmas.views._drive_folder_id_para_owner_pdf_usuario',
+                          return_value=('drive-folder-raloy', 'consorcionova.com')), \
+                    patch('motor_firmas.views._mongo_update_document'), \
+                    patch('motor_firmas.views._programar_subida_pdf_usuario_n8n') as background_upload:
+                result = _programar_resguardo_pdf_usuario_pendiente(doc, 'alopez@consorcionova.com')
+
+        self.assertIs(result, background_upload.return_value)
+        background_upload.assert_called_once()
+        self.assertEqual(background_upload.call_args.args[2], 'contrato.pdf')
+        self.assertEqual(background_upload.call_args.args[5], 'drive-folder-raloy')
 
 
 class PdfsUsuarioDedupeTest(SimpleTestCase):
@@ -1231,7 +1315,45 @@ class IniciarFirmaLibreIdempotenciaTest(SimpleTestCase):
         payload = json.loads(response.content)
         self.assertEqual(response.status_code, 409)
         self.assertEqual(payload['status'], 'paused')
-        self.assertIn('Google Drive', payload['error'])
+        self.assertIn('resguardo externo', payload['error'])
+        tracked.assert_not_called()
+
+    def test_firma_libre_inicia_con_pdf_pendiente_de_n8n_si_existe_localmente(self):
+        doc = SimpleNamespace(
+            id_documento='pdf-123',
+            owner_email='alopez@consorcionova.com',
+            nombre='contrato.pdf',
+            enviado_a_firma=False,
+            converted_to_master=False,
+            firma_iniciando=False,
+            drive_file_id='',
+            upload_status='pending_n8n',
+        )
+        proceso = SimpleNamespace(token_acceso='token-proceso')
+
+        def find_one(model, query=None):
+            if getattr(model, '__name__', '') == 'CarpetaDominio':
+                return SimpleNamespace(drive_folder_id='drive-folder-raloy')
+            return None
+
+        with patch('motor_firmas.views._mongo_find_one_by_uuid_field', return_value=doc), \
+                patch('motor_firmas.views._mongo_find_one', side_effect=find_one), \
+                patch('motor_firmas.views._asegurar_pdf_usuario_local',
+                      return_value=('pdfs_libres/original.pdf', '/tmp/original.pdf')), \
+                patch('motor_firmas.views.shutil.copyfile'), \
+                patch('motor_firmas.views._mongo_update_document'), \
+                patch('motor_firmas.views._crear_proceso_firma_mongo', return_value=proceso) as crear_proceso, \
+                patch('motor_firmas.views._post_n8n_json_background') as background_post, \
+                patch('motor_firmas.views.crear_notificacion_firma'), \
+                patch('motor_firmas.views._eliminar_archivo_media', return_value=True), \
+                patch('motor_firmas.views.tracked_post') as tracked:
+            response = iniciar_firma_libre(self._post_request())
+
+        payload = json.loads(response.content)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload['status'], 'success')
+        self.assertEqual(crear_proceso.call_args.kwargs['summary_data']['source_upload_status'], 'pending_n8n')
+        self.assertEqual(background_post.call_count, 2)
         tracked.assert_not_called()
 
     def test_firma_libre_exitosa_dispara_notificaciones_n8n_en_background(self):

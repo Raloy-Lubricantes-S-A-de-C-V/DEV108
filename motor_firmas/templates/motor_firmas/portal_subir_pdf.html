@@ -20,7 +20,7 @@
                 <span class="material-symbols-outlined shrink-0">info</span>
                 <ol class="list-decimal ml-4 text-sm space-y-1">
                     <li>Selecciona el archivo PDF desde tu computadora.</li>
-                    <li>El sistema lo subirá automáticamente al repositorio seguro de tu empresa.</li>
+                    <li>El sistema guardará el PDF y lo enviará al repositorio seguro de tu empresa.</li>
                 </ol>
             </div>
 
@@ -110,7 +110,7 @@
 
         const btn = document.getElementById('btnSubirPdf');
         btn.disabled = true;
-        btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Subiendo archivo a Drive de forma segura...';
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Guardando archivo de forma segura...';
 
         const formData = new FormData();
         formData.append('pdf_file', file);
