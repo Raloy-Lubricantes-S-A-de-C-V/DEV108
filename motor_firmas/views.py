@@ -8,6 +8,7 @@ import shutil
 import base64
 import shlex
 import hashlib
+import threading
 from datetime import datetime, timedelta, timezone as datetime_timezone
 from types import SimpleNamespace
 from urllib.parse import quote, parse_qs, urlparse
@@ -29,6 +30,8 @@ from .n8n_monitor import (
     response_error_detail,
     response_was_successful,
     session_can_view_monitor,
+    event_decision,
+    webhook_label,
 )
 from .utils import (
     estampar_firma_en_pdf,
@@ -1750,6 +1753,55 @@ def _registrar_evento_global_n8n_monitor(event, request=None, owner_email=''):
         _n8n_monitor_global_collection().insert_one(global_event)
     except Exception as exc:
         print(f"No se pudo registrar evento global n8n: {exc}")
+
+
+def _crear_evento_global_n8n(webhook_url, ok, method='POST', http_status=None, error='', source='background', owner_email=''):
+    now = timezone.localtime(timezone.now())
+    decision, decision_label = event_decision(webhook_url, bool(ok))
+    return {
+        'id': uuid.uuid4().hex,
+        'webhook_url': str(webhook_url or ''),
+        'webhook_label': webhook_label(webhook_url),
+        'method': str(method or 'POST').upper(),
+        'ok': bool(ok),
+        'decision': decision,
+        'decision_label': decision_label,
+        'http_status': http_status,
+        'error': str(error or '')[:240],
+        'source': str(source or 'background')[:40],
+        'owner_email': _normalizar_email(owner_email),
+        'timestamp': now.isoformat(),
+        'timestamp_label': now.strftime('%Y-%m-%d %H:%M:%S'),
+    }
+
+
+def _post_n8n_json_background(webhook_url, payload, owner_email='', timeout=8):
+    def runner():
+        try:
+            response = requests.post(webhook_url, json=payload, timeout=timeout)
+            ok = response_was_successful(response)
+            error = '' if ok else response_error_detail(response)
+            event = _crear_evento_global_n8n(
+                webhook_url,
+                ok,
+                http_status=getattr(response, 'status_code', None),
+                error=error,
+                source='background',
+                owner_email=owner_email,
+            )
+        except Exception as exc:
+            event = _crear_evento_global_n8n(
+                webhook_url,
+                False,
+                error=exc,
+                source='background',
+                owner_email=owner_email,
+            )
+        _registrar_evento_global_n8n_monitor(event, owner_email=owner_email)
+
+    thread = threading.Thread(target=runner, daemon=True)
+    thread.start()
+    return thread
 
 
 def _eventos_globales_n8n_monitor(limit=80):
@@ -5818,22 +5870,24 @@ def iniciar_firma_libre(request):
 
     primer_firmante = firmantes[0]
     link_firma = f"https://dsign.raloy.com.mx/firmar/{proceso.token_acceso}/{primer_firmante.get('token_firmante', '')}/"
-    try:
-        tracked_post(N8N_WEBHOOK_NOTIFICAR_CORREO,
-                      json={"email": primer_firmante.get('email'), "nombre": primer_firmante.get('nombre'), "link": link_firma,
-                            "mensaje": f"Raloy solicita tu firma para el documento libre {ref_id}."},
-                      timeout=20)
-    except Exception as e:
-        print(f"Error en N8N_WEBHOOK_NOTIFICAR_CORREO: {e}")
+    _post_n8n_json_background(
+        N8N_WEBHOOK_NOTIFICAR_CORREO,
+        {
+            "email": primer_firmante.get('email'),
+            "nombre": primer_firmante.get('nombre'),
+            "link": link_firma,
+            "mensaje": f"Raloy solicita tu firma para el documento libre {ref_id}.",
+        },
+        owner_email=owner_email,
+    )
     crear_notificacion_firma(primer_firmante.get('email'), ref_id, f"Raloy solicita tu firma para el documento libre {ref_id}.")
 
     link_trazabilidad = f"https://dsign.raloy.com.mx/trazabilidad/{proceso.token_acceso}/"
-    try:
-        tracked_post(N8N_WEBHOOK_NOTIFICAR_OWNER,
-                      json={"email": owner_email, "reference_id": ref_id, "link": link_trazabilidad},
-                      timeout=20)
-    except Exception as e:
-        print(f"Error en N8N_WEBHOOK_NOTIFICAR_OWNER: {e}")
+    _post_n8n_json_background(
+        N8N_WEBHOOK_NOTIFICAR_OWNER,
+        {"email": owner_email, "reference_id": ref_id, "link": link_trazabilidad},
+        owner_email=owner_email,
+    )
     crear_notificacion_firma(owner_email, ref_id, f"Has iniciado el proceso de firma libre para {ref_id}.")
 
     doc_updates = {
@@ -5849,7 +5903,7 @@ def iniciar_firma_libre(request):
         doc_updates['archivo_local'] = ''
     _mongo_update_document(DocumentoPDFUsuario, doc, doc_updates)
 
-    return JsonResponse({"status": "success"})
+    return JsonResponse({"status": "success", "reference_id": ref_id})
 
 
 # ================= VISTAS DE ADMINISTRADOR =================

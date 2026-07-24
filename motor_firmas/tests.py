@@ -1234,6 +1234,44 @@ class IniciarFirmaLibreIdempotenciaTest(SimpleTestCase):
         self.assertIn('Google Drive', payload['error'])
         tracked.assert_not_called()
 
+    def test_firma_libre_exitosa_dispara_notificaciones_n8n_en_background(self):
+        doc = SimpleNamespace(
+            id_documento='pdf-123',
+            owner_email='alopez@consorcionova.com',
+            nombre='contrato.pdf',
+            enviado_a_firma=False,
+            converted_to_master=False,
+            firma_iniciando=False,
+            drive_file_id='drive-file-123',
+            upload_status='uploaded',
+        )
+        proceso = SimpleNamespace(token_acceso='token-proceso')
+
+        def find_one(model, query=None):
+            if getattr(model, '__name__', '') == 'CarpetaDominio':
+                return SimpleNamespace(drive_folder_id='drive-folder-raloy')
+            return None
+
+        with patch('motor_firmas.views._mongo_find_one_by_uuid_field', return_value=doc), \
+                patch('motor_firmas.views._mongo_find_one', side_effect=find_one), \
+                patch('motor_firmas.views._asegurar_pdf_usuario_local',
+                      return_value=('pdfs_libres/original.pdf', '/tmp/original.pdf')), \
+                patch('motor_firmas.views.shutil.copyfile'), \
+                patch('motor_firmas.views._mongo_update_document'), \
+                patch('motor_firmas.views._crear_proceso_firma_mongo', return_value=proceso), \
+                patch('motor_firmas.views._post_n8n_json_background') as background_post, \
+                patch('motor_firmas.views.crear_notificacion_firma'), \
+                patch('motor_firmas.views._eliminar_archivo_media', return_value=True), \
+                patch('motor_firmas.views.tracked_post') as tracked:
+            response = iniciar_firma_libre(self._post_request())
+
+        payload = json.loads(response.content)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload['status'], 'success')
+        self.assertIn('reference_id', payload)
+        self.assertEqual(background_post.call_count, 2)
+        tracked.assert_not_called()
+
 
 class N8NMonitorGlobalEventsTest(SimpleTestCase):
     def setUp(self):
