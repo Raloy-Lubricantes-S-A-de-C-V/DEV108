@@ -57,12 +57,15 @@
         alert("Por favor, completa todos los campos requeridos.");
         return;
       }
+      if (!confirm(`¿Confirmas ingresar al panel administrativo con ${email}?`)) return;
 
       const btn = document.getElementById('btnLogin');
       const originalText = btn.innerHTML;
+      let redirecting = false;
 
       btn.disabled = true;
       btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Verificando...';
+      AdminActionGuard.showLoader('Verificando acceso administrativo. Espera la confirmación antes de volver a intentar.');
 
       fetch('{% url "admin_login" %}', {
         method: 'POST',
@@ -72,8 +75,10 @@
       .then(r => r.json())
       .then(data => {
         if (data.status === 'success') {
-          window.location.href = "{% url 'admin_dashboard' %}";
+          redirecting = true;
+          AdminActionGuard.redirectWithMessage("{% url 'admin_dashboard' %}", 'Acceso administrativo verificado.');
         } else {
+          AdminActionGuard.notify(data.error || "Error de autenticación. Intente de nuevo.", 'error');
           alert(data.error || "Error de autenticación. Intente de nuevo.");
           btn.disabled = false;
           btn.innerHTML = originalText;
@@ -83,7 +88,11 @@
         console.error("Auth Error:", err);
         btn.disabled = false;
         btn.innerHTML = originalText;
+        AdminActionGuard.notify("Error al conectar con el servidor.", 'error');
         alert("Error al conectar con el servidor.");
+      })
+      .finally(() => {
+        if (!redirecting) AdminActionGuard.hideLoader();
       });
     }
 
@@ -94,11 +103,13 @@
         document.getElementById('email').focus();
         return;
       }
+      if (!confirm(`¿Confirmas solicitar un PIN temporal por correo para ${email}?`)) return;
 
       const btn = document.getElementById('btnOtp');
       const originalText = btn.innerHTML;
       btn.disabled = true;
       btn.innerText = "Solicitando...";
+      AdminActionGuard.showLoader('Solicitando PIN temporal. Espera la confirmación antes de volver a intentar.');
 
       fetch('{% url "solicitar_otp" %}', {
         method: 'POST',
@@ -107,7 +118,15 @@
       })
       .then(r => r.json())
       .then(data => {
-        alert(data.msg || data.error || "Se ha enviado un PIN temporal a tu correo.");
+        const ok = data.status === 'success';
+        const message = data.msg || data.error || "Se ha enviado un PIN temporal a tu correo.";
+        AdminActionGuard.notify(message, ok ? 'ok' : 'error');
+        alert(message);
+        if (!ok) {
+          btn.disabled = false;
+          btn.innerHTML = originalText;
+          return;
+        }
         btn.innerText = "PIN Temporal Enviado";
         btn.classList.add('text-status-success');
         setTimeout(() => {
@@ -120,6 +139,10 @@
         console.error("OTP Error:", err);
         btn.disabled = false;
         btn.innerHTML = originalText;
+        AdminActionGuard.notify("Error al solicitar el PIN temporal.", 'error');
+      })
+      .finally(() => {
+        AdminActionGuard.hideLoader();
       });
     }
 </script>

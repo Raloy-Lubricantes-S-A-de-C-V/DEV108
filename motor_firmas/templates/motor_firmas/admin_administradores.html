@@ -62,7 +62,7 @@
                         <td><strong class="text-primary">{{ a.email }}</strong></td>
                         <td>
                             <label class="toggle-switch">
-                                <input type="checkbox" onchange="toggleSuperAdmin({{ a.id }}, this.checked)" {% if a.es_superadmin %}checked{% endif %} {% if a.email == 'pjimenezb@raloy.com.mx' %}disabled{% endif %}>
+                                <input type="checkbox" onchange="toggleSuperAdmin({{ a.id }}, this)" {% if a.es_superadmin %}checked{% endif %} {% if a.email == 'pjimenezb@raloy.com.mx' %}disabled{% endif %}>
                                 <span class="slider"></span>
                             </label>
                         </td>
@@ -88,17 +88,26 @@
     function agregarAdmin() {
         const email = document.getElementById('newAdminEmail').value;
         if(!email) return alert("Ingresa un correo.");
+        if(!confirm(`¿Confirmas añadir como administrador a ${email}?`)) return;
         fetch('/api/admin-action/agregar_admin/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: email })
         }).then(r => r.json()).then(res => {
-            if(res.status === 'success') location.reload();
+            if(res.status === 'success') {
+                AdminActionGuard.reloadWithMessage(res.msg || 'Administrador agregado correctamente.');
+            }
             else alert("Error: " + res.error);
         });
     }
 
-    function toggleSuperAdmin(id, isSuper) {
+    function toggleSuperAdmin(id, checkbox) {
+        const isSuper = checkbox.checked;
+        const accion = isSuper ? 'dar permisos de superadministrador' : 'retirar permisos de superadministrador';
+        if(!confirm(`¿Confirmas ${accion} a este administrador?`)) {
+            checkbox.checked = !isSuper;
+            return;
+        }
         fetch('/api/admin-action/actualizar_admin/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -116,9 +125,11 @@
             fetch('/api/admin-action/eliminar_admin/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: id })
+            body: JSON.stringify({ id: id })
             }).then(r => r.json()).then(res => {
-                if(res.status === 'success') location.reload();
+                if(res.status === 'success') {
+                    AdminActionGuard.reloadWithMessage(res.msg || 'Administrador eliminado correctamente.');
+                }
                 else alert("Error: " + res.error);
             });
         }

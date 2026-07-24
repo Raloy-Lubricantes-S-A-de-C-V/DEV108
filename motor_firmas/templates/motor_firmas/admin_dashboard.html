@@ -851,6 +851,8 @@
 	            return;
 	        }
 
+	        if (!confirm('¿Confirmas guardar la configuración global de Drive?')) return;
+
 	        fetch('/api/admin-action/guardar_config_drive_resguardo/', {
 	            method: 'POST',
 	            headers: { 'Content-Type': 'application/json' },
@@ -875,6 +877,7 @@
 	        const brand_color = normalizeHex(inpBrandColor.value);
 	        if(!dominio || !drive_folder_id) return alert("Completa dominio e ID de Google Drive");
 	        if(!brand_color) return alert("El color debe tener formato HEX, por ejemplo #162839");
+	        if(!confirm(`¿Confirmas guardar la carpeta y marca del dominio @${dominio}?`)) return;
 
 	        const formData = new FormData();
 	        formData.append('id', inpCarpetaId.value);
@@ -895,14 +898,15 @@
 	                alert("Error: " + (data.error || 'No se pudo guardar'));
 	                throw new Error(data.error || 'No se pudo guardar');
 	            }
-	            if (data.msg) alert(data.msg);
-	            window.location.reload();
+	            AdminActionGuard.reloadWithMessage(data.msg || 'Configuración de carpeta guardada.');
 	        });
 	    }
 
     function eliminarCarpetaDominio(id) {
         if(confirm("¿Seguro de eliminar esta configuración de carpeta para el dominio?")) {
-            ejecutarAccion('eliminar_carpeta_dominio', {id}).then(() => window.location.reload());
+            ejecutarAccion('eliminar_carpeta_dominio', {id}, true).then(ok => {
+                if (ok) AdminActionGuard.reloadWithMessage('Configuración de carpeta eliminada.');
+            });
         }
     }
 
@@ -1136,7 +1140,8 @@
             ? "ATENCIÓN: Este documento FIRMX se cancelará solo en el sistema local. No se enviará ninguna acción a FIRMX. ¿Deseas continuar?"
             : "ATENCIÓN: Cancelar el documento bloqueará la recolección de firmas de forma permanente. ¿Deseas continuar?";
         if(confirm(mensaje)) {
-            ejecutarAccion('cancelar_doc', { token: token }).then(() => {
+            ejecutarAccion('cancelar_doc', { token: token }, true).then(ok => {
+                if (!ok) return;
                 const obj = currentDocs.find(d => d.token === token);
                 if(obj) obj.status = 'CANCELLED';
                 cargarDocumentos(currentPage);
@@ -1146,12 +1151,15 @@
 
     function eliminarPlantilla(id) {
         if(confirm("¿Estás seguro de eliminar esta plantilla de forma permanente?")) {
-            ejecutarAccion('eliminar_plantilla', { id: id }).then(() => window.location.reload());
+            ejecutarAccion('eliminar_plantilla', { id: id }, true).then(ok => {
+                if (ok) AdminActionGuard.reloadWithMessage('Plantilla eliminada correctamente.');
+            });
         }
     }
 
     function guardarDiseno() {
         const pageSize = normalizePageSize(inpPageSize.value);
+        if(!confirm('¿Confirmas guardar esta configuración de vista del administrador?')) return;
         currentPageSize = pageSize;
         inpPageSize.value = pageSize;
         const config = {
@@ -1163,12 +1171,27 @@
             filEstado: filEstado.value,
             inpPageSize: pageSize
         };
-        ejecutarAccion('guardar_config', { configuracion: config }).then(() => {
+        ejecutarAccion('guardar_config', { configuracion: config }, true).then(() => {
             alert("Configuración de vista guardada correctamente.");
         });
     }
 
-    function ejecutarAccion(accion, payload) {
+    function confirmarAccionAdmin(accion) {
+        const mensajes = {
+            invitar_registro: '¿Confirmas enviar la invitación de registro?',
+            guardar_config: '¿Confirmas guardar esta configuración?',
+            cancelar_doc: '¿Confirmas cancelar este documento?',
+            eliminar_plantilla: '¿Confirmas eliminar esta plantilla?',
+            eliminar_carpeta_dominio: '¿Confirmas eliminar esta carpeta de dominio?'
+        };
+        const mensaje = mensajes[accion] || '¿Confirmas ejecutar esta acción administrativa?';
+        return window.AdminActionGuard
+            ? window.AdminActionGuard.confirmAction(mensaje)
+            : confirm(mensaje);
+    }
+
+    function ejecutarAccion(accion, payload, yaConfirmado) {
+        if (!yaConfirmado && !confirmarAccionAdmin(accion)) return Promise.resolve(false);
         return fetch(`/api/admin-action/${accion}/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

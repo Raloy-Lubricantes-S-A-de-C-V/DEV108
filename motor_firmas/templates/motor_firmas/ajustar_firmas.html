@@ -299,6 +299,8 @@
             return;
         }
 
+        if (!confirm('¿Confirmas guardar esta hoja de corrección y reestampar el documento?')) return;
+
         const btn = document.getElementById('btnGuardar');
         btn.disabled = true;
         btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Guardando...';

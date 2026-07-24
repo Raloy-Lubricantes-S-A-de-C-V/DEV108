@@ -321,6 +321,68 @@
         .admin-page-shell .data-table tr:last-child td { border-bottom: 0; }
         .admin-data-table tbody tr:hover,
         .admin-page-shell .data-table tbody tr:hover { background: #f8f9fa; }
+        .admin-action-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1400;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(22, 40, 57, 0.72);
+            backdrop-filter: blur(3px);
+            padding: 1rem;
+        }
+        .admin-action-overlay.is-visible { display: flex; }
+        .admin-action-panel {
+            width: min(26rem, 100%);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 0.75rem;
+            background: #ffffff;
+            color: #162839;
+            box-shadow: 0 1.5rem 3rem rgba(0, 0, 0, 0.24);
+            padding: 1.5rem;
+            text-align: center;
+        }
+        .admin-action-spinner {
+            width: 3rem;
+            height: 3rem;
+            border: 4px solid #d1e4fb;
+            border-top-color: #162839;
+            border-radius: 9999px;
+            animation: adminActionSpin 0.8s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        .admin-action-toast {
+            position: fixed;
+            right: 1rem;
+            bottom: 1rem;
+            z-index: 1500;
+            display: none;
+            max-width: min(28rem, calc(100vw - 2rem));
+            border: 1px solid #c4c6cd;
+            border-left: 5px solid #27ae60;
+            border-radius: 0.5rem;
+            background: #ffffff;
+            color: #162839;
+            box-shadow: 0 1rem 2.25rem rgba(4, 13, 24, 0.18);
+            padding: 0.95rem 1rem;
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+        .admin-action-toast.is-visible { display: block; }
+        .admin-action-toast.is-error {
+            border-left-color: #e74c3c;
+            color: #93000a;
+        }
+        body.admin-action-busy { cursor: wait; }
+        body.admin-action-busy .admin-action-btn,
+        body.admin-action-busy .admin-inline-action {
+            pointer-events: none;
+            opacity: 0.7;
+        }
+        @keyframes adminActionSpin {
+            to { transform: rotate(360deg); }
+        }
         @media (max-width: 768px) {
             .admin-page-shell { padding: 1rem 0.75rem 2rem; }
             .admin-hero { align-items: flex-start; flex-direction: column; padding: 1rem; }
@@ -723,9 +785,202 @@
 </head>
 <body class="{% block body_class %}bg-background-pure text-text-main min-h-screen{% endblock %}">
 {% block content %}{% endblock %}
+<div id="adminActionOverlay" class="admin-action-overlay" role="status" aria-live="assertive" aria-hidden="true">
+    <div class="admin-action-panel">
+        <div class="admin-action-spinner" aria-hidden="true"></div>
+        <h2 id="adminActionOverlayTitle" class="text-xl font-bold mb-2">Procesando acción</h2>
+        <p id="adminActionOverlayMessage" class="text-sm text-on-surface-variant">Espera un momento. No cierres ni repitas la acción.</p>
+    </div>
+</div>
+<div id="adminActionToast" class="admin-action-toast" role="status" aria-live="polite"></div>
 {% if request.session.admin_email == 'pjimenezb@raloy.com.mx' %}
     {% include "motor_firmas/partials/n8n_monitor.html" %}
 {% endif %}
+<script>
+    (function () {
+        const isAdminPage = window.location.pathname.startsWith('/admin-portal/');
+        const overlay = document.getElementById('adminActionOverlay');
+        const overlayTitle = document.getElementById('adminActionOverlayTitle');
+        const overlayMessage = document.getElementById('adminActionOverlayMessage');
+        const toast = document.getElementById('adminActionToast');
+        const nativeFetch = window.fetch ? window.fetch.bind(window) : null;
+        const nativeConfirm = window.confirm ? window.confirm.bind(window) : null;
+        let activeActions = 0;
+        let lastConfirmedAt = 0;
+        let toastTimer = null;
+
+        function markConfirmed() {
+            lastConfirmedAt = Date.now();
+        }
+
+        function wasRecentlyConfirmed() {
+            return Date.now() - lastConfirmedAt < 500;
+        }
+
+        if (nativeConfirm) {
+            window.confirm = function (message) {
+                const accepted = nativeConfirm(message);
+                if (accepted) markConfirmed();
+                return accepted;
+            };
+        }
+
+        function showLoader(message, title) {
+            if (!overlay) return;
+            activeActions += 1;
+            if (overlayTitle) overlayTitle.textContent = title || 'Procesando acción';
+            if (overlayMessage) overlayMessage.textContent = message || 'Espera un momento. No cierres ni repitas la acción.';
+            overlay.classList.add('is-visible');
+            overlay.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('admin-action-busy');
+        }
+
+        function hideLoader() {
+            activeActions = Math.max(0, activeActions - 1);
+            if (activeActions > 0 || !overlay) return;
+            overlay.classList.remove('is-visible');
+            overlay.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('admin-action-busy');
+        }
+
+        function notify(message, type) {
+            if (!toast || !message) return;
+            window.clearTimeout(toastTimer);
+            toast.textContent = message;
+            toast.classList.toggle('is-error', type === 'error');
+            toast.classList.add('is-visible');
+            toastTimer = window.setTimeout(() => {
+                toast.classList.remove('is-visible');
+            }, type === 'error' ? 6500 : 3600);
+        }
+
+        function rememberNextMessage(message, type) {
+            try {
+                window.sessionStorage.setItem('adminActionFlash', JSON.stringify({
+                    message: message || 'Acción completada.',
+                    type: type || 'ok'
+                }));
+            } catch (error) {}
+        }
+
+        function notifyStoredMessage() {
+            if (!isAdminPage) return;
+            try {
+                const raw = window.sessionStorage.getItem('adminActionFlash');
+                if (!raw) return;
+                window.sessionStorage.removeItem('adminActionFlash');
+                const data = JSON.parse(raw);
+                window.setTimeout(() => notify(data.message, data.type), 250);
+            } catch (error) {
+                try { window.sessionStorage.removeItem('adminActionFlash'); } catch (storageError) {}
+            }
+        }
+
+        function reloadWithMessage(message, type) {
+            rememberNextMessage(message, type);
+            window.location.reload();
+        }
+
+        function redirectWithMessage(url, message, type) {
+            rememberNextMessage(message, type);
+            window.location.href = url;
+        }
+
+        function confirmAction(message) {
+            return window.confirm(message || '¿Confirmas ejecutar esta acción?');
+        }
+
+        function urlFromFetchInput(input) {
+            const rawUrl = typeof input === 'string' ? input : (input && input.url);
+            if (!rawUrl) return null;
+            try {
+                return new URL(rawUrl, window.location.origin);
+            } catch (error) {
+                return null;
+            }
+        }
+
+        function methodFromFetchInput(input, init) {
+            return String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+        }
+
+        function isGuardedAdminFetch(input, init) {
+            if (!isAdminPage || !nativeFetch) return false;
+            const url = urlFromFetchInput(input);
+            if (!url) return false;
+            const method = methodFromFetchInput(input, init);
+            if (method === 'GET' || method === 'HEAD') return false;
+            if (url.pathname === '/api/admin-action/listar_docs_dashboard/') return false;
+            return url.pathname.startsWith('/api/admin-action/') || url.pathname.startsWith('/api/ajustar-firmas/');
+        }
+
+        function inspectResponse(response, path) {
+            const contentType = String(response.headers && response.headers.get ? response.headers.get('content-type') : '').toLowerCase();
+            if (!contentType.includes('application/json')) {
+                notify(response.ok ? 'Acción completada.' : `No se pudo completar la acción. HTTP ${response.status}`, response.ok ? 'ok' : 'error');
+                return;
+            }
+            response.json().then(data => {
+                if (data && data.status === 'success') {
+                    notify(data.msg || 'Acción completada.', 'ok');
+                    return;
+                }
+                if (data && (data.error || data.detail)) {
+                    notify(data.error || data.detail, 'error');
+                    return;
+                }
+                notify(response.ok ? 'Acción completada.' : `No se pudo completar la acción. HTTP ${response.status}`, response.ok ? 'ok' : 'error');
+            }).catch(() => {
+                notify(response.ok ? 'Acción completada.' : `No se pudo completar la acción. HTTP ${response.status}`, response.ok ? 'ok' : 'error');
+            });
+        }
+
+        if (nativeFetch) {
+            window.fetch = function (input, init) {
+                const shouldGuard = isGuardedAdminFetch(input, init);
+                if (!shouldGuard) return nativeFetch(input, init);
+
+                const url = urlFromFetchInput(input);
+                showLoader('La acción se está ejecutando. Espera la confirmación antes de volver a intentar.');
+                return nativeFetch(input, init)
+                    .then(response => {
+                        inspectResponse(response.clone(), url ? url.pathname : '');
+                        return response;
+                    })
+                    .catch(error => {
+                        notify(error && error.message ? error.message : 'No se pudo completar la acción.', 'error');
+                        throw error;
+                    })
+                    .finally(hideLoader);
+            };
+        }
+
+        document.addEventListener('submit', function (event) {
+            if (!isAdminPage || event.defaultPrevented) return;
+            const form = event.target;
+            if (!form || String(form.method || 'GET').toUpperCase() === 'GET') return;
+            if (!wasRecentlyConfirmed() && !confirmAction('¿Confirmas ejecutar esta acción?')) {
+                event.preventDefault();
+                return;
+            }
+            showLoader('La acción se está ejecutando. Espera a que la página confirme el resultado.');
+        });
+
+        notifyStoredMessage();
+
+        window.AdminActionGuard = {
+            confirmAction,
+            hideLoader,
+            markConfirmed,
+            notify,
+            redirectWithMessage,
+            reloadWithMessage,
+            rememberNextMessage,
+            showLoader,
+            wasRecentlyConfirmed
+        };
+    })();
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

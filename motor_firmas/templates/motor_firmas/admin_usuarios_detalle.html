@@ -164,7 +164,7 @@
                 })
             }).then(r => r.json()).then(res => {
                 if(res.status === 'success') {
-                    window.location.reload();
+                    AdminActionGuard.reloadWithMessage(res.msg || 'API Key eliminada correctamente.');
                 } else {
                     alert("Error: " + res.error);
                 }
@@ -188,6 +188,8 @@
         payload.tecnico_asignado = document.getElementById('selTecnico').value;
         {% endif %}
 
+        if(!confirm('¿Confirmas guardar la configuración de este usuario?')) return;
+
         fetch('/api/admin-action/actualizar_usuario/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -210,8 +212,7 @@
                 body: JSON.stringify({ id: {{ usuario.id }} })
             }).then(r => r.json()).then(res => {
                 if(res.status === 'success') {
-                    alert("Usuario eliminado.");
-                    window.location.href = "{% url 'admin_usuarios' %}";
+                    AdminActionGuard.redirectWithMessage("{% url 'admin_usuarios' %}", 'Usuario eliminado correctamente.');
                 } else {
                     alert("Error: " + res.error);
                 }

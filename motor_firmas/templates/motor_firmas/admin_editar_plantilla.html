@@ -112,6 +112,7 @@
     });
 
     function guardarEdicion() {
+        if(!confirm('¿Confirmas guardar los cambios de esta plantilla?')) return;
         const btn = document.getElementById('btnGuardarEdicion');
         btn.disabled = true;
         btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Guardando...';
@@ -141,7 +142,9 @@
         fetch('/api/admin-action/actualizar_plantilla/', {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         }).then(r => r.json()).then(res => {
-            if(res.status === 'success') { alert(res.msg); window.location.href = '/admin-portal/dashboard/'; }
+            if(res.status === 'success') {
+                AdminActionGuard.redirectWithMessage('/admin-portal/dashboard/', res.msg || 'Plantilla actualizada correctamente.');
+            }
             else {
                 alert("Error al guardar: " + res.error);
                 btn.disabled = false;

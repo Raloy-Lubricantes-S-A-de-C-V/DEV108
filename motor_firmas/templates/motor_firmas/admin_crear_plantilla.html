@@ -233,6 +233,7 @@
         const doc_id = document.getElementById('doc_id').value;
         const owner = document.getElementById('owner').value;
         if(!doc_id || !owner) return alert("Completa los campos.");
+        if(!confirm('¿Confirmas analizar este documento con IA?')) return;
 
         const btn = document.getElementById('btnAnalizarDoc');
         btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Analizando con IA...';
@@ -450,10 +451,14 @@
             usuarios_permitidos: document.getElementById('p_usuarios').value.split(',').map(s=>s.trim()).filter(s=>s)
         };
 
+        if(!confirm('¿Confirmas finalizar y guardar esta plantilla?')) return;
+
         fetch('/api/admin-action/guardar_plantilla/', {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         }).then(r => r.json()).then(res => {
-            if(res.status === 'success') { alert(res.msg); window.location.href = '/admin-portal/dashboard/'; }
+            if(res.status === 'success') {
+                AdminActionGuard.redirectWithMessage('/admin-portal/dashboard/', res.msg || 'Plantilla guardada correctamente.');
+            }
             else { alert("Error al guardar: " + res.error); }
         });
     }

@@ -142,6 +142,64 @@ class MongoViewHelpersTest(SimpleTestCase):
         self.assertEqual(collection.documents, [])
 
 
+class AdminActionGuardTemplateTest(SimpleTestCase):
+    def _template(self, filename):
+        path = os.path.join(
+            os.path.dirname(__file__),
+            'templates',
+            'motor_firmas',
+            filename,
+        )
+        with open(path, encoding='utf-8') as template:
+            return template.read()
+
+    def test_base_includes_admin_page_loader_and_fetch_guard(self):
+        template = self._template('base.html')
+
+        self.assertIn('id="adminActionOverlay"', template)
+        self.assertIn('window.fetch = function', template)
+        self.assertIn("url.pathname === '/api/admin-action/listar_docs_dashboard/'", template)
+        self.assertIn("document.addEventListener('submit'", template)
+        self.assertIn("confirmAction('¿Confirmas ejecutar esta acción?')", template)
+        self.assertIn('window.AdminActionGuard', template)
+
+    def test_admin_write_actions_request_confirmation(self):
+        expectations = {
+            'admin_administradores.html': [
+                '¿Confirmas añadir como administrador',
+                '¿Confirmas ${accion} a este administrador?',
+            ],
+            'admin_login.html': [
+                '¿Confirmas ingresar al panel administrativo',
+                '¿Confirmas solicitar un PIN temporal por correo',
+            ],
+            'admin_dashboard.html': [
+                '¿Confirmas guardar la configuración global de Drive?',
+                '¿Confirmas guardar la carpeta y marca del dominio',
+                '¿Confirmas guardar esta configuración de vista del administrador?',
+                '¿Confirmas enviar la invitación de registro?',
+            ],
+            'admin_crear_plantilla.html': [
+                '¿Confirmas analizar este documento con IA?',
+                '¿Confirmas finalizar y guardar esta plantilla?',
+            ],
+            'admin_editar_plantilla.html': [
+                '¿Confirmas guardar los cambios de esta plantilla?',
+            ],
+            'admin_usuarios_detalle.html': [
+                '¿Confirmas guardar la configuración de este usuario?',
+            ],
+            'ajustar_firmas.html': [
+                '¿Confirmas guardar esta hoja de corrección y reestampar el documento?',
+            ],
+        }
+
+        for filename, snippets in expectations.items():
+            template = self._template(filename)
+            for snippet in snippets:
+                self.assertIn(snippet, template)
+
+
 class DocumentReferenceHelpersTest(SimpleTestCase):
     def test_normalizes_fill_fields_for_existing_signer(self):
         firmantes = [{
