@@ -110,6 +110,26 @@ def _n8n_error_respond_webhook_sin_usar(error):
     return 'unused respond to webhook node found in the workflow' in text
 
 
+def _pausar_subida_pdf_usuario_por_n8n(error, detail=''):
+    message = str(error or '').strip() or 'N8N no confirmo la subida del PDF a Google Drive.'
+    detail = str(detail or '').strip()
+    record_exception(
+        get_current_request(),
+        N8N_WEBHOOK_SUBIR_PDF_USUARIO,
+        RuntimeError(detail or message),
+        method='POST',
+        source='backend',
+    )
+    return JsonResponse({
+        'status': 'paused',
+        'source': 'n8n',
+        'n8n_paused': True,
+        'error': message,
+        'detail': detail,
+        'admin_notice': 'El proceso quedo pausado. Revisa el monitor n8n del administrador; debe aparecer subir-pdf-usuario como FALLA - PARAR.',
+    }, status=502)
+
+
 def _registrar_advertencia_finalizacion_n8n(proceso, n8n_error):
     summary_data = _json_or_default(getattr(proceso, 'summary_data', {}) or {}, {})
     warning = {
@@ -5308,25 +5328,63 @@ def subir_pdf_usuario(request):
 
     pdf_file = request.FILES.get('pdf_file')
     if not pdf_file: return JsonResponse({"error": "No se seleccionó ningún archivo PDF."}, status=400)
+    original_filename = os.path.basename(str(getattr(pdf_file, 'name', '') or 'documento.pdf'))
+    if not original_filename.lower().endswith('.pdf'):
+        return JsonResponse({"error": "Solo se permiten archivos PDF."}, status=400)
 
-    dominio = owner_email.split('@')[1] if '@' in owner_email else ''
-    carpeta_dom = _mongo_find_one(CarpetaDominio, {'dominio': dominio})
+    dominio = _dominio_de_email(owner_email)
+    try:
+        carpeta_dom = _mongo_find_one(CarpetaDominio, {'dominio': dominio})
+    except Exception as e:
+        return JsonResponse({
+            "error": "No se pudo consultar la carpeta de Google Drive para tu dominio.",
+            "detail": str(e),
+        }, status=500)
     if not carpeta_dom: return JsonResponse(
         {"error": f"Tu dominio (@{dominio}) no tiene asignada una carpeta en Google Drive."}, status=400)
+    drive_folder_id = str(getattr(carpeta_dom, 'drive_folder_id', '') or '').strip()
+    if not drive_folder_id:
+        return JsonResponse({"error": f"Tu dominio (@{dominio}) no tiene una carpeta de Google Drive valida."}, status=400)
 
     try:
-        files = {'data': (pdf_file.name, pdf_file.read(), 'application/pdf')}
+        files = {'data': (original_filename, pdf_file.read(), 'application/pdf')}
         pdf_file.seek(0)
-        response = tracked_post(N8N_WEBHOOK_SUBIR_PDF_USUARIO, data={'folder_id': carpeta_dom.drive_folder_id},
+        response = tracked_post(N8N_WEBHOOK_SUBIR_PDF_USUARIO, data={'folder_id': drive_folder_id},
                                 files=files, timeout=30)
         n8n_error = _n8n_response_error(response)
         if n8n_error:
-            return JsonResponse({"error": f"N8n falló al subir a Drive: {n8n_error}"}, status=502)
-        resp = response.json()
+            return _pausar_subida_pdf_usuario_por_n8n(
+                'N8N fallo al subir el PDF a Google Drive.',
+                n8n_error,
+            )
+        try:
+            resp = response.json()
+        except ValueError as exc:
+            return _pausar_subida_pdf_usuario_por_n8n(
+                'N8N no devolvio una respuesta JSON valida al subir el PDF.',
+                exc,
+            )
 
-        if resp.get('status') == 'success':
+        if isinstance(resp, list):
+            resp = resp[0] if resp else {}
+        if not isinstance(resp, dict):
+            return _pausar_subida_pdf_usuario_por_n8n(
+                'N8N devolvio una respuesta invalida al subir el PDF.',
+                resp,
+            )
+
+        n8n_status = str(resp.get('status') or resp.get('state') or '').strip().lower()
+        drive_file_id = str(
+            resp.get('file_id')
+            or resp.get('drive_file_id')
+            or resp.get('id')
+            or ''
+        ).strip()
+
+        if n8n_status == 'success' and drive_file_id:
             id_documento = str(uuid.uuid4())
-            safe_filename = f"{uuid.uuid4()}_{pdf_file.name}"
+            safe_original = re.sub(r'[^A-Za-z0-9._-]+', '_', original_filename).strip('._') or 'documento.pdf'
+            safe_filename = f"{uuid.uuid4()}_{safe_original[:180]}"
             os.makedirs(os.path.join(settings.MEDIA_ROOT, 'pdfs_libres'), exist_ok=True)
             local_path = os.path.join('pdfs_libres', safe_filename)
             with open(os.path.join(settings.MEDIA_ROOT, local_path), 'wb+') as f:
@@ -5334,18 +5392,27 @@ def subir_pdf_usuario(request):
 
             _mongo_collection(DocumentoPDFUsuario).insert_one({
                 'id_documento': id_documento,
-                'nombre': pdf_file.name,
-                'drive_file_id': resp.get('file_id'),
+                'nombre': original_filename,
+                'drive_file_id': drive_file_id,
                 'owner_email': owner_email,
                 'archivo_local': local_path,
                 'enviado_a_firma': False,
                 'created_at': timezone.now().replace(tzinfo=None),
             })
-            return JsonResponse({"status": "success", "nombre": pdf_file.name, "id": id_documento})
-        else:
-            return JsonResponse({"error": "N8n falló al subir a Drive."})
+            return JsonResponse({"status": "success", "nombre": original_filename, "id": id_documento})
+
+        n8n_detail = resp.get('error') or resp.get('message') or resp.get('detail') or resp
+        return _pausar_subida_pdf_usuario_por_n8n(
+            'N8N no confirmo la subida del PDF a Google Drive.',
+            n8n_detail,
+        )
+    except requests.RequestException as e:
+        return _pausar_subida_pdf_usuario_por_n8n(
+            'No se pudo contactar N8N para subir el PDF a Google Drive.',
+            e,
+        )
     except Exception as e:
-        return JsonResponse({"error": f"Error: {e}"})
+        return JsonResponse({"error": f"Error interno al subir el PDF: {e}"}, status=500)
 
 
 def portal_configurar_pdf(request, pdf_id):

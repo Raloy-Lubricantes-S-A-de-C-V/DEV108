@@ -33,6 +33,7 @@
                 <span class="material-symbols-outlined">cloud_upload</span>
                 Subir y Conectar
             </button>
+            <div id="uploadMessage" class="hidden rounded-lg border p-4 text-sm" role="status" aria-live="polite"></div>
         </section>
 
         <section id="step2" class="step text-center space-y-6">
@@ -55,12 +56,57 @@
 
 {% block scripts %}
 <script>
-    function subirPdf() {
+    const defaultUploadButtonHtml = '<span class="material-symbols-outlined">cloud_upload</span> Subir y Conectar';
+
+    function resetUploadButton() {
+        const btn = document.getElementById('btnSubirPdf');
+        btn.disabled = false;
+        btn.innerHTML = defaultUploadButtonHtml;
+    }
+
+    function setUploadMessage(type, message, detail) {
+        const box = document.getElementById('uploadMessage');
+        if(!box) return;
+        const isError = type === 'error';
+        box.className = [
+            'rounded-lg border p-4 text-sm',
+            isError ? 'bg-error-container border-status-danger text-on-error-container' : 'bg-status-success/10 border-status-success/20 text-status-success'
+        ].join(' ');
+        const detailHtml = detail ? `<div class="mt-2 text-on-surface-variant">${escapeHtml(String(detail))}</div>` : '';
+        box.innerHTML = `<div class="font-bold">${escapeHtml(message)}</div>${detailHtml}`;
+    }
+
+    function clearUploadMessage() {
+        const box = document.getElementById('uploadMessage');
+        if(!box) return;
+        box.className = 'hidden rounded-lg border p-4 text-sm';
+        box.innerHTML = '';
+    }
+
+    function escapeHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, function(char) {
+            return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[char];
+        });
+    }
+
+    async function readUploadResponse(response) {
+        const text = await response.text();
+        if(!text) return {};
+        try {
+            return JSON.parse(text);
+        } catch(error) {
+            return { error: text.slice(0, 300) };
+        }
+    }
+
+    async function subirPdf() {
         const fileInput = document.getElementById('pdfFile');
         if(fileInput.files.length === 0) return alert("Por favor selecciona un archivo PDF.");
 
         const file = fileInput.files[0];
-        if(file.type !== "application/pdf") return alert("Solo se permiten archivos en formato PDF.");
+        const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+        if(!isPdf) return alert("Solo se permiten archivos en formato PDF.");
+        clearUploadMessage();
 
         const btn = document.getElementById('btnSubirPdf');
         btn.disabled = true;
@@ -69,11 +115,14 @@
         const formData = new FormData();
         formData.append('pdf_file', file);
 
-        fetch('/api/subir-pdf-usuario/', {
-            method: 'POST',
-            body: formData
-        }).then(r => r.json()).then(res => {
-            if(res.status === 'success') {
+        try {
+            const response = await fetch('/api/subir-pdf-usuario/', {
+                method: 'POST',
+                body: formData
+            });
+            const res = await readUploadResponse(response);
+
+            if(response.ok && res.status === 'success' && res.id) {
                 document.getElementById('docName').innerText = res.nombre;
                 document.getElementById('step1').classList.remove('active');
                 document.getElementById('step2').classList.add('active');
@@ -82,15 +131,15 @@
                     window.location.href = `/portal/configurar-pdf/${res.id}/`;
                 };
             } else {
-                alert(res.error);
-                btn.disabled = false;
-                btn.innerHTML = '<span class="material-symbols-outlined">cloud_upload</span> Subir y Conectar';
+                const message = res.error || 'No se pudo confirmar la subida del PDF.';
+                const detail = [res.detail, res.admin_notice].filter(Boolean).join(' ') || (response.status ? `HTTP ${response.status}` : '');
+                setUploadMessage('error', message, detail);
+                resetUploadButton();
             }
-        }).catch(err => {
-            alert("Error de red.");
-            btn.disabled = false;
-            btn.innerHTML = '<span class="material-symbols-outlined">cloud_upload</span> Subir y Conectar';
-        });
+        } catch(err) {
+            setUploadMessage('error', 'No se pudo conectar con el servidor. El proceso quedo pausado antes de continuar.', err.message || err);
+            resetUploadButton();
+        }
     }
 </script>
 {% endblock %}

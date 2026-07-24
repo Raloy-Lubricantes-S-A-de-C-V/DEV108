@@ -40,6 +40,7 @@ from .views import (
     _relaciones_documento_firma,
     _url_firmada_expirada,
     procesar_firma,
+    subir_pdf_usuario,
     ver_pdf_proceso,
 )
 
@@ -952,6 +953,81 @@ class SignatureAdjustmentPdfTest(SimpleTestCase):
             self.assertIn("HOJA DE CORRE", adjusted[1].get_text("text"))
             self.assertIn('firmante-1', result['posiciones'])
             adjusted.close()
+
+
+class SubirPdfUsuarioTest(SimpleTestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def _post_pdf_request(self, filename='SCANNER@RALOY.COM.MX_20260724_113548.PDF'):
+        request = self.factory.post('/api/subir-pdf-usuario/', {
+            'pdf_file': SimpleUploadedFile(filename, b'%PDF-1.4\n%test\n', content_type='application/pdf'),
+        })
+        middleware = SessionMiddleware(lambda req: None)
+        middleware.process_request(request)
+        request.session['owner_email'] = 'alopez@consorcionova.com'
+        return request
+
+    def _n8n_response(self, payload, status_code=200):
+        return SimpleNamespace(
+            status_code=status_code,
+            headers={'content-type': 'application/json'},
+            json=lambda: payload,
+            text=json.dumps(payload),
+        )
+
+    def test_subida_pdf_usuario_guarda_solo_si_n8n_confirma_drive_file_id(self):
+        request = self._post_pdf_request()
+        collection = FakeMongoCollection([])
+        n8n_payload = {
+            'status': 'success',
+            'file_id': 'drive-file-123',
+            'nombre': 'SCANNER@RALOY.COM.MX_20260724_113548.PDF',
+        }
+
+        with tempfile.TemporaryDirectory() as media_root, \
+                override_settings(MEDIA_ROOT=media_root), \
+                patch('motor_firmas.views._mongo_find_one',
+                      return_value=SimpleNamespace(drive_folder_id='drive-folder-raloy')), \
+                patch('motor_firmas.views._mongo_collection', return_value=collection), \
+                patch('motor_firmas.views.tracked_post',
+                      return_value=self._n8n_response(n8n_payload)) as tracked:
+            response = subir_pdf_usuario(request)
+
+        payload = json.loads(response.content)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload['status'], 'success')
+        self.assertEqual(payload['nombre'], 'SCANNER@RALOY.COM.MX_20260724_113548.PDF')
+        self.assertEqual(len(collection.documents), 1)
+        self.assertEqual(collection.documents[0]['owner_email'], 'alopez@consorcionova.com')
+        self.assertEqual(collection.documents[0]['drive_file_id'], 'drive-file-123')
+        self.assertTrue(collection.documents[0]['archivo_local'].startswith('pdfs_libres/'))
+        tracked.assert_called_once()
+        self.assertEqual(tracked.call_args.kwargs['data'], {'folder_id': 'drive-folder-raloy'})
+
+    def test_subida_pdf_usuario_pausa_y_notifica_monitor_si_n8n_no_devuelve_file_id(self):
+        request = self._post_pdf_request()
+        collection = FakeMongoCollection([])
+        n8n_payload = {'status': 'success', 'nombre': 'sin-id.pdf'}
+
+        with patch('motor_firmas.views._mongo_find_one',
+                   return_value=SimpleNamespace(drive_folder_id='drive-folder-raloy')), \
+                patch('motor_firmas.views._mongo_collection', return_value=collection), \
+                patch('motor_firmas.views.tracked_post',
+                      return_value=self._n8n_response(n8n_payload)), \
+                patch('motor_firmas.views.get_current_request', return_value=request), \
+                patch('motor_firmas.views.record_exception') as record_exception_mock:
+            response = subir_pdf_usuario(request)
+
+        payload = json.loads(response.content)
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(payload['status'], 'paused')
+        self.assertEqual(payload['source'], 'n8n')
+        self.assertTrue(payload['n8n_paused'])
+        self.assertIn('monitor n8n', payload['admin_notice'])
+        self.assertEqual(collection.documents, [])
+        record_exception_mock.assert_called_once()
+        self.assertEqual(record_exception_mock.call_args.args[1], 'https://n8n.raloy.com.mx/webhook/subir-pdf-usuario')
 
 
 class HomeRedirectTest(SimpleTestCase):
