@@ -1695,6 +1695,54 @@ class N8NMonitorGlobalEventsTest(SimpleTestCase):
         self.assertEqual(payload['events'][0]['owner_email'], 'alopez@consorcionova.com')
 
 
+class FirmxConfigAdminAccessTest(SimpleTestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def _post_request(self):
+        request = self.factory.post(
+            '/api/firmx/config/save/',
+            data=json.dumps({
+                'base_url_action': 'activate_base_url',
+                'base_url': 'https://private.firmx.local/digisign/api/v1',
+            }),
+            content_type='application/json',
+        )
+        middleware = SessionMiddleware(lambda req: None)
+        middleware.process_request(request)
+        request.session['owner_email'] = 'admin@example.com'
+        return request
+
+    def test_owner_admin_can_activate_firmx_endpoint_without_admin_session(self):
+        config = SimpleNamespace(
+            api_key='global-key',
+            firmx_base_url='https://public.firmx.local/digisign/api/v1',
+            base_urls=[
+                {'url': 'https://public.firmx.local/digisign/api/v1', 'api_key': 'public-key'},
+                {'url': 'https://private.firmx.local/digisign/api/v1', 'api_key': 'private-key'},
+            ],
+        )
+
+        def find_one(model, query=None):
+            model_name = getattr(model, '__name__', '')
+            if model_name == 'AdministradorPortal':
+                return SimpleNamespace(email='admin@example.com')
+            if model_name == 'ConfiguracionFirmex':
+                return config
+            return None
+
+        with patch('motor_firmas.views._mongo_find_one', side_effect=find_one), \
+                patch('motor_firmas.views._mongo_update_or_insert_by_query') as upsert:
+            response = firmx_guardar_config(self._post_request())
+
+        payload = json.loads(response.content)
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(payload['status'], 'success')
+        updates = upsert.call_args.args[2]
+        self.assertEqual(updates['firmx_base_url'], 'https://private.firmx.local/digisign/api/v1')
+        self.assertEqual(len(updates['base_urls']), 2)
+
+
 class HomeRedirectTest(SimpleTestCase):
     def setUp(self):
         self.client = Client()
