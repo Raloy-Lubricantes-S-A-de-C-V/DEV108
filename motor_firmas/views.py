@@ -122,19 +122,40 @@ def _n8n_error_respond_webhook_sin_usar(error):
     return 'unused respond to webhook node found in the workflow' in text
 
 
-def _registrar_advertencia_finalizacion_n8n(proceso, n8n_error):
+def _registrar_advertencia_finalizacion_n8n(proceso, n8n_error, http_status=None):
+    warning_type = (
+        'unused_respond_to_webhook'
+        if _n8n_error_respond_webhook_sin_usar(n8n_error)
+        else 'finalization_webhook_error'
+    )
     summary_data = _json_or_default(getattr(proceso, 'summary_data', {}) or {}, {})
     warning = {
-        'type': 'unused_respond_to_webhook',
+        'type': warning_type,
         'webhook': 'subir-pdf-final',
         'message': str(n8n_error or '')[:500],
         'created_at': _datetime_for_mongo().isoformat(),
     }
+    if http_status:
+        warning['http_status'] = http_status
     warnings = _json_or_default(summary_data.get('n8n_warnings', []), [])
     warnings.append(warning)
     summary_data['n8n_warnings'] = warnings[-20:]
     summary_data['n8n_finalizar_pdf_warning'] = warning
-    _mongo_update_document(ProcesoFirma, proceso, {'summary_data': summary_data})
+    try:
+        _mongo_update_document(ProcesoFirma, proceso, {'summary_data': summary_data})
+    except Exception as exc:
+        print(f"No se pudo registrar advertencia N8N en proceso {getattr(proceso, 'reference_id', '')}: {exc}")
+
+    event = _crear_evento_global_n8n(
+        N8N_WEBHOOK_FINALIZAR_PROCESO,
+        False,
+        http_status=http_status,
+        error=n8n_error,
+        source='signature-finalization',
+        owner_email=getattr(proceso, 'owner_email', ''),
+    )
+    event['reference_id'] = str(getattr(proceso, 'reference_id', '') or '')
+    _registrar_evento_global_n8n_monitor(event, owner_email=getattr(proceso, 'owner_email', ''))
     return warning
 
 
@@ -3079,9 +3100,11 @@ def vista_firma_ui(request, token, firmante_token=None):
 
     indices_turno = _indices_firmas_en_turno(firmantes, indice_turno)
 
+    firma_status_index = indice_turno
     if firmante_token:
         indice_token = _indice_por_token(firmantes, firmante_token)
         if indice_token is None: return HttpResponse("<h1>Enlace inválido.</h1>")
+        firma_status_index = indice_token
         firmante_actual = firmantes[indice_token]
         if firmante_actual.get('fecha_firma'):
             message_context.update({'message_icon': '✓', 'message_color': '#10b981', 'message_title': 'Ya has firmado',
@@ -3176,8 +3199,66 @@ def vista_firma_ui(request, token, firmante_token=None):
                'pdf_available': pdf_available,
                'document_relations': json.dumps(document_relations),
                'is_registered': bool(colaborador), 'campos_a_llenar': campos_a_llenar, 'is_message_view': False,
+               'firma_status_index': firma_status_index if firma_status_index is not None else '',
                'cant_firmas': cant_firmas}
     return render(request, 'motor_firmas/firma_ui.html', context)
+
+
+def estado_firma(request, token, firmante_token=None):
+    if request.method != 'GET':
+        return JsonResponse({"error": "Método no permitido."}, status=405)
+
+    try:
+        proceso = _get_proceso_por_token_or_404(token)
+    except Http404:
+        return JsonResponse({"status": "error", "signed": False, "error": "Proceso de firma no encontrado."}, status=404)
+
+    firmantes_lista = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
+    document_status = str(getattr(proceso, 'status', '') or '').upper()
+    if document_status == 'CANCELLED':
+        return JsonResponse({
+            "status": "cancelled",
+            "signed": False,
+            "document_status": document_status,
+            "error": "Documento cancelado.",
+        }, status=409)
+
+    firmante = None
+    if firmante_token:
+        indice_token = _indice_por_token(firmantes_lista, firmante_token)
+        if indice_token is None:
+            return JsonResponse({
+                "status": "error",
+                "signed": False,
+                "document_status": document_status,
+                "error": "Firmante no encontrado.",
+            }, status=404)
+        firmante = firmantes_lista[indice_token]
+    else:
+        try:
+            indice_firmante = int(request.GET.get('firmante_idx', ''))
+        except (TypeError, ValueError):
+            indice_firmante = None
+        if indice_firmante is not None and 0 <= indice_firmante < len(firmantes_lista):
+            firmante = firmantes_lista[indice_firmante]
+
+    if firmante is not None:
+        signed = bool(firmante.get('fecha_firma'))
+        return JsonResponse({
+            "status": "success" if signed else "pending",
+            "signed": signed,
+            "document_status": document_status,
+            "fecha_firma": firmante.get('fecha_firma') or '',
+            "msg": "Firma confirmada." if signed else "La firma sigue en proceso.",
+        })
+
+    signed = document_status == 'COMPLETED' or (bool(firmantes_lista) and all(f.get('fecha_firma') for f in firmantes_lista))
+    return JsonResponse({
+        "status": "success" if signed else "pending",
+        "signed": signed,
+        "document_status": document_status,
+        "msg": "Proceso completado." if signed else "La firma sigue en proceso.",
+    })
 
 
 @csrf_exempt
@@ -3209,6 +3290,14 @@ def procesar_firma(request, token, firmante_token=None):
     indices_turno = _indices_firmas_en_turno(firmantes_lista, indice_turno)
     if firmante_token:
         indice_token = _indice_por_token(firmantes_lista, firmante_token)
+        if indice_token is None:
+            return JsonResponse({"error": "Firmante no encontrado."}, status=404)
+        if firmantes_lista[indice_token].get('fecha_firma'):
+            return JsonResponse({
+                "status": "success",
+                "msg": "Firma ya confirmada.",
+                "already_signed": True,
+            })
         if indice_token not in indices_turno:
             return JsonResponse({"error": "No es tu turno."}, status=403)
 
@@ -3361,22 +3450,20 @@ def procesar_firma(request, token, firmante_token=None):
 
                 n8n_error = _n8n_response_error(resp_n8n)
                 if n8n_error:
-                    if _n8n_error_respond_webhook_sin_usar(n8n_error):
-                        n8n_finalization_warning = _registrar_advertencia_finalizacion_n8n(proceso, n8n_error)
-                    else:
-                        return JsonResponse({"error": f"N8N no pudo finalizar el PDF: {n8n_error}"}, status=502)
+                    n8n_finalization_warning = _registrar_advertencia_finalizacion_n8n(
+                        proceso,
+                        n8n_error,
+                        http_status=getattr(resp_n8n, 'status_code', None),
+                    )
                 else:
                     _registrar_pdf_final_drive_id(proceso, resp_n8n)
             except Exception as e:
-                if _n8n_error_respond_webhook_sin_usar(e):
-                    n8n_finalization_warning = _registrar_advertencia_finalizacion_n8n(proceso, e)
-                else:
-                    return JsonResponse({"error": f"Error en N8N_WEBHOOK_FINALIZAR_PROCESO: {e}"}, status=502)
+                n8n_finalization_warning = _registrar_advertencia_finalizacion_n8n(proceso, e)
 
         if n8n_finalization_warning:
             return JsonResponse({
                 "status": "success",
-                "warning": "El PDF fue firmado y finalizado localmente, pero N8N devolvio una advertencia de configuracion.",
+                "warning": "El PDF fue firmado y finalizado localmente, pero N8N no confirmo el resguardo. El administrador debe revisar el monitor.",
                 "n8n_warning": n8n_finalization_warning,
             })
 

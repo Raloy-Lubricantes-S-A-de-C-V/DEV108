@@ -171,6 +171,7 @@
                                     </div>
                                 </div>
                             {% endif %}
+                            <p id="firmaProcesoEstado" class="hidden mt-4 text-center text-sm font-semibold text-primary"></p>
                         </div>
                     </section>
                 </div>
@@ -443,7 +444,110 @@
         }
     }
 
-    function enviar(esPin) {
+    let firmaEnProceso = false;
+    const FIRMA_CONFIRMATION_DELAYS = [800, 1200, 1600, 2000, 2500, 3000, 3500, 4000, 4500, 5000];
+
+    function construirProcesarUrl() {
+        let procesarUrl = '/api/procesar/{{ token }}/';
+        {% if firmante_token %}
+            procesarUrl += '{{ firmante_token }}/';
+        {% endif %}
+        return procesarUrl;
+    }
+
+    function construirFirmaStatusUrl() {
+        let statusUrl = '/api/firma-estado/{{ token }}/';
+        {% if firmante_token %}
+            statusUrl += '{{ firmante_token }}/';
+        {% else %}
+            const firmaStatusIndex = '{{ firma_status_index|default:"" }}';
+            if (firmaStatusIndex !== '') statusUrl += `?firmante_idx=${encodeURIComponent(firmaStatusIndex)}`;
+        {% endif %}
+        return statusUrl;
+    }
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function leerJsonSeguro(response) {
+        const text = await response.text();
+        if (!text) return {};
+        try {
+            return JSON.parse(text);
+        } catch (err) {
+            return { error: text };
+        }
+    }
+
+    function limpiarDetalleError(error) {
+        return String(error || '')
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 240);
+    }
+
+    function setFirmaEstado(mensaje, tipo = 'info') {
+        const estado = document.getElementById('firmaProcesoEstado');
+        if (!estado) return;
+        if (!mensaje) {
+            estado.className = 'hidden mt-4 text-center text-sm font-semibold text-primary';
+            estado.innerText = '';
+            return;
+        }
+        estado.className = `mt-4 text-center text-sm font-semibold ${tipo === 'error' ? 'text-status-danger' : 'text-primary'}`;
+        estado.innerText = mensaje;
+    }
+
+    function setControlesFirmaDisabled(disabled) {
+        document.querySelectorAll('#inputPin, .doc-var-input, #btnFirmarPin, #btnFirmarCanvas').forEach(element => {
+            element.disabled = disabled;
+        });
+    }
+
+    function restaurarFirmaFallida(btn, originalText) {
+        firmaEnProceso = false;
+        setControlesFirmaDisabled(false);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+
+    function mostrarFirmaExitosa() {
+        document.querySelector('.content-body').innerHTML = `
+            <div class="text-center py-12">
+                <div class="inline-flex items-center justify-center w-20 h-20 bg-status-success/10 rounded-full mb-6">
+                    <span class="material-symbols-outlined text-status-success text-5xl">check_circle</span>
+                </div>
+                <h2 class="text-3xl font-bold text-primary mb-4">¡Certificación Exitosa!</h2>
+                <p class="text-lg text-text-muted mb-8 max-w-lg mx-auto">Tu firma y los datos han sido estampados de forma segura en el documento oficial.</p>
+                <p class="text-sm text-outline">Ya puedes cerrar esta ventana con total seguridad.</p>
+            </div>`;
+    }
+
+    async function confirmarFirmaAplicada() {
+        const statusUrl = construirFirmaStatusUrl();
+        for (const delay of FIRMA_CONFIRMATION_DELAYS) {
+            await sleep(delay);
+            try {
+                const separator = statusUrl.includes('?') ? '&' : '?';
+                const response = await fetch(`${statusUrl}${separator}confirm_ts=${Date.now()}`, {
+                    headers: { 'Accept': 'application/json' },
+                    cache: 'no-store'
+                });
+                const data = await leerJsonSeguro(response);
+                if (response.ok && data.signed === true) return data;
+                if (response.status === 409) return data;
+            } catch (err) {
+                console.warn('No se pudo confirmar estado de firma', err);
+            }
+        }
+        return null;
+    }
+
+    async function enviar(esPin) {
+        if (firmaEnProceso) return;
+
         let variables = {};
         let valid = true;
         document.querySelectorAll('.doc-var-input').forEach(input => {
@@ -473,39 +577,59 @@
 
         const btn = document.getElementById(esPin ? 'btnFirmarPin' : 'btnFirmarCanvas');
         const originalText = btn.innerHTML;
-        btn.disabled = true;
+        firmaEnProceso = true;
+        setControlesFirmaDisabled(true);
         btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Certificando...';
+        setFirmaEstado('Certificando firma. No cierres esta ventana.');
 
-        let procesarUrl = '/api/procesar/{{ token }}/';
-        {% if firmante_token %}
-            procesarUrl += '{{ firmante_token }}/';
-        {% endif %}
+        let errorPrincipal = '';
+        let confirmarPorErrorServidor = false;
 
-        fetch(procesarUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        }).then(r => r.json()).then(data => {
-            if(data.status === 'success') {
-                document.querySelector('.content-body').innerHTML = `
-                    <div class="text-center py-12">
-                        <div class="inline-flex items-center justify-center w-20 h-20 bg-status-success/10 rounded-full mb-6">
-                            <span class="material-symbols-outlined text-status-success text-5xl">check_circle</span>
-                        </div>
-                        <h2 class="text-3xl font-bold text-primary mb-4">¡Certificación Exitosa!</h2>
-                        <p class="text-lg text-text-muted mb-8 max-w-lg mx-auto">Tu firma y los datos han sido estampados de forma segura en el documento oficial.</p>
-                        <p class="text-sm text-outline">Ya puedes cerrar esta ventana con total seguridad.</p>
-                    </div>`;
+        try {
+            const response = await fetch(construirProcesarUrl(), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await leerJsonSeguro(response);
+            if (response.ok && data.status === 'success') {
+                btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Confirmando...';
+                setFirmaEstado('Confirmando que la firma quedó guardada.');
+                const estado = await confirmarFirmaAplicada();
+                if (estado && estado.signed === true) {
+                    mostrarFirmaExitosa();
+                    return;
+                }
+                errorPrincipal = data.warning || data.msg || 'El servidor respondió, pero el estado del firmante aún no confirma la firma.';
             } else {
-                alert("Error: " + data.error);
-                btn.disabled = false;
-                btn.innerHTML = originalText;
+                errorPrincipal = data.error || data.msg || `HTTP ${response.status}`;
+                confirmarPorErrorServidor = response.status >= 500 || !data.error;
+                if (!confirmarPorErrorServidor) {
+                    alert("Error: " + limpiarDetalleError(errorPrincipal));
+                    setFirmaEstado('', 'info');
+                    restaurarFirmaFallida(btn, originalText);
+                    return;
+                }
             }
-        }).catch(err => {
-            alert("Ocurrió un error de conexión.");
-            btn.disabled = false;
-            btn.innerHTML = originalText;
-        });
+        } catch (err) {
+            errorPrincipal = err && err.message ? err.message : 'Ocurrió un error de conexión.';
+            confirmarPorErrorServidor = true;
+        }
+
+        if (confirmarPorErrorServidor) {
+            btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> Verificando...';
+            setFirmaEstado('La respuesta tardó o falló. Confirmando si la firma quedó aplicada.');
+            const estado = await confirmarFirmaAplicada();
+            if (estado && estado.signed === true) {
+                mostrarFirmaExitosa();
+                return;
+            }
+        }
+
+        const detalle = limpiarDetalleError(errorPrincipal);
+        setFirmaEstado('No se pudo confirmar la firma. El administrador debe revisar el proceso.', 'error');
+        alert(`No se pudo confirmar la firma.${detalle ? ' Detalle: ' + detalle : ''}`);
+        restaurarFirmaFallida(btn, originalText);
     }
 </script>
 {% endif %}

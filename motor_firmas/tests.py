@@ -45,6 +45,7 @@ from .views import (
     _relaciones_documento_firma,
     _url_firmada_expirada,
     admin_api,
+    estado_firma,
     iniciar_firma_libre,
     n8n_monitor_events,
     procesar_firma,
@@ -675,6 +676,7 @@ class FirmaUiTemplateTest(SimpleTestCase):
             'is_registered': is_registered,
             'campos_a_llenar': [],
             'is_message_view': False,
+            'exec_mode': 'libre',
             'cant_firmas': 1,
         })
 
@@ -692,6 +694,58 @@ class FirmaUiTemplateTest(SimpleTestCase):
 
         self.assertIn('No se pudo cargar la vista previa del PDF', html)
         self.assertNotIn('disabled', self._opening_tag_after_id(html, 'btnFirmarCanvas'))
+
+    def test_signature_submit_waits_for_status_confirmation(self):
+        html = self._render_signature_ui(is_registered=True)
+
+        self.assertIn("let statusUrl = '/api/firma-estado/token-prueba/';", html)
+        self.assertIn("statusUrl += 'firmante-prueba/';", html)
+        self.assertIn('confirmarFirmaAplicada', html)
+        self.assertIn('No se pudo confirmar la firma', html)
+
+
+class EstadoFirmaApiTest(SimpleTestCase):
+    def test_estado_firma_confirma_firmante_con_fecha_firma(self):
+        factory = RequestFactory()
+        request = factory.get('/api/firma-estado/token-prueba/firmante-prueba/')
+        proceso = SimpleNamespace(
+            status='PROCESSING',
+            firmantes=[{
+                'nombre': 'Firmante',
+                'email': 'firmante@example.com',
+                'token_firmante': 'firmante-prueba',
+                'fecha_firma': '24/07/2026 10:00:00',
+            }],
+        )
+
+        with patch('motor_firmas.views._get_proceso_por_token_or_404', return_value=proceso):
+            response = estado_firma(request, 'token-prueba', 'firmante-prueba')
+
+        self.assertEqual(response.status_code, 200, response.content)
+        payload = json.loads(response.content)
+        self.assertEqual(payload['status'], 'success')
+        self.assertTrue(payload['signed'])
+        self.assertEqual(payload['fecha_firma'], '24/07/2026 10:00:00')
+
+    def test_estado_firma_reporta_pending_sin_fecha_firma(self):
+        factory = RequestFactory()
+        request = factory.get('/api/firma-estado/token-prueba/firmante-prueba/')
+        proceso = SimpleNamespace(
+            status='PROCESSING',
+            firmantes=[{
+                'nombre': 'Firmante',
+                'email': 'firmante@example.com',
+                'token_firmante': 'firmante-prueba',
+            }],
+        )
+
+        with patch('motor_firmas.views._get_proceso_por_token_or_404', return_value=proceso):
+            response = estado_firma(request, 'token-prueba', 'firmante-prueba')
+
+        self.assertEqual(response.status_code, 200, response.content)
+        payload = json.loads(response.content)
+        self.assertEqual(payload['status'], 'pending')
+        self.assertFalse(payload['signed'])
 
 
 class ProcesarFirmaPdfRecoveryTest(SimpleTestCase):
@@ -868,6 +922,50 @@ class ProcesarFirmaPdfRecoveryTest(SimpleTestCase):
         payload = json.loads(response.content)
         self.assertIn('Número de cliente', payload['missing_fields'])
 
+    def test_repeated_post_for_already_signed_token_returns_success(self):
+        factory = RequestFactory()
+        request = factory.post(
+            '/api/procesar/token-prueba/firmante-prueba/',
+            data=json.dumps({'firma_base64': 'data:image/png;base64,ZmlybWE=', 'variables': {}}),
+            content_type='application/json',
+        )
+        proceso = SimpleNamespace(
+            _id='proceso-retry',
+            reference_id='DOC-RETRY',
+            token_acceso='token-prueba',
+            pdf_path='/tmp/no-necesario.pdf',
+            firmantes=[
+                {
+                    'nombre': 'Firmante',
+                    'email': 'firmante@example.com',
+                    'token_firmante': 'firmante-prueba',
+                    'fecha_firma': '24/07/2026 10:00:00',
+                },
+                {
+                    'nombre': 'Siguiente',
+                    'email': 'siguiente@example.com',
+                    'token_firmante': 'siguiente-prueba',
+                },
+            ],
+            indice_actual=2,
+            status='PROCESSING',
+            summary_data={},
+            valores_capturados={},
+            owner_email='',
+            dir_drive='',
+            exec_mode='normal',
+        )
+
+        with patch('motor_firmas.views._get_proceso_por_token_or_404', return_value=proceso), \
+                patch('motor_firmas.views.estampar_firma_en_pdf') as stamp:
+            response = procesar_firma(request, 'token-prueba', 'firmante-prueba')
+
+        self.assertEqual(response.status_code, 200, response.content)
+        payload = json.loads(response.content)
+        self.assertEqual(payload['status'], 'success')
+        self.assertTrue(payload['already_signed'])
+        stamp.assert_not_called()
+
     def test_unused_respond_webhook_error_does_not_block_completed_signature(self):
         factory = RequestFactory()
         request = factory.post(
@@ -922,7 +1020,7 @@ class ProcesarFirmaPdfRecoveryTest(SimpleTestCase):
         register_warning.assert_called_once()
         register_drive.assert_not_called()
 
-    def test_other_n8n_finalization_errors_still_block_signature_response(self):
+    def test_firma_libre_finalization_errors_do_not_block_completed_signature_response(self):
         factory = RequestFactory()
         request = factory.post(
             '/api/procesar/token-prueba/firmante-prueba/',
@@ -931,7 +1029,7 @@ class ProcesarFirmaPdfRecoveryTest(SimpleTestCase):
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            pdf_path = os.path.join(tmpdir, 'DOC-N8N-BLOCK.pdf')
+            pdf_path = os.path.join(tmpdir, 'LIBRE-N8N-BLOCK.pdf')
             with open(pdf_path, 'wb') as f:
                 f.write(b'%PDF-1.4\n%%EOF\n')
 
@@ -940,7 +1038,7 @@ class ProcesarFirmaPdfRecoveryTest(SimpleTestCase):
 
             proceso = SimpleNamespace(
                 _id='proceso-n8n-block',
-                reference_id='DOC-N8N-BLOCK',
+                reference_id='LIBRE-N8N-BLOCK',
                 token_acceso='token-prueba',
                 pdf_path=pdf_path,
                 firmantes=[{
@@ -954,7 +1052,7 @@ class ProcesarFirmaPdfRecoveryTest(SimpleTestCase):
                 valores_capturados={},
                 owner_email='',
                 dir_drive='',
-                exec_mode='normal',
+                exec_mode='libre',
             )
 
             with patch('motor_firmas.views._get_proceso_por_token_or_404', return_value=proceso), \
@@ -963,11 +1061,16 @@ class ProcesarFirmaPdfRecoveryTest(SimpleTestCase):
                     patch('motor_firmas.views._marcar_notificaciones_firma'), \
                     patch('motor_firmas.views._actualizar_proceso_firma_mongo'), \
                     patch('motor_firmas.views._n8n_storage_data_for_proceso', return_value={}), \
-                    patch('motor_firmas.views.tracked_post', return_value=self.N8NBlockingErrorResponse()):
+                    patch('motor_firmas.views.tracked_post', return_value=self.N8NBlockingErrorResponse()), \
+                    patch('motor_firmas.views._registrar_advertencia_finalizacion_n8n',
+                          return_value={'type': 'finalization_webhook_error'}) as register_warning:
                 response = procesar_firma(request, 'token-prueba', 'firmante-prueba')
 
-        self.assertEqual(response.status_code, 502, response.content)
-        self.assertIn('N8N no pudo finalizar el PDF', response.content.decode('utf-8'))
+        self.assertEqual(response.status_code, 200, response.content)
+        payload = json.loads(response.content)
+        self.assertEqual(payload['status'], 'success')
+        self.assertEqual(payload['n8n_warning']['type'], 'finalization_webhook_error')
+        register_warning.assert_called_once()
 
 
 class SignatureAdjustmentHelpersTest(SimpleTestCase):
@@ -1542,7 +1645,7 @@ class IniciarFirmaLibreIdempotenciaTest(SimpleTestCase):
                       return_value=('pdfs_libres/original.pdf', '/tmp/original.pdf')), \
                 patch('motor_firmas.views.shutil.copyfile'), \
                 patch('motor_firmas.views._mongo_update_document'), \
-                patch('motor_firmas.views._crear_proceso_firma_mongo', return_value=proceso), \
+                patch('motor_firmas.views._crear_proceso_firma_mongo', return_value=proceso) as crear_proceso, \
                 patch('motor_firmas.views._post_n8n_json_background') as background_post, \
                 patch('motor_firmas.views.crear_notificacion_firma'), \
                 patch('motor_firmas.views._eliminar_archivo_media', return_value=True), \
@@ -1553,6 +1656,10 @@ class IniciarFirmaLibreIdempotenciaTest(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(payload['status'], 'success')
         self.assertIn('reference_id', payload)
+        self.assertEqual(crear_proceso.call_args.kwargs['exec_mode'], 'libre')
+        first_payload = background_post.call_args_list[0].args[1]
+        self.assertIn('/firmar/token-proceso/', first_payload['link'])
+        self.assertNotIn('firmx', first_payload['link'].lower())
         self.assertEqual(background_post.call_count, 2)
         tracked.assert_not_called()
 
