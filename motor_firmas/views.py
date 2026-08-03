@@ -213,6 +213,12 @@ def _email_tiene_formato_valido(email):
         return False
 
 
+def _texto_error_legible(value, fallback='Error desconocido.'):
+    text = re.sub(r'<[^>]*>', ' ', str(value or ''))
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text[:240] or fallback
+
+
 def _normalizar_dominio(dominio):
     dominio = str(dominio or '').strip().lower()
     return dominio[1:] if dominio.startswith('@') else dominio
@@ -4011,6 +4017,15 @@ def enviar_qr_trazabilidad(request):
 
 @csrf_exempt
 def reenviar_firma_trazabilidad(request):
+    try:
+        return _reenviar_firma_trazabilidad_impl(request)
+    except Exception as e:
+        traceback.print_exc()
+        detalle = _texto_error_legible(e, 'Error interno del servidor.')
+        return JsonResponse({"error": f"No se pudo completar el reenvio: {detalle}"}, status=500)
+
+
+def _reenviar_firma_trazabilidad_impl(request):
     if request.method != 'POST':
         return JsonResponse({"error": "Metodo no permitido."}, status=405)
 
@@ -4030,7 +4045,7 @@ def reenviar_firma_trazabilidad(request):
     if admin_actual is None and not owner_tiene_acceso:
         return JsonResponse({"error": "No tienes permiso sobre este documento."}, status=403)
 
-    summary_data = getattr(doc, 'summary_data', {}) or {}
+    summary_data = _json_or_default(getattr(doc, 'summary_data', {}) or {}, {})
     es_firmx = bool(summary_data.get('firmx_id'))
     estado = str(getattr(doc, 'status', '') or '').upper()
     if es_firmx:
@@ -4093,9 +4108,11 @@ def reenviar_firma_trazabilidad(request):
         response = tracked_post(webhook_url, json=payload_n8n, timeout=20)
         n8n_error = _n8n_response_error(response)
         if n8n_error:
-            return JsonResponse({"error": f"N8N no confirmo el envio: {n8n_error}"}, status=502)
+            detalle = _texto_error_legible(n8n_error, 'Respuesta invalida de N8N.')
+            return JsonResponse({"error": f"N8N no confirmo el envio: {detalle}"}, status=502)
     except Exception as e:
-        return JsonResponse({"error": f"No se pudo reenviar el correo: {e}"}, status=502)
+        detalle = _texto_error_legible(e, 'Error contactando N8N.')
+        return JsonResponse({"error": f"No se pudo reenviar el correo: {detalle}"}, status=502)
 
     fecha_reenvio = timezone.now().strftime("%d/%m/%Y %H:%M:%S")
     reenvios = _json_or_default(firmante.get('reenvios_correo', []), [])
@@ -6373,9 +6390,11 @@ def admin_api(request, accion):
                 )
                 n8n_error = _n8n_response_error(response)
                 if n8n_error:
-                    return JsonResponse({"error": f"N8N no confirmó el envío: {n8n_error}"}, status=502)
+                    detalle = _texto_error_legible(n8n_error, 'Respuesta inválida de N8N.')
+                    return JsonResponse({"error": f"N8N no confirmó el envío: {detalle}"}, status=502)
             except Exception as e:
-                return JsonResponse({"error": f"No se pudo reenviar el correo: {e}"}, status=502)
+                detalle = _texto_error_legible(e, 'Error contactando N8N.')
+                return JsonResponse({"error": f"No se pudo reenviar el correo: {detalle}"}, status=502)
 
             fecha_reenvio = timezone.now().strftime("%d/%m/%Y %H:%M:%S")
             reenvios = _json_or_default(firmante.get('reenvios_correo', []), [])
@@ -6424,9 +6443,11 @@ def admin_api(request, accion):
                 )
                 n8n_error = _n8n_response_error(response)
                 if n8n_error:
-                    return JsonResponse({"error": f"N8N no confirmó el envío: {n8n_error}"}, status=502)
+                    detalle = _texto_error_legible(n8n_error, 'Respuesta inválida de N8N.')
+                    return JsonResponse({"error": f"N8N no confirmó el envío: {detalle}"}, status=502)
             except Exception as e:
-                return JsonResponse({"error": f"No se pudo notificar por WhatsApp: {e}"}, status=502)
+                detalle = _texto_error_legible(e, 'Error contactando N8N.')
+                return JsonResponse({"error": f"No se pudo notificar por WhatsApp: {detalle}"}, status=502)
 
             fecha_whatsapp = timezone.now().strftime("%d/%m/%Y %H:%M:%S")
             reenvios_wa = _json_or_default(firmante.get('reenvios_whatsapp', []), [])

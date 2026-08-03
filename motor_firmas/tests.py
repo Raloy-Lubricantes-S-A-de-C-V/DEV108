@@ -49,6 +49,7 @@ from .views import (
     iniciar_firma_libre,
     n8n_monitor_events,
     procesar_firma,
+    reenviar_firma_trazabilidad,
     subir_pdf_usuario,
     ver_pdf_proceso,
 )
@@ -772,6 +773,52 @@ class ProcesarFirmaPdfRecoveryTest(SimpleTestCase):
 
         def json(self):
             return {"code": 0, "message": "NodeApiError: Drive permission denied"}
+
+    def test_reenviar_trazabilidad_unexpected_error_returns_json(self):
+        factory = RequestFactory()
+        request = factory.post(
+            '/api/reenviar-firma-trazabilidad/',
+            data=json.dumps({
+                'token': 'token-prueba',
+                'firmante_token': 'firmante-prueba',
+                'email': 'firmante@example.com',
+            }),
+            content_type='application/json',
+        )
+        middleware = SessionMiddleware(lambda req: None)
+        middleware.process_request(request)
+        request.session['owner_email'] = 'owner@example.com'
+
+        proceso = SimpleNamespace(
+            _id='proceso-reenvio',
+            reference_id='LIBRE-N8N-REENVIO',
+            token_acceso='token-prueba',
+            pdf_path='',
+            firmantes=[{
+                'nombre': 'Firmante',
+                'email': 'firmante@example.com',
+                'token_firmante': 'firmante-prueba',
+            }],
+            indice_actual=1,
+            status='PROCESSING',
+            summary_data={},
+            owner_email='owner@example.com',
+            dir_drive='',
+            exec_mode='libre',
+        )
+
+        with patch('motor_firmas.views._mongo_find_proceso_by_token', return_value=proceso), \
+                patch('motor_firmas.views.tracked_post', return_value=self.N8NResponse()), \
+                patch('motor_firmas.views._actualizar_proceso_firma_mongo',
+                      side_effect=RuntimeError('<html>Mongo temporalmente no disponible</html>')), \
+                patch('motor_firmas.views.traceback.print_exc'):
+            response = reenviar_firma_trazabilidad(request)
+
+        self.assertEqual(response.status_code, 500, response.content)
+        self.assertEqual(response['Content-Type'], 'application/json')
+        payload = json.loads(response.content)
+        self.assertIn('No se pudo completar el reenvio', payload['error'])
+        self.assertNotIn('<html>', payload['error'])
 
     def test_missing_local_pdf_is_rehydrated_before_signing(self):
         factory = RequestFactory()

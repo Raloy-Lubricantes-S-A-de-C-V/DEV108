@@ -300,6 +300,18 @@
 
 {% block scripts %}
 <script>
+    async function readJsonResponse(response) {
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.toLowerCase().includes('application/json')) {
+            return response.json();
+        }
+
+        const text = await response.text();
+        const cleanText = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        const detail = cleanText ? ` ${cleanText.slice(0, 180)}` : '';
+        throw new Error(`El servidor devolvió una respuesta no JSON (HTTP ${response.status}).${detail}`);
+    }
+
     async function reenviarFirma(button) {
         const statusBox = button.parentElement.querySelector('.resend-status');
         button.disabled = true;
@@ -311,14 +323,14 @@
         try {
             const res = await fetch('/api/reenviar-firma-trazabilidad/', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify({
                     token: button.dataset.token,
                     firmante_token: button.dataset.firmanteToken,
                     email: button.dataset.email
                 })
             });
-            const payload = await res.json();
+            const payload = await readJsonResponse(res);
             if (!res.ok) throw new Error(payload.error || 'No se pudo reenviar.');
             statusBox.textContent = `Correo reenviado ${payload.fecha || ''}`;
             statusBox.classList.add('text-status-success');
