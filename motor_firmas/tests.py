@@ -42,6 +42,8 @@ from .views import (
     _obtener_hash_para_reestampado,
     _programar_resguardo_pdf_usuario_pendiente,
     _proceso_pdf_puede_servirse,
+    _portal_dashboard_doc_payload,
+    _portal_dashboard_docs_query,
     _relaciones_documento_firma,
     _url_firmada_expirada,
     admin_api,
@@ -201,6 +203,76 @@ class AdminActionGuardTemplateTest(SimpleTestCase):
             template = self._template(filename)
             for snippet in snippets:
                 self.assertIn(snippet, template)
+
+
+class PortalDashboardRoleVisibilityTest(SimpleTestCase):
+    def test_portal_dashboard_query_includes_owner_or_signer_by_default(self):
+        query = _portal_dashboard_docs_query('Usuario@Example.com', {})
+
+        self.assertEqual(query, {
+            '$or': [
+                {'owner_email': 'usuario@example.com'},
+                {'firmantes.email': 'usuario@example.com'},
+            ]
+        })
+
+    def test_portal_dashboard_query_can_filter_only_signer_docs(self):
+        query = _portal_dashboard_docs_query('Usuario@Example.com', {'filRol': 'signer'})
+
+        self.assertEqual(query, {
+            '$and': [
+                {'firmantes.email': 'usuario@example.com'},
+                {'owner_email': {'$ne': 'usuario@example.com'}},
+            ]
+        })
+
+    def test_portal_dashboard_payload_marks_signer_and_sign_action(self):
+        proceso = SimpleNamespace(
+            reference_id='DOC-SIGNER',
+            token_acceso='token-doc',
+            owner_email='owner@example.com',
+            status='PROCESSING',
+            created_at=datetime(2026, 8, 4, 12, 30),
+            summary_data={},
+            firmantes=[{
+                'nombre': 'Firmante',
+                'email': 'firmante@example.com',
+                'token_firmante': 'token-firmante',
+            }],
+            indice_actual=1,
+        )
+
+        payload = _portal_dashboard_doc_payload(proceso, 'Firmante@Example.com')
+
+        self.assertEqual(payload['rol_documento'], 'signer')
+        self.assertEqual(payload['rol_documento_label'], 'Firmante')
+        self.assertEqual(payload['owner_email'], 'owner@example.com')
+        self.assertFalse(payload['can_manage'])
+        self.assertTrue(payload['can_sign'])
+        self.assertEqual(payload['firmante_token'], 'token-firmante')
+
+    def test_portal_dashboard_payload_owner_role_wins_over_signer(self):
+        proceso = SimpleNamespace(
+            reference_id='DOC-OWNER',
+            token_acceso='token-doc',
+            owner_email='owner@example.com',
+            status='PROCESSING',
+            created_at=None,
+            summary_data={},
+            firmantes=[{
+                'nombre': 'Owner',
+                'email': 'owner@example.com',
+                'token_firmante': 'token-owner',
+            }],
+            indice_actual=1,
+        )
+
+        payload = _portal_dashboard_doc_payload(proceso, 'Owner@Example.com')
+
+        self.assertEqual(payload['rol_documento'], 'owner')
+        self.assertEqual(payload['rol_documento_label'], 'Propietario')
+        self.assertTrue(payload['can_manage'])
+        self.assertFalse(payload['can_sign'])
 
 
 class DocumentReferenceHelpersTest(SimpleTestCase):

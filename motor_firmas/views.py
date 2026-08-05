@@ -72,6 +72,9 @@ PORTAL_LABEL_ALL_VALUE = 'all'
 PORTAL_LABEL_UNTAGGED_VALUE = 'sin_etiqueta'
 PORTAL_LABEL_RESERVED_NAMES = {'all', 'todo', 'sin etiqueta', 'sin_etiqueta'}
 PORTAL_LABEL_PATH_SEPARATOR = ' / '
+PORTAL_DOC_ROLE_ALL_VALUE = 'all'
+PORTAL_DOC_ROLE_OWNER_VALUE = 'owner'
+PORTAL_DOC_ROLE_SIGNER_VALUE = 'signer'
 DRIVE_STORAGE_POLICY = 'formatos_pdfs_v1'
 DEFAULT_DRIVE_ARCHIVE_ROOT_FOLDER_ID = '1sCj-iPiNtyitSHz5O2Mv3KSDGZiDDgf0'
 DEFAULT_DRIVE_FORMATOS_FOLDER_ID = '1QAFVrdUC76S_xmwjgqxIyzk0tUMoLmk9'
@@ -2246,7 +2249,8 @@ def _admin_dashboard_docs_page(admin_obj, filtros=None, sync_limit=5):
 
 def _portal_dashboard_docs_query(owner_email, filtros=None):
     filtros = filtros or {}
-    condiciones = [{'owner_email': _normalizar_email(owner_email)}]
+    owner_email = _normalizar_email(owner_email)
+    condiciones = [_portal_dashboard_access_query(owner_email, filtros.get('filRol'))]
 
     folio = str(filtros.get('filFolio') or '').strip()
     if folio:
@@ -2268,16 +2272,60 @@ def _portal_dashboard_docs_query(owner_email, filtros=None):
 
     etiqueta_filtro = str(filtros.get('filEtiqueta') or PORTAL_LABEL_ALL_VALUE).strip()
     if etiqueta_filtro == PORTAL_LABEL_UNTAGGED_VALUE:
+        condiciones.append({'owner_email': owner_email})
         condiciones.append(_query_sin_etiqueta_documento())
     elif etiqueta_filtro and etiqueta_filtro.casefold() not in (PORTAL_LABEL_ALL_VALUE, 'todo'):
         etiqueta = _normalizar_etiqueta_documento(etiqueta_filtro)
         if etiqueta:
+            condiciones.append({'owner_email': owner_email})
             condiciones.append(_query_etiqueta_documento(None, etiqueta))
 
     return condiciones[0] if len(condiciones) == 1 else {'$and': condiciones}
 
 
-def _portal_dashboard_doc_payload(proceso):
+def _portal_dashboard_access_query(owner_email, rol=None):
+    owner_email = _normalizar_email(owner_email)
+    rol = str(rol or PORTAL_DOC_ROLE_ALL_VALUE).strip().lower()
+    owner_query = {'owner_email': owner_email}
+    signer_query = {'firmantes.email': owner_email}
+
+    if rol == PORTAL_DOC_ROLE_OWNER_VALUE:
+        return owner_query
+    if rol == PORTAL_DOC_ROLE_SIGNER_VALUE:
+        return {'$and': [signer_query, {'owner_email': {'$ne': owner_email}}]}
+    return {'$or': [owner_query, signer_query]}
+
+
+def _portal_dashboard_signer_info(firmantes, viewer_email, proceso):
+    viewer_email = _normalizar_email(viewer_email)
+    if not viewer_email:
+        return {}
+
+    matches = [
+        (idx, firmante)
+        for idx, firmante in enumerate(firmantes)
+        if _normalizar_email(firmante.get('email')) == viewer_email
+    ]
+    if not matches:
+        return {}
+
+    indice_turno = _indice_pendiente_actual(proceso, firmantes)
+    indices_turno = _indices_firmas_en_turno(firmantes, indice_turno) if indice_turno is not None else []
+    selected_idx, selected = next(
+        ((idx, firmante) for idx, firmante in matches if idx in indices_turno and not firmante.get('fecha_firma')),
+        matches[0],
+    )
+    firmado = bool(selected.get('fecha_firma'))
+    en_turno = selected_idx in indices_turno and not firmado
+    return {
+        'firmante_token': str(selected.get('token_firmante') or ''),
+        'firmante_firmado': firmado,
+        'firmante_en_turno': en_turno,
+        'firmante_estado': 'firmado' if firmado else 'en_turno' if en_turno else 'en_espera',
+    }
+
+
+def _portal_dashboard_doc_payload(proceso, viewer_email=None):
     firmantes = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
     total_firmas = len(firmantes)
     firmas_hechas = sum(1 for f in firmantes if f.get('fecha_firma'))
@@ -2287,9 +2335,31 @@ def _portal_dashboard_doc_payload(proceso):
     firmx_id = summary_data.get('firmx_id') or ''
     status = getattr(proceso, 'status', 'UNKNOWN') or 'UNKNOWN'
     etiqueta = _normalizar_etiqueta_documento(getattr(proceso, 'etiqueta', ''))
+    owner_doc = _normalizar_email(getattr(proceso, 'owner_email', ''))
+    viewer_email = _normalizar_email(viewer_email)
+    signer_info = _portal_dashboard_signer_info(firmantes, viewer_email, proceso)
+    rol_documento = PORTAL_DOC_ROLE_OWNER_VALUE if viewer_email and owner_doc == viewer_email else ''
+    if not rol_documento and signer_info:
+        rol_documento = PORTAL_DOC_ROLE_SIGNER_VALUE
+    if not rol_documento:
+        rol_documento = PORTAL_DOC_ROLE_OWNER_VALUE
+    can_manage = rol_documento == PORTAL_DOC_ROLE_OWNER_VALUE
+    can_sign = bool(
+        rol_documento == PORTAL_DOC_ROLE_SIGNER_VALUE
+        and status == 'PROCESSING'
+        and not firmx_id
+        and signer_info.get('firmante_token')
+        and signer_info.get('firmante_en_turno')
+    )
     return {
         'reference_id': getattr(proceso, 'reference_id', 'N/A'),
         'token': str(getattr(proceso, 'token_acceso', '')),
+        'owner_email': owner_doc,
+        'rol_documento': rol_documento,
+        'rol_documento_label': 'Propietario' if rol_documento == PORTAL_DOC_ROLE_OWNER_VALUE else 'Firmante',
+        'can_manage': can_manage,
+        'can_sign': can_sign,
+        **signer_info,
         'status': status,
         'fecha_iso': created_at.strftime('%Y-%m-%d') if created_at else '',
         'fecha_formato': created_at.strftime('%d/%m/%Y %H:%M') if created_at else '',
@@ -2313,7 +2383,8 @@ def _portal_dashboard_docs_page(owner_email, filtros=None, sync_limit=5):
     page = max(page, 1)
 
     collection = _mongo_collection(ProcesoFirma)
-    base_query = {'owner_email': _normalizar_email(owner_email)}
+    owner_email = _normalizar_email(owner_email)
+    base_query = _portal_dashboard_access_query(owner_email, PORTAL_DOC_ROLE_ALL_VALUE)
     query = _portal_dashboard_docs_query(owner_email, filtros)
     total_global = collection.count_documents(base_query)
     total_filtered = collection.count_documents(query)
@@ -2347,7 +2418,7 @@ def _portal_dashboard_docs_page(owner_email, filtros=None, sync_limit=5):
             if success:
                 proceso = _mongo_find_one(ProcesoFirma, {'_id': proceso._id}) or proceso
             sync_count += 1
-        docs.append(_portal_dashboard_doc_payload(proceso))
+        docs.append(_portal_dashboard_doc_payload(proceso, owner_email))
 
     start = skip + 1 if total_filtered else 0
     end = min(skip + page_size, total_filtered)
