@@ -860,6 +860,9 @@ def _registrar_pdf_final_drive_id(proceso, response):
             or item.get('pdf_file_id')
             or item.get('id_archivo')
             or item.get('id')
+            or item.get('fileId')
+            or item.get('drive_id')
+            or item.get('google_drive_file_id')
             or ''
         )
         filename = item.get('filename') or item.get('name') or filename
@@ -881,14 +884,7 @@ def _registrar_pdf_final_drive_id(proceso, response):
     if web_view_link:
         summary_data['drive_final_webViewLink'] = web_view_link
 
-    updates = {'summary_data': summary_data}
-    pdf_path = str(getattr(proceso, 'pdf_path', '') or '')
-    if _eliminar_archivo_media(pdf_path):
-        summary_data['pdf_local_removed_after_drive_upload'] = True
-        summary_data['pdf_local_removed_at'] = _datetime_for_mongo().isoformat()
-        updates['pdf_path'] = ''
-
-    _mongo_update_document(ProcesoFirma, proceso, updates)
+    _mongo_update_document(ProcesoFirma, proceso, {'summary_data': summary_data})
 
 
 def _asegurar_pdf_usuario_local(doc, owner_email):
@@ -953,8 +949,11 @@ def _asegurar_proceso_pdf_local(proceso):
     if pdf_path and os.path.exists(pdf_path):
         return
 
+    es_completado = str(getattr(proceso, 'status', '') or '').upper() == 'COMPLETED'
+
     drive_file_id = (
-        summary_data.get('drive_file_id')
+        summary_data.get('drive_final_file_id')
+        or summary_data.get('drive_file_id')
         or summary_data.get('file_id')
         or summary_data.get('pdf_file_id')
     )
@@ -962,26 +961,71 @@ def _asegurar_proceso_pdf_local(proceso):
 
     rehydrating_source = False
     if not drive_file_id:
-        # Solo se intenta inferir el origen (emparejamiento por fecha) cuando el proceso
-        # aún no está completado; el id de origen guardado en creación sirve en cualquier estado.
-        if str(getattr(proceso, 'status', '') or '').upper() != 'COMPLETED':
+        if not es_completado:
             inferred_source = _inferir_pdf_libre_origen(proceso)
             if inferred_source:
                 summary_data.update({k: v for k, v in inferred_source.items() if v})
-        drive_file_id = summary_data.get('source_drive_file_id') or summary_data.get('original_drive_file_id')
-        if drive_file_id:
-            filename = summary_data.get('source_pdf_filename') or filename
-            rehydrating_source = True
+            drive_file_id = summary_data.get('source_drive_file_id') or summary_data.get('original_drive_file_id')
+            if drive_file_id:
+                filename = summary_data.get('source_pdf_filename') or filename
+                rehydrating_source = True
 
     if not drive_file_id:
+        ref_id = getattr(proceso, 'reference_id', '')
+        if ref_id:
+            fallback_path = os.path.join(settings.MEDIA_ROOT, f"{ref_id}.pdf")
+            if os.path.exists(fallback_path):
+                _mongo_update_document(ProcesoFirma, proceso, {'pdf_path': fallback_path})
+                setattr(proceso, 'pdf_path', fallback_path)
+                return
+        if es_completado:
+            raise ValueError(
+                f"El documento {getattr(proceso, 'reference_id', '')} está completado "
+                "pero no se encontró el ID del PDF firmado en Drive. "
+                "No se usa el PDF original para evitar sobrescribir la versión firmada."
+            )
         return
 
-    rel_path, abs_path = _descargar_pdf_drive_a_media(
-        drive_file_id,
-        filename,
-        owner_email=getattr(proceso, 'owner_email', ''),
-        folder_id=getattr(proceso, 'dir_drive', ''),
-    )
+    download_error = None
+    try:
+        rel_path, abs_path = _descargar_pdf_drive_a_media(
+            drive_file_id,
+            filename,
+            owner_email=getattr(proceso, 'owner_email', ''),
+            folder_id=getattr(proceso, 'dir_drive', ''),
+        )
+    except Exception as e:
+        download_error = e
+        rel_path, abs_path = '', ''
+
+    if download_error and not rehydrating_source and not es_completado:
+        source_id = summary_data.get('source_drive_file_id') or summary_data.get('original_drive_file_id')
+        if source_id:
+            try:
+                source_filename = summary_data.get('source_pdf_filename') or filename
+                rel_path, abs_path = _descargar_pdf_drive_a_media(
+                    source_id,
+                    source_filename,
+                    owner_email=getattr(proceso, 'owner_email', ''),
+                    folder_id=getattr(proceso, 'dir_drive', ''),
+                )
+                rehydrating_source = True
+                download_error = None
+            except Exception:
+                pass
+
+    if download_error:
+        ref_id = getattr(proceso, 'reference_id', '')
+        if ref_id:
+            fallback_path = os.path.join(settings.MEDIA_ROOT, f"{ref_id}.pdf")
+            if os.path.exists(fallback_path):
+                _mongo_update_document(ProcesoFirma, proceso, {'pdf_path': fallback_path})
+                setattr(proceso, 'pdf_path', fallback_path)
+                return
+        raise download_error
+
+    if not rel_path or not abs_path:
+        return
 
     target_path = abs_path
     if rehydrating_source:
@@ -3730,6 +3774,104 @@ def _firmx_sync_status(clean_id, force=False):
         return False, str(e)
 
 
+def _reintentar_finalizacion_n8n(proceso):
+    """
+    Re-intenta enviar el PDF a N8N para registrar el drive_file_id.
+    Si no hay PDF local, intenta recuperarlo de Drive.
+    Retorna '' si tuvo éxito, o string de error si falló.
+    """
+    pdf_path = str(getattr(proceso, 'pdf_path', '') or '')
+    if not pdf_path or not os.path.exists(pdf_path):
+        sd = getattr(proceso, 'summary_data', {}) or {}
+        es_completado = str(getattr(proceso, 'status', '') or '').upper() == 'COMPLETED'
+
+        if es_completado:
+            firmx_id = sd.get('firmx_id')
+            if not firmx_id:
+                return (
+                    "El documento está completado pero el PDF firmado no está disponible "
+                    "localmente. No se re-intenta con el PDF original para evitar "
+                    "sobrescribir la versión firmada."
+                )
+
+        final_drive_id = (
+            sd.get('drive_final_file_id')
+            or sd.get('drive_file_id')
+            or sd.get('pdf_file_id')
+        )
+        if final_drive_id and es_completado:
+            try:
+                final_filename = sd.get('drive_final_filename') or f"{proceso.reference_id}_CERTIFICADO.pdf"
+                rel, abs_p = _descargar_pdf_drive_a_media(
+                    final_drive_id,
+                    final_filename,
+                    owner_email=getattr(proceso, 'owner_email', ''),
+                    folder_id=getattr(proceso, 'dir_drive', ''),
+                )
+                _mongo_update_document(ProcesoFirma, proceso, {'pdf_path': abs_p})
+                setattr(proceso, 'pdf_path', abs_p)
+            except Exception:
+                pass
+            pdf_path = str(getattr(proceso, 'pdf_path', '') or '')
+            if pdf_path and os.path.exists(pdf_path):
+                return ''
+
+        source_id = sd.get('source_drive_file_id') or sd.get('original_drive_file_id') or ''
+        if not source_id:
+            return "No hay PDF local ni ID de Drive fuente para re-intentar."
+        try:
+            source_filename = sd.get('source_pdf_filename') or f"{proceso.reference_id}.pdf"
+            rel, abs_p = _descargar_pdf_drive_a_media(
+                source_id,
+                source_filename,
+                owner_email=getattr(proceso, 'owner_email', ''),
+                folder_id=getattr(proceso, 'dir_drive', ''),
+            )
+            _mongo_update_document(ProcesoFirma, proceso, {'pdf_path': abs_p})
+            setattr(proceso, 'pdf_path', abs_p)
+        except Exception as dl_err:
+            return f"No se pudo recuperar el PDF fuente desde Drive: {dl_err}"
+        pdf_path = str(getattr(proceso, 'pdf_path', '') or '')
+        if not pdf_path or not os.path.exists(pdf_path):
+            return "El PDF fuente se descargó pero no se pudo guardar localmente."
+
+    link_trazabilidad = f"{PUBLIC_BASE_URL}/trazabilidad/{proceso.token_acceso}/"
+    firmantes = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
+    todos_los_correos = [f.get('email') for f in firmantes if f.get('email')]
+    if getattr(proceso, 'owner_email', None):
+        todos_los_correos.append(proceso.owner_email)
+
+    dominio_creador = proceso.owner_email.split('@')[1] if proceso.owner_email and '@' in proceso.owner_email else 'raloy.com.mx'
+    dominios_permitidos = {dominio_creador, 'raloy.com.mx', 'consorcionova.com'}
+    correos_internos = [
+        email for email in set(todos_los_correos)
+        if email and any(str(email).endswith(d) for d in dominios_permitidos)
+    ]
+
+    try:
+        with open(pdf_path, 'rb') as f:
+            response = tracked_post(
+                N8N_WEBHOOK_FINALIZAR_PROCESO,
+                data={
+                    "reference_id": proceso.reference_id,
+                    "status": "COMPLETED",
+                    "correos_destino": ",".join(correos_internos),
+                    **_n8n_storage_data_for_proceso(proceso),
+                    "link": link_trazabilidad,
+                    "reintentar": "true",
+                },
+                files={"pdf_final": (f"{proceso.reference_id}_CERTIFICADO.pdf", f, "application/pdf")},
+                timeout=30,
+            )
+        n8n_error = _n8n_response_error(response)
+        if n8n_error:
+            return f"N8N rechazó el re-intento: {n8n_error}"
+        _registrar_pdf_final_drive_id(proceso, response)
+        return ''
+    except Exception as e:
+        return f"Error en re-intento de finalización N8N: {e}"
+
+
 def vista_trazabilidad(request, token):
     proceso = _get_proceso_por_token_or_404(token)
     summary_data = getattr(proceso, 'summary_data', {})
@@ -3800,6 +3942,37 @@ def vista_trazabilidad(request, token):
         except Exception as e:
             pdf_error = str(e)
 
+        # --- RE-INTENTO AUTOMÁTICO PARA DOCUMENTOS COMPLETED ---
+        # Si el PDF firmado no está disponible localmente,
+        # intentar recuperarlo de Drive usando el drive_file_id del PDF firmado.
+        # NO se usa source_drive_file_id porque ese es el PDF original SIN firmas.
+        pdf_missing = not pdf_error and not _media_path_exists(getattr(proceso, 'pdf_path', ''))
+        if pdf_error or pdf_missing:
+            sd_check = getattr(proceso, 'summary_data', {}) or {}
+            has_signed_drive_id = bool(
+                sd_check.get('drive_final_file_id')
+                or sd_check.get('drive_file_id')
+                or sd_check.get('file_id')
+                or sd_check.get('pdf_file_id')
+            )
+            if str(getattr(proceso, 'status', '') or '').upper() == 'COMPLETED':
+                if has_signed_drive_id:
+                    retry_result = _reintentar_finalizacion_n8n(proceso)
+                    if not retry_result:
+                        pdf_error = None
+                        try:
+                            _asegurar_proceso_pdf_local(proceso)
+                        except Exception as e2:
+                            pdf_error = str(e2)
+                    else:
+                        pdf_error = retry_result
+                elif not pdf_error:
+                    pdf_error = (
+                        "El PDF firmado no está disponible localmente y no se cuenta "
+                        "con el ID de Drive de la versión firmada para recuperarlo."
+                    )
+        # --- FIN RE-INTENTO ---
+
     pdf_url_local = _proceso_pdf_url(proceso) if _proceso_pdf_puede_servirse(proceso) else ''
     # En modo FIRMX, el documento original a mostrar es el devuelto por FIRMX (file_url);
     # el certificado/final es file_url_certificate.
@@ -3865,10 +4038,20 @@ def ver_pdf_proceso(request, token):
 
     abs_path = _media_abs_path(getattr(proceso, 'pdf_path', ''))
     if not abs_path or not os.path.exists(abs_path):
+        ref_id = getattr(proceso, 'reference_id', '')
+        if ref_id:
+            fallback_path = os.path.join(settings.MEDIA_ROOT, f"{ref_id}.pdf")
+            if os.path.exists(fallback_path):
+                _mongo_update_document(ProcesoFirma, proceso, {'pdf_path': fallback_path})
+                abs_path = fallback_path
+    if not abs_path or not os.path.exists(abs_path):
         return HttpResponse("El PDF no esta disponible localmente y no hay ID de Drive para recuperarlo.", status=404)
 
     filename = _safe_pdf_filename(f"{getattr(proceso, 'reference_id', 'documento')}.pdf")
-    return FileResponse(open(abs_path, 'rb'), content_type='application/pdf', filename=filename)
+    response = FileResponse(open(abs_path, 'rb'), content_type='application/pdf', filename=filename)
+    response['X-Frame-Options'] = 'SAMEORIGIN'
+    response['Cache-Control'] = 'no-store, max-age=0'
+    return response
 
 
 def _url_firmada_expirada(url, now=None):
@@ -3906,6 +4089,7 @@ def _proceso_pdf_local_response(proceso):
 
     filename = _safe_pdf_filename(f"{getattr(proceso, 'reference_id', 'documento')}.pdf")
     response = FileResponse(open(abs_path, 'rb'), content_type='application/pdf', filename=filename)
+    response['X-Frame-Options'] = 'SAMEORIGIN'
     response['Cache-Control'] = 'no-store, max-age=0'
     return response
 
@@ -3949,6 +4133,7 @@ def _firmx_pdf_response(proceso, token=None):
         filename = _safe_pdf_filename(f"{getattr(proceso, 'reference_id', 'documento')}.pdf")
         response = HttpResponse(content, content_type='application/pdf')
         response['Content-Disposition'] = f'inline; filename="{filename}"'
+        response['X-Frame-Options'] = 'SAMEORIGIN'
         response['Cache-Control'] = 'no-store, max-age=0'
         return response
 
