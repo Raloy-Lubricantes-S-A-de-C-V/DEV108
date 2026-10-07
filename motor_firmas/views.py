@@ -1956,6 +1956,69 @@ def _datetime_for_mongo(value=None):
     value = value or timezone.now()
     return value.replace(tzinfo=None) if timezone.is_aware(value) else value
 
+def _fecha_local_formateada(value, incluir_segundos=True):
+    """
+    Convierte fechas almacenadas en UTC a la zona horaria configurada
+    en Django (America/Mexico_City) y devuelve un texto listo para mostrar.
+
+    Soporta:
+    - datetime
+    - ISO 8601
+    - dd/mm/YYYY HH:MM:SS
+    - YYYY-mm-dd HH:MM:SS
+    """
+    if not value:
+        return ''
+
+    fecha = value
+
+    if isinstance(fecha, str):
+        texto = fecha.strip()
+
+        # Soporte para fechas ISO terminadas en Z
+        texto_iso = texto.replace('Z', '+00:00')
+
+        try:
+            fecha = datetime.fromisoformat(texto_iso)
+        except ValueError:
+            fecha = None
+
+            formatos = (
+                '%d/%m/%Y %H:%M:%S',
+                '%d/%m/%Y %H:%M',
+                '%Y-%m-%d %H:%M:%S',
+                '%Y-%m-%d %H:%M',
+            )
+
+            for formato in formatos:
+                try:
+                    fecha = datetime.strptime(texto, formato)
+                    break
+                except ValueError:
+                    continue
+
+            if fecha is None:
+                return texto
+
+    if not isinstance(fecha, datetime):
+        return str(value)
+
+    # Los datetime sin timezone provenientes de Mongo se consideran UTC.
+    if timezone.is_naive(fecha):
+        fecha = timezone.make_aware(
+            fecha,
+            datetime_timezone.utc
+        )
+
+    fecha_local = timezone.localtime(fecha)
+
+    formato_salida = (
+        '%d/%m/%Y %H:%M:%S'
+        if incluir_segundos
+        else '%d/%m/%Y %H:%M'
+    )
+
+    return fecha_local.strftime(formato_salida)
 
 def _datetime_for_compare(value):
     if value is None:
@@ -2374,20 +2437,58 @@ def _portal_dashboard_doc_payload(proceso, viewer_email=None):
     total_firmas = len(firmantes)
     firmas_hechas = sum(1 for f in firmantes if f.get('fecha_firma'))
     porcentaje = int((firmas_hechas / total_firmas) * 100) if total_firmas > 0 else 0
+
     created_at = getattr(proceso, 'created_at', None)
-    summary_data = _json_or_default(getattr(proceso, 'summary_data', {}) or {}, {})
+
+    # MongoDB maneja estos DateTime como UTC sin información de zona horaria.
+    # Primero se establece UTC y posteriormente se convierte a la zona
+    # configurada por Django: America/Mexico_City.
+    if created_at:
+        if timezone.is_naive(created_at):
+            created_at = timezone.make_aware(
+                created_at,
+                datetime_timezone.utc
+            )
+
+        created_at = timezone.localtime(created_at)
+
+    summary_data = _json_or_default(
+        getattr(proceso, 'summary_data', {}) or {},
+        {}
+    )
+
     firmx_id = summary_data.get('firmx_id') or ''
     status = getattr(proceso, 'status', 'UNKNOWN') or 'UNKNOWN'
-    etiqueta = _normalizar_etiqueta_documento(getattr(proceso, 'etiqueta', ''))
-    owner_doc = _normalizar_email(getattr(proceso, 'owner_email', ''))
+    etiqueta = _normalizar_etiqueta_documento(
+        getattr(proceso, 'etiqueta', '')
+    )
+
+    owner_doc = _normalizar_email(
+        getattr(proceso, 'owner_email', '')
+    )
+
     viewer_email = _normalizar_email(viewer_email)
-    signer_info = _portal_dashboard_signer_info(firmantes, viewer_email, proceso)
-    rol_documento = PORTAL_DOC_ROLE_OWNER_VALUE if viewer_email and owner_doc == viewer_email else ''
+
+    signer_info = _portal_dashboard_signer_info(
+        firmantes,
+        viewer_email,
+        proceso
+    )
+
+    rol_documento = (
+        PORTAL_DOC_ROLE_OWNER_VALUE
+        if viewer_email and owner_doc == viewer_email
+        else ''
+    )
+
     if not rol_documento and signer_info:
         rol_documento = PORTAL_DOC_ROLE_SIGNER_VALUE
+
     if not rol_documento:
         rol_documento = PORTAL_DOC_ROLE_OWNER_VALUE
+
     can_manage = rol_documento == PORTAL_DOC_ROLE_OWNER_VALUE
+
     can_sign = bool(
         rol_documento == PORTAL_DOC_ROLE_SIGNER_VALUE
         and status == 'PROCESSING'
@@ -2395,19 +2496,36 @@ def _portal_dashboard_doc_payload(proceso, viewer_email=None):
         and signer_info.get('firmante_token')
         and signer_info.get('firmante_en_turno')
     )
+
     return {
         'reference_id': getattr(proceso, 'reference_id', 'N/A'),
         'token': str(getattr(proceso, 'token_acceso', '')),
         'owner_email': owner_doc,
         'rol_documento': rol_documento,
-        'rol_documento_label': 'Propietario' if rol_documento == PORTAL_DOC_ROLE_OWNER_VALUE else 'Firmante',
+        'rol_documento_label': (
+            'Propietario'
+            if rol_documento == PORTAL_DOC_ROLE_OWNER_VALUE
+            else 'Firmante'
+        ),
         'can_manage': can_manage,
         'can_sign': can_sign,
         **signer_info,
         'status': status,
-        'fecha_iso': created_at.strftime('%Y-%m-%d') if created_at else '',
-        'fecha_formato': created_at.strftime('%d/%m/%Y %H:%M') if created_at else '',
-        'mes': created_at.strftime('%B %Y') if created_at else 'Sin fecha',
+
+        # Fechas ya convertidas a horario de México
+        'fecha_iso': (
+            created_at.strftime('%Y-%m-%d')
+            if created_at else ''
+        ),
+        'fecha_formato': (
+            created_at.strftime('%d/%m/%Y %H:%M')
+            if created_at else ''
+        ),
+        'mes': (
+            created_at.strftime('%B %Y')
+            if created_at else 'Sin fecha'
+        ),
+
         'total_firmas': total_firmas,
         'firmas_hechas': firmas_hechas,
         'porcentaje': porcentaje,
@@ -3896,6 +4014,31 @@ def vista_trazabilidad(request, token):
             sync_error = error_msg
 
     firmantes = _normalizar_firmantes(getattr(proceso, 'firmantes', []))
+    # Preparar fechas para visualización en horario local de México
+    created_at_local = _fecha_local_formateada(
+        getattr(proceso, 'created_at', None),
+        incluir_segundos=False
+    )
+
+    created_at_local_segundos = _fecha_local_formateada(
+        getattr(proceso, 'created_at', None),
+        incluir_segundos=True
+    )
+
+    for firmante in firmantes:
+        firmante['fecha_firma_local'] = _fecha_local_formateada(
+            firmante.get('fecha_firma'),
+            incluir_segundos=True
+        )
+
+        firmante['ultimo_reenvio_correo_local'] = _fecha_local_formateada(
+            firmante.get('ultimo_reenvio_correo'),
+            incluir_segundos=True
+        )
+
+    # Sólo modifica el objeto en memoria para el template.
+    # No guarda estos campos auxiliares en MongoDB.
+    proceso.firmantes = firmantes
     if es_firmx:
         # Ordenar dinámicamente: firmados primero (por fecha), luego pendientes
         firmantes.sort(key=lambda x: (0 if x.get('fecha_firma') else 1, str(x.get('fecha_firma') or '')))
@@ -3983,6 +4126,8 @@ def vista_trazabilidad(request, token):
     return render(request, 'motor_firmas/trazabilidad.html',
                   {
                       'proceso': proceso,
+                      'created_at_local': created_at_local,
+                      'created_at_local_segundos': created_at_local_segundos,
                       'pdf_url': pdf_url_local,
                       'pdf_url_original': pdf_url_original,
                       'pdf_url_certificate': pdf_url_certificate,

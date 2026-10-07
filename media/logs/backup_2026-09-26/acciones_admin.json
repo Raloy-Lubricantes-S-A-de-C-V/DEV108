@@ -1,0 +1,26 @@
+[
+  {
+    "admin_email": "pjimenezb@raloy.com.mx",
+    "accion": "/portal/dashboard/",
+    "detalle": {
+      "metodo": "GET",
+      "status": 200,
+      "duracion_ms": 28
+    },
+    "ip": "10.150.4.235",
+    "created_at": "2026-09-12 04:14:28.124000",
+    "id": 567
+  },
+  {
+    "admin_email": "pjimenezb@raloy.com.mx",
+    "accion": "/portal/dashboard/",
+    "detalle": {
+      "metodo": "GET",
+      "status": 200,
+      "duracion_ms": 21
+    },
+    "ip": "10.150.4.235",
+    "created_at": "2026-09-12 04:15:46.392000",
+    "id": 568
+  }
+]

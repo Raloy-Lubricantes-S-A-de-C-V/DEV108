@@ -1,0 +1,142 @@
+[
+  {
+    "admin_email": "ujardon@consorcionova.com",
+    "accion": "/portal/dashboard/",
+    "detalle": {
+      "metodo": "GET",
+      "status": 200,
+      "duracion_ms": 23
+    },
+    "ip": "10.100.0.73, 10.150.38.4",
+    "created_at": "2026-09-14 16:57:17.360000",
+    "id": 579
+  },
+  {
+    "admin_email": "ujardon@consorcionova.com",
+    "accion": "/portal/mis-pdfs/",
+    "detalle": {
+      "metodo": "GET",
+      "status": 200,
+      "duracion_ms": 14
+    },
+    "ip": "10.100.0.73, 10.150.38.4",
+    "created_at": "2026-09-14 16:57:23.968000",
+    "id": 580
+  },
+  {
+    "admin_email": "ujardon@consorcionova.com",
+    "accion": "/portal/configurar-pdf/bf36bdb6-0e83-473c-8c5a-07936a16cd61/",
+    "detalle": {
+      "metodo": "GET",
+      "status": 200,
+      "duracion_ms": 75
+    },
+    "ip": "10.100.0.73, 10.150.38.4",
+    "created_at": "2026-09-14 16:57:26.105000",
+    "id": 581
+  },
+  {
+    "admin_email": "ujardon@consorcionova.com",
+    "accion": "/portal/dashboard/",
+    "detalle": {
+      "metodo": "GET",
+      "status": 200,
+      "duracion_ms": 14
+    },
+    "ip": "10.100.0.73, 10.150.38.4",
+    "created_at": "2026-09-14 16:59:09.062000",
+    "id": 582
+  },
+  {
+    "admin_email": "ujardon@consorcionova.com",
+    "accion": "/portal/dashboard/",
+    "detalle": {
+      "metodo": "GET",
+      "status": 200,
+      "duracion_ms": 17
+    },
+    "ip": "10.100.0.73, 10.150.38.4",
+    "created_at": "2026-09-14 17:01:20.408000",
+    "id": 583
+  },
+  {
+    "admin_email": "ujardon@consorcionova.com",
+    "accion": "/portal/mis-pdfs/",
+    "detalle": {
+      "metodo": "GET",
+      "status": 200,
+      "duracion_ms": 11
+    },
+    "ip": "10.100.0.73, 10.150.38.4",
+    "created_at": "2026-09-14 17:01:22.274000",
+    "id": 584
+  },
+  {
+    "admin_email": "ujardon@consorcionova.com",
+    "accion": "/portal/subir-pdf/",
+    "detalle": {
+      "metodo": "GET",
+      "status": 200,
+      "duracion_ms": 11
+    },
+    "ip": "10.100.0.73, 10.150.38.4",
+    "created_at": "2026-09-14 17:01:24.385000",
+    "id": 585
+  },
+  {
+    "admin_email": "ujardon@consorcionova.com",
+    "accion": "/portal/configurar-pdf/65a276c1-063e-46ae-9c65-06fa5be04fbf/",
+    "detalle": {
+      "metodo": "GET",
+      "status": 200,
+      "duracion_ms": 59
+    },
+    "ip": "10.100.0.73, 10.150.38.4",
+    "created_at": "2026-09-14 17:01:58.576000",
+    "id": 586
+  },
+  {
+    "admin_email": "ujardon@consorcionova.com",
+    "accion": "/portal/dashboard/",
+    "detalle": {
+      "metodo": "GET",
+      "status": 200,
+      "duracion_ms": 15
+    },
+    "ip": "10.100.0.73, 10.150.38.4",
+    "created_at": "2026-09-14 17:02:58.674000",
+    "id": 587
+  },
+  {
+    "admin_email": "ujardon@consorcionova.com",
+    "accion": "/portal/dashboard/",
+    "detalle": {
+      "metodo": "GET",
+      "status": 200,
+      "duracion_ms": 13
+    },
+    "ip": "10.100.0.73, 10.150.38.4",
+    "created_at": "2026-09-14 17:04:20.860000",
+    "id": 588
+  },
+  {
+    "admin_email": "ujardon@consorcionova.com",
+    "accion": "cierre_sesion_inactividad",
+    "detalle": {},
+    "ip": "10.100.0.73, 10.150.38.4",
+    "created_at": "2026-09-14 17:22:43.586000",
+    "id": 589
+  },
+  {
+    "admin_email": "ujardon@consorcionova.com",
+    "accion": "/admin-portal/",
+    "detalle": {
+      "metodo": "GET",
+      "status": 302,
+      "duracion_ms": 3
+    },
+    "ip": "10.100.0.73, 10.150.38.4",
+    "created_at": "2026-09-14 17:22:43.661000",
+    "id": 590
+  }
+]

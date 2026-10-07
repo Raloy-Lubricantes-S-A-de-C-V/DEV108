@@ -1,0 +1,44 @@
+[
+  {
+    "email": "ojimenez@raloy.com.mx",
+    "rol": "usuario",
+    "accion": "registro_firma_usuario",
+    "modulo": "registro",
+    "referencia": "ojimenez@raloy.com.mx",
+    "metodo": "",
+    "ruta": "",
+    "status": null,
+    "duracion_ms": null,
+    "ip": "10.150.31.69, 10.150.38.4",
+    "created_at": "2026-09-12 03:55:45.276000",
+    "id": 977
+  },
+  {
+    "email": "pjimenezb@raloy.com.mx",
+    "rol": "admin",
+    "accion": "/portal/dashboard/",
+    "modulo": "dashboard",
+    "referencia": "",
+    "metodo": "GET",
+    "ruta": "/portal/dashboard/",
+    "status": 200,
+    "duracion_ms": 28,
+    "ip": "10.150.4.235",
+    "created_at": "2026-09-12 04:14:28.118000",
+    "id": 978
+  },
+  {
+    "email": "pjimenezb@raloy.com.mx",
+    "rol": "admin",
+    "accion": "/portal/dashboard/",
+    "modulo": "dashboard",
+    "referencia": "",
+    "metodo": "GET",
+    "ruta": "/portal/dashboard/",
+    "status": 200,
+    "duracion_ms": 21,
+    "ip": "10.150.4.235",
+    "created_at": "2026-09-12 04:15:46.387000",
+    "id": 979
+  }
+]

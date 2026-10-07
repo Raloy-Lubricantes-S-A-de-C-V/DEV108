@@ -81,7 +81,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-outline-variant bg-white">
                     <div class="px-5 py-4 text-center">
                         <p class="text-xs font-bold uppercase text-text-muted mb-1">Generado</p>
-                        <p class="text-sm font-semibold text-primary">{{ proceso.created_at|date:"d/m/Y H:i" }}</p>
+                        <p class="text-sm font-semibold text-primary">{{ created_at_local }}</p>
                     </div>
                     <div class="px-5 py-4 text-center">
                         <p class="text-xs font-bold uppercase text-text-muted mb-1">Firmas</p>
@@ -121,7 +121,7 @@
                         <h2 class="text-lg font-bold text-primary mb-1">Documento Generado y Enviado</h2>
                         <p class="text-sm text-text-muted flex items-center gap-1">
                             <span class="material-symbols-outlined text-[14px]">calendar_today</span>
-                            {{ proceso.created_at|date:"d/m/Y H:i:s" }}
+                            {{ created_at_local_segundos }}
                         </p>
                         {% if pdf_available %}
                         <div class="mt-3">
@@ -178,7 +178,7 @@
                             {% if firmante.fecha_firma %}
                                 <div class="text-sm font-medium text-text-main flex items-center gap-1">
                                     <span class="material-symbols-outlined text-[14px]">event_available</span>
-                                    Firmado el: {{ firmante.fecha_firma }}
+                                    Firmado el: {{ firmante.fecha_firma_local }}
                                 </div>
                             {% else %}
                                 <div class="text-sm italic text-text-muted flex items-center gap-1">
@@ -218,7 +218,7 @@
                                 {% if firmante.ultimo_reenvio_correo %}
                                     <div class="text-xs text-on-surface-variant flex items-center gap-1 mt-2">
                                         <span class="material-symbols-outlined text-[14px]">mark_email_read</span>
-                                        Reenviado el: {{ firmante.ultimo_reenvio_correo }}
+                                        Reenviado el: {{ firmante.ultimo_reenvio_correo_local }}
                                     </div>
                                 {% endif %}
                             {% endif %}

@@ -1,0 +1,62 @@
+[
+  {
+    "admin_email": "ujardon@consorcionova.com",
+    "accion": "/portal/dashboard/",
+    "detalle": {
+      "metodo": "GET",
+      "status": 200,
+      "duracion_ms": 22
+    },
+    "ip": "10.100.0.73, 10.150.38.4",
+    "created_at": "2026-09-10 23:30:36.523000",
+    "id": 533
+  },
+  {
+    "admin_email": "ujardon@consorcionova.com",
+    "accion": "/portal/mis-pdfs/",
+    "detalle": {
+      "metodo": "GET",
+      "status": 200,
+      "duracion_ms": 10
+    },
+    "ip": "10.100.0.73, 10.150.38.4",
+    "created_at": "2026-09-10 23:30:38.107000",
+    "id": 534
+  },
+  {
+    "admin_email": "ujardon@consorcionova.com",
+    "accion": "/portal/mis-pdfs/",
+    "detalle": {
+      "metodo": "GET",
+      "status": 200,
+      "duracion_ms": 8
+    },
+    "ip": "10.100.0.73, 10.150.38.4",
+    "created_at": "2026-09-10 23:30:40.556000",
+    "id": 535
+  },
+  {
+    "admin_email": "ujardon@consorcionova.com",
+    "accion": "/portal/subir-pdf/",
+    "detalle": {
+      "metodo": "GET",
+      "status": 200,
+      "duracion_ms": 11
+    },
+    "ip": "10.100.0.73, 10.150.38.4",
+    "created_at": "2026-09-10 23:30:41.507000",
+    "id": 536
+  },
+  {
+    "admin_email": "ujardon@consorcionova.com",
+    "accion": "/portal/configurar-pdf/bf36bdb6-0e83-473c-8c5a-07936a16cd61/",
+    "detalle": {
+      "metodo": "GET",
+      "status": 200,
+      "duracion_ms": 59
+    },
+    "ip": "10.100.0.73, 10.150.38.4",
+    "created_at": "2026-09-10 23:30:57.750000",
+    "id": 537
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "b06ae227d1f345b89ede6c311fb2e66e",
+    "webhook_url": "https://n8n.raloy.com.mx/webhook/subir-pdf-usuario",
+    "webhook_label": "/webhook/subir-pdf-usuario",
+    "method": "POST",
+    "ok": true,
+    "decision": "continue",
+    "decision_label": "OK",
+    "http_status": 200,
+    "error": "",
+    "source": "background-upload",
+    "owner_email": "ujardon@consorcionova.com",
+    "timestamp": "2026-09-10T17:30:51.394042-06:00",
+    "timestamp_label": "2026-09-10 17:30:51",
+    "document_id": "bf36bdb6-0e83-473c-8c5a-07936a16cd61",
+    "global_event": true,
+    "created_at": "2026-09-10 23:30:51.394000"
+  }
+]

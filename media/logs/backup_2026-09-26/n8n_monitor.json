@@ -1,0 +1,19 @@
+[
+  {
+    "id": "26d356ee3f774805835426219e4e9ca7",
+    "webhook_url": "https://n8n.raloy.com.mx/webhook/invitar-registro-firma",
+    "webhook_label": "/webhook/invitar-registro-firma",
+    "method": "POST",
+    "ok": true,
+    "decision": "continue",
+    "decision_label": "OK",
+    "http_status": 200,
+    "error": "",
+    "source": "background",
+    "owner_email": "pjimenezb@raloy.com.mx",
+    "timestamp": "2026-09-11T16:33:54.427092-06:00",
+    "timestamp_label": "2026-09-11 16:33:54",
+    "global_event": true,
+    "created_at": "2026-09-11 22:33:54.427000"
+  }
+]
