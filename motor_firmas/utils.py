@@ -332,7 +332,7 @@ def estampar_firma_en_pdf(
 
     if signer_index == 1:
         audit_page = doc.new_page()
-        audit_page.insert_text((50, 40), "CONSTANCIA DE CONSERVACIÓN INTERNA RALOY", fontsize=14, fontname="hebo",
+        audit_page.insert_text((50, 40), "CONSTANCIA DE CONSERVACIÓN INTERNA", fontsize=14, fontname="hebo",
                                color=(0, 0, 0))
     else:
         audit_page = doc[-1]

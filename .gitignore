@@ -17,6 +17,9 @@ ENV/
 *.env
 !.env.example
 
+#carpeta media
+media/
+
 # Django
 *.log
 *.pot
